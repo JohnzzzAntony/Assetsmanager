@@ -17,6 +17,10 @@ import type {
   DepreciationRule,
   DepreciationCalc,
   AppNotification,
+  Vendor,
+  PurchaseOrder,
+  PurchaseOrderItem,
+  AssetDisposal,
 } from './types'
 
 class ApiError extends Error {
@@ -284,3 +288,55 @@ export const notificationApi = {
 }
 
 export { ApiError }
+
+// ---- Vendors ----
+export const vendorsApi = {
+  list: () => request<Vendor[]>('/api/vendors'),
+  get: (id: string) => request<Vendor & { purchaseOrders: PurchaseOrder[] }>(`/api/vendors/${id}`),
+  create: (data: Partial<Vendor>) =>
+    request<Vendor>('/api/vendors', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Vendor>) =>
+    request<Vendor>(`/api/vendors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/vendors/${id}`, { method: 'DELETE' }),
+}
+
+// ---- Purchase Orders ----
+export const purchaseOrdersApi = {
+  list: (query?: { vendorId?: string; status?: string }) => {
+    const params = new URLSearchParams()
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+      })
+    }
+    const qs = params.toString()
+    return request<PurchaseOrder[]>(`/api/purchase-orders${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: string) => request<PurchaseOrder>(`/api/purchase-orders/${id}`),
+  create: (data: Partial<PurchaseOrder> & { items?: Partial<PurchaseOrderItem>[] }) =>
+    request<PurchaseOrder>('/api/purchase-orders', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<PurchaseOrder> & { items?: Partial<PurchaseOrderItem>[] }) =>
+    request<PurchaseOrder>(`/api/purchase-orders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/purchase-orders/${id}`, { method: 'DELETE' }),
+}
+
+// ---- Asset Disposals ----
+export const disposalsApi = {
+  list: (query?: { assetId?: string; method?: string }) => {
+    const params = new URLSearchParams()
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+      })
+    }
+    const qs = params.toString()
+    return request<AssetDisposal[]>(`/api/disposals${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: string) => request<AssetDisposal>(`/api/disposals/${id}`),
+  create: (data: Partial<AssetDisposal>) =>
+    request<AssetDisposal>('/api/disposals', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<AssetDisposal>) =>
+    request<AssetDisposal>(`/api/disposals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/disposals/${id}`, { method: 'DELETE' }),
+  listForAsset: (assetId: string) => request<AssetDisposal[]>(`/api/assets/${assetId}/disposals`),
+}

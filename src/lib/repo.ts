@@ -17,6 +17,10 @@ import type {
   DepreciationRule,
   DepreciationCalc,
   AppNotification,
+  Vendor,
+  PurchaseOrder,
+  PurchaseOrderItem,
+  AssetDisposal,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -727,6 +731,9 @@ export function getDashboardStats(): DashboardStats {
     totalDepartments: deptsRow.c,
     totalLocations: locsRow.c,
     warrantyExpiringSoon: warrantyRow.c,
+    vendors: vendorRepo.stats(),
+    procurement: purchaseOrderRepo.stats(),
+    disposals: disposalRepo.stats(),
   }
 }
 
@@ -1520,5 +1527,317 @@ export const notificationRepo = {
     }
 
     return { created, cleared }
+  },
+}
+
+// ============ Vendors ============
+export const vendorRepo = {
+  list(): Vendor[] {
+    ensure()
+    const r = db.prepare(`
+      SELECT v.*,
+        (SELECT COUNT(*) FROM PurchaseOrder po WHERE po.vendorId = v.id) as _count_purchaseOrders,
+        COALESCE((SELECT SUM(po.totalAmount) FROM PurchaseOrder po WHERE po.vendorId = v.id AND po.status NOT IN ('Draft','Cancelled')), 0) as _sum_totalSpent
+      FROM Vendor v
+      ORDER BY v.name
+    `).all()
+    return rows<Vendor & { _count_purchaseOrders: number; _sum_totalSpent: number }>(r).map((v) => ({
+      ...v,
+      isActive: toBool(v.isActive),
+      rating: Number(v.rating) || 0,
+      _count: { purchaseOrders: v._count_purchaseOrders },
+      _sum: { totalSpent: v._sum_totalSpent },
+    }))
+  },
+  get(id: string): Vendor | null {
+    ensure()
+    const r = row<Vendor>(db.prepare('SELECT * FROM Vendor WHERE id = ?').get(id))
+    if (!r) return null
+    return { ...r, isActive: toBool(r.isActive), rating: Number(r.rating) || 0 }
+  },
+  create(data: Partial<Vendor>): Vendor {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO Vendor (id, name, category, contactPerson, email, phone, website, address, taxId, paymentTerms, rating, isActive, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id, data.name, data.category ?? null, data.contactPerson ?? null, data.email ?? null,
+      data.phone ?? null, data.website ?? null, data.address ?? null, data.taxId ?? null,
+      data.paymentTerms ?? null, data.rating ?? 0, data.isActive === false ? 0 : 1,
+      data.notes ?? null, now, now
+    )
+    return this.get(id)!
+  },
+  update(id: string, data: Partial<Vendor>): Vendor | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    db.prepare(
+      `UPDATE Vendor SET name = ?, category = ?, contactPerson = ?, email = ?, phone = ?, website = ?, address = ?, taxId = ?, paymentTerms = ?, rating = ?, isActive = ?, notes = ?, updatedAt = ? WHERE id = ?`
+    ).run(
+      data.name ?? cur.name, data.category ?? cur.category, data.contactPerson ?? cur.contactPerson,
+      data.email ?? cur.email, data.phone ?? cur.phone, data.website ?? cur.website,
+      data.address ?? cur.address, data.taxId ?? cur.taxId, data.paymentTerms ?? cur.paymentTerms,
+      data.rating ?? cur.rating, data.isActive === false ? 0 : 1, data.notes ?? cur.notes, now, id
+    )
+    return this.get(id)
+  },
+  delete(id: string): void {
+    ensure()
+    db.prepare('DELETE FROM Vendor WHERE id = ?').run(id)
+  },
+  stats() {
+    ensure()
+    const total = (db.prepare('SELECT COUNT(*) as c FROM Vendor').get() as { c: number }).c
+    const active = (db.prepare('SELECT COUNT(*) as c FROM Vendor WHERE isActive = 1').get() as { c: number }).c
+    return { total, active }
+  },
+}
+
+// ============ Purchase Orders ============
+export const purchaseOrderRepo = {
+  _attachRelations(po: PurchaseOrder): PurchaseOrder {
+    if (!po) return po
+    const vendor = row<Vendor>(db.prepare('SELECT * FROM Vendor WHERE id = ?').get(po.vendorId))
+    const requestedBy = po.requestedById
+      ? row<Person>(db.prepare('SELECT * FROM Person WHERE id = ?').get(po.requestedById))
+      : null
+    const approvedBy = po.approvedById
+      ? row<Person>(db.prepare('SELECT * FROM Person WHERE id = ?').get(po.approvedById))
+      : null
+    const items = rows<PurchaseOrderItem>(
+      db.prepare(`
+        SELECT poi.*, at.name as _at_name, at.icon as _at_icon, at.description as _at_desc
+        FROM PurchaseOrderItem poi
+        LEFT JOIN AssetType at ON poi.assetTypeId = at.id
+        WHERE poi.poId = ?
+        ORDER BY poi.createdAt
+      `).all(po.id)
+    ).map((it: any) => ({
+      ...it,
+      assetType: it._at_name ? { id: it.assetTypeId, name: it._at_name, icon: it._at_icon, description: it._at_desc } : null,
+    })) as PurchaseOrderItem[]
+    return {
+      ...po,
+      vendor: vendor ? { ...vendor, isActive: toBool(vendor.isActive), rating: Number(vendor.rating) || 0 } : undefined,
+      requestedBy: requestedBy || null,
+      approvedBy: approvedBy || null,
+      items,
+      _count: { items: items.length },
+    }
+  },
+  list(): PurchaseOrder[] {
+    ensure()
+    const r = rows<PurchaseOrder>(
+      db.prepare('SELECT * FROM PurchaseOrder ORDER BY orderDate DESC, createdAt DESC').all()
+    )
+    return r.map((po) => this._attachRelations(po))
+  },
+  get(id: string): PurchaseOrder | null {
+    ensure()
+    const po = row<PurchaseOrder>(db.prepare('SELECT * FROM PurchaseOrder WHERE id = ?').get(id))
+    if (!po) return null
+    return this._attachRelations(po)
+  },
+  create(data: Partial<PurchaseOrder> & { items?: Partial<PurchaseOrderItem>[] }): PurchaseOrder {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    const poNumber = data.poNumber || `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`
+    const orderDate = data.orderDate || now
+    const subtotal = (data.items || []).reduce((s, it) => s + (Number(it.totalPrice) || (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)), 0)
+    const taxRate = Number(data.taxRate) || 0
+    const taxAmount = (subtotal * taxRate) / 100
+    const shippingCost = Number(data.shippingCost) || 0
+    const totalAmount = subtotal + taxAmount + shippingCost
+    db.prepare(
+      `INSERT INTO PurchaseOrder (id, poNumber, vendorId, status, orderDate, expectedDate, receivedDate, subtotal, taxRate, taxAmount, shippingCost, totalAmount, currency, requestedById, approvedById, approvedAt, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id, poNumber, data.vendorId, data.status || 'Draft', orderDate,
+      data.expectedDate ?? null, data.receivedDate ?? null, subtotal, taxRate, taxAmount, shippingCost,
+      totalAmount, data.currency || 'USD', data.requestedById ?? null, data.approvedById ?? null,
+      data.approvedAt ?? null, data.notes ?? null, now, now
+    )
+    // Insert items
+    if (data.items && data.items.length > 0) {
+      const insItem = db.prepare(
+        `INSERT INTO PurchaseOrderItem (id, poId, assetTypeId, description, quantity, unitPrice, totalPrice, receivedQuantity, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      for (const it of data.items) {
+        const qty = Number(it.quantity) || 1
+        const unit = Number(it.unitPrice) || 0
+        insItem.run(
+          generateId(), id, it.assetTypeId ?? null, it.description || 'Item',
+          qty, unit, Number(it.totalPrice) || qty * unit, Number(it.receivedQuantity) || 0,
+          it.notes ?? null, now
+        )
+      }
+    }
+    return this.get(id)!
+  },
+  update(id: string, data: Partial<PurchaseOrder> & { items?: Partial<PurchaseOrderItem>[] }): PurchaseOrder | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    const items = data.items !== undefined ? data.items : cur.items
+    const subtotal = (items || []).reduce((s, it) => s + (Number(it.totalPrice) || (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)), 0)
+    const taxRate = data.taxRate !== undefined ? Number(data.taxRate) : cur.taxRate
+    const taxAmount = (subtotal * taxRate) / 100
+    const shippingCost = data.shippingCost !== undefined ? Number(data.shippingCost) : cur.shippingCost
+    const totalAmount = subtotal + taxAmount + shippingCost
+    db.prepare(
+      `UPDATE PurchaseOrder SET vendorId = ?, status = ?, orderDate = ?, expectedDate = ?, receivedDate = ?, subtotal = ?, taxRate = ?, taxAmount = ?, shippingCost = ?, totalAmount = ?, currency = ?, requestedById = ?, approvedById = ?, approvedAt = ?, notes = ?, updatedAt = ? WHERE id = ?`
+    ).run(
+      data.vendorId ?? cur.vendorId, data.status ?? cur.status, data.orderDate ?? cur.orderDate,
+      data.expectedDate ?? cur.expectedDate, data.receivedDate ?? cur.receivedDate,
+      subtotal, taxRate, taxAmount, shippingCost, totalAmount,
+      data.currency ?? cur.currency, data.requestedById ?? cur.requestedById,
+      data.approvedById ?? cur.approvedById, data.approvedAt ?? cur.approvedAt,
+      data.notes ?? cur.notes, now, id
+    )
+    if (data.items !== undefined) {
+      db.prepare('DELETE FROM PurchaseOrderItem WHERE poId = ?').run(id)
+      const insItem = db.prepare(
+        `INSERT INTO PurchaseOrderItem (id, poId, assetTypeId, description, quantity, unitPrice, totalPrice, receivedQuantity, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      for (const it of data.items) {
+        const qty = Number(it.quantity) || 1
+        const unit = Number(it.unitPrice) || 0
+        insItem.run(
+          generateId(), id, it.assetTypeId ?? null, it.description || 'Item',
+          qty, unit, Number(it.totalPrice) || qty * unit, Number(it.receivedQuantity) || 0,
+          it.notes ?? null, now
+        )
+      }
+    }
+    return this.get(id)
+  },
+  delete(id: string): void {
+    ensure()
+    db.prepare('DELETE FROM PurchaseOrder WHERE id = ?').run(id)
+  },
+  listForVendor(vendorId: string): PurchaseOrder[] {
+    ensure()
+    const r = rows<PurchaseOrder>(
+      db.prepare('SELECT * FROM PurchaseOrder WHERE vendorId = ? ORDER BY orderDate DESC').all(vendorId)
+    )
+    return r.map((po) => this._attachRelations(po))
+  },
+  stats() {
+    ensure()
+    const total = (db.prepare('SELECT COUNT(*) as c FROM PurchaseOrder').get() as { c: number }).c
+    const pendingApproval = (db.prepare(`SELECT COUNT(*) as c FROM PurchaseOrder WHERE status = 'Pending Approval'`).get() as { c: number }).c
+    const open = (db.prepare(`SELECT COUNT(*) as c FROM PurchaseOrder WHERE status IN ('Draft','Pending Approval','Approved','Ordered','Partially Received')`).get() as { c: number }).c
+    const received = (db.prepare(`SELECT COUNT(*) as c FROM PurchaseOrder WHERE status IN ('Received','Closed')`).get() as { c: number }).c
+    const spent = (db.prepare(`SELECT COALESCE(SUM(totalAmount), 0) as s FROM PurchaseOrder WHERE status NOT IN ('Draft','Cancelled')`).get() as { s: number }).s
+    return { totalPOs: total, pendingApproval, open, received, totalSpent: spent }
+  },
+}
+
+// ============ Asset Disposals ============
+export const disposalRepo = {
+  _attachRelations(d: AssetDisposal): AssetDisposal {
+    if (!d) return d
+    const asset = row<Asset>(
+      db.prepare(`
+        SELECT a.*, at.name as _at_name, at.icon as _at_icon
+        FROM Asset a LEFT JOIN AssetType at ON a.assetTypeId = at.id
+        WHERE a.id = ?
+      `).get(d.assetId)
+    ) as any
+    if (asset) {
+      asset.assetType = asset._at_name ? { id: asset.assetTypeId, name: asset._at_name, icon: asset._at_icon } : null
+    }
+    const approvedBy = d.approvedById
+      ? row<Person>(db.prepare('SELECT * FROM Person WHERE id = ?').get(d.approvedById))
+      : null
+    return {
+      ...d,
+      environmentalCompliant: toBool(d.environmentalCompliant),
+      residualValue: Number(d.residualValue) || 0,
+      disposalCost: Number(d.disposalCost) || 0,
+      netProceeds: Number(d.netProceeds) || 0,
+      asset: asset || undefined,
+      approvedBy: approvedBy || null,
+    }
+  },
+  list(): AssetDisposal[] {
+    ensure()
+    const r = rows<AssetDisposal>(
+      db.prepare('SELECT * FROM AssetDisposal ORDER BY disposalDate DESC, createdAt DESC').all()
+    )
+    return r.map((d) => this._attachRelations(d))
+  },
+  get(id: string): AssetDisposal | null {
+    ensure()
+    const d = row<AssetDisposal>(db.prepare('SELECT * FROM AssetDisposal WHERE id = ?').get(id))
+    if (!d) return null
+    return this._attachRelations(d)
+  },
+  listForAsset(assetId: string): AssetDisposal[] {
+    ensure()
+    const r = rows<AssetDisposal>(
+      db.prepare('SELECT * FROM AssetDisposal WHERE assetId = ? ORDER BY disposalDate DESC').all(assetId)
+    )
+    return r.map((d) => this._attachRelations(d))
+  },
+  create(data: Partial<AssetDisposal>): AssetDisposal {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    const disposalNumber = data.disposalNumber || `DISP-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`
+    const residualValue = Number(data.residualValue) || 0
+    const disposalCost = Number(data.disposalCost) || 0
+    const netProceeds = residualValue - disposalCost
+    db.prepare(
+      `INSERT INTO AssetDisposal (id, assetId, disposalNumber, method, reason, disposalDate, residualValue, disposalCost, netProceeds, buyerRecipient, conditionAtDisposal, environmentalCompliant, certificateNumber, approvedById, approvedAt, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id, data.assetId, disposalNumber, data.method || 'Sold', data.reason ?? null,
+      data.disposalDate || now, residualValue, disposalCost, netProceeds,
+      data.buyerRecipient ?? null, data.conditionAtDisposal ?? null,
+      data.environmentalCompliant === false ? 0 : 1, data.certificateNumber ?? null,
+      data.approvedById ?? null, data.approvedAt ?? null, data.notes ?? null, now, now
+    )
+    // Mark asset as Retired
+    db.prepare("UPDATE Asset SET status = 'Retired', updatedAt = ? WHERE id = ?").run(now, data.assetId!)
+    return this.get(id)!
+  },
+  update(id: string, data: Partial<AssetDisposal>): AssetDisposal | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    const residualValue = data.residualValue !== undefined ? Number(data.residualValue) : cur.residualValue
+    const disposalCost = data.disposalCost !== undefined ? Number(data.disposalCost) : cur.disposalCost
+    const netProceeds = residualValue - disposalCost
+    db.prepare(
+      `UPDATE AssetDisposal SET method = ?, reason = ?, disposalDate = ?, residualValue = ?, disposalCost = ?, netProceeds = ?, buyerRecipient = ?, conditionAtDisposal = ?, environmentalCompliant = ?, certificateNumber = ?, approvedById = ?, approvedAt = ?, notes = ?, updatedAt = ? WHERE id = ?`
+    ).run(
+      data.method ?? cur.method, data.reason ?? cur.reason, data.disposalDate ?? cur.disposalDate,
+      residualValue, disposalCost, netProceeds,
+      data.buyerRecipient ?? cur.buyerRecipient, data.conditionAtDisposal ?? cur.conditionAtDisposal,
+      data.environmentalCompliant === false ? 0 : 1, data.certificateNumber ?? cur.certificateNumber,
+      data.approvedById ?? cur.approvedById, data.approvedAt ?? cur.approvedAt,
+      data.notes ?? cur.notes, now, id
+    )
+    return this.get(id)
+  },
+  delete(id: string): void {
+    ensure()
+    db.prepare('DELETE FROM AssetDisposal WHERE id = ?').run(id)
+  },
+  stats() {
+    ensure()
+    const total = (db.prepare('SELECT COUNT(*) as c FROM AssetDisposal').get() as { c: number }).c
+    const recovered = (db.prepare(`SELECT COALESCE(SUM(netProceeds), 0) as s FROM AssetDisposal WHERE method IN ('Sold','Trade-in','Recycled')`).get() as { s: number }).s
+    const cost = (db.prepare(`SELECT COALESCE(SUM(disposalCost), 0) as s FROM AssetDisposal`).get() as { s: number }).s
+    const pending = (db.prepare(`SELECT COUNT(*) as c FROM AssetDisposal WHERE approvedById IS NULL`).get() as { c: number }).c
+    return { total, totalRecovered: recovered, totalCost: cost, pendingApproval: pending }
   },
 }

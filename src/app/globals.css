@@ -299,3 +299,99 @@
   opacity: 0.4;
   animation: pulse-soft 2s ease-in-out infinite;
 }
+
+/* Number counter hover effect */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Smooth row slide-in animation */
+@keyframes row-slide-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-row-slide-in {
+  animation: row-slide-in 0.2s ease-out;
+}
+
+/* Stagger children animation utility */
+.stagger-children > * {
+  animation: fade-in-up 0.3s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 30ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 90ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 150ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 210ms; }
+
+/* Glow ring for active states */
+.glow-ring {
+  box-shadow: 0 0 0 1px var(--ring), 0 0 20px -4px var(--ring);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--foreground), oklch(0.5 0.05 240));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Card glow on hover */
+.card-glow:hover {
+  box-shadow:
+    0 4px 24px -8px oklch(0.5 0.05 240 / 0.15),
+    0 1px 3px 0 oklch(0 0 0 / 0.04);
+}
+
+.dark .card-glow:hover {
+  box-shadow:
+    0 4px 24px -8px oklch(0.5 0.05 240 / 0.3),
+    0 1px 3px 0 oklch(0 0 0 / 0.3);
+}
+
+/* Subtle dot pattern background */
+.bg-dot-pattern {
+  background-image: radial-gradient(oklch(0.7 0.01 240 / 0.1) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Glass morphism */
+.glass {
+  background: oklch(1 0 0 / 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.dark .glass {
+  background: oklch(0.18 0.015 240 / 0.7);
+}
+
+/* Subtle floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Number badge style */
+.num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}

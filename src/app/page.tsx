@@ -20,6 +20,9 @@ import { AssetLabelsView } from '@/components/views/asset-labels-view'
 import { CheckoutsView } from '@/components/views/checkouts-view'
 import { DepreciationView } from '@/components/views/depreciation-view'
 import { NotificationsView } from '@/components/views/notifications-view'
+import { VendorsView } from '@/components/views/vendors-view'
+import { PurchaseOrdersView } from '@/components/views/purchase-orders-view'
+import { DisposalsView } from '@/components/views/disposals-view'
 import { useQuery } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -109,6 +112,12 @@ function ViewRouter() {
       return <DepreciationView />
     case 'notifications':
       return <NotificationsView />
+    case 'vendors':
+      return <VendorsView />
+    case 'purchase-orders':
+      return <PurchaseOrdersView />
+    case 'disposals':
+      return <DisposalsView />
     default:
       return <DashboardView />
   }

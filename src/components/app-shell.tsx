@@ -74,6 +74,9 @@ function HeaderTitle() {
     checkouts: 'Check-out Requests',
     depreciation: 'Asset Depreciation',
     notifications: 'Notifications',
+    vendors: 'Vendors & Suppliers',
+    'purchase-orders': 'Purchase Orders',
+    disposals: 'Asset Disposals',
   }
   const showBack = ['asset-detail', 'asset-edit'].includes(view)
   return (
@@ -147,10 +150,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-medium text-foreground/80">AssetHub</span>
               <span>·</span>
-              <span>IT Asset Manager v1.0</span>
+              <span>IT Asset Manager v2.0</span>
             </div>
             <div className="flex items-center gap-3">
               <span>{stats ? `${stats.totalAssets} assets · ${stats.totalPersons} persons · ${stats.totalDepartments} depts` : 'Loading...'}</span>
+              {stats?.procurement && (
+                <>
+                  <span className="hidden sm:inline">·</span>
+                  <span className="hidden sm:inline">{stats.procurement.totalPOs} POs · ${stats.procurement.totalSpent.toLocaleString()} spent</span>
+                </>
+              )}
               <span className="hidden sm:inline">·</span>
               <span className="hidden sm:inline">{new Date().getFullYear()} · All systems operational</span>
             </div>

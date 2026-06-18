@@ -231,6 +231,23 @@ export interface DashboardStats {
     unread: number
     critical: number
   }
+  vendors?: {
+    total: number
+    active: number
+  }
+  procurement?: {
+    totalPOs: number
+    pendingApproval: number
+    open: number
+    received: number
+    totalSpent: number
+  }
+  disposals?: {
+    total: number
+    totalRecovered: number
+    totalCost: number
+    pendingApproval: number
+  }
 }
 
 export interface OcrResult {
@@ -490,4 +507,177 @@ export interface AppNotification {
   actionLabel?: string | null
   createdAt: string
   readAt?: string | null
+}
+
+// ============ Vendor / Supplier ============
+export type VendorCategory =
+  | 'Hardware'
+  | 'Software'
+  | 'Networking'
+  | 'Peripherals'
+  | 'Services'
+  | 'Office Supplies'
+  | 'Other'
+
+export const VENDOR_CATEGORIES: VendorCategory[] = [
+  'Hardware',
+  'Software',
+  'Networking',
+  'Peripherals',
+  'Services',
+  'Office Supplies',
+  'Other',
+]
+
+export interface Vendor {
+  id: string
+  name: string
+  category?: string | null
+  contactPerson?: string | null
+  email?: string | null
+  phone?: string | null
+  website?: string | null
+  address?: string | null
+  taxId?: string | null
+  paymentTerms?: string | null
+  rating: number
+  isActive: boolean
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  _count?: { purchaseOrders: number }
+  _sum?: { totalSpent: number }
+}
+
+// ============ Purchase Orders ============
+export type PurchaseOrderStatus =
+  | 'Draft'
+  | 'Pending Approval'
+  | 'Approved'
+  | 'Ordered'
+  | 'Partially Received'
+  | 'Received'
+  | 'Cancelled'
+  | 'Closed'
+
+export const PO_STATUSES: PurchaseOrderStatus[] = [
+  'Draft',
+  'Pending Approval',
+  'Approved',
+  'Ordered',
+  'Partially Received',
+  'Received',
+  'Cancelled',
+  'Closed',
+]
+
+export const PO_STATUS_CONFIG: Record<
+  PurchaseOrderStatus,
+  { bg: string; text: string; dot: string }
+> = {
+  Draft: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', dot: 'bg-slate-400' },
+  'Pending Approval': { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', dot: 'bg-amber-500' },
+  Approved: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500' },
+  Ordered: { bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', dot: 'bg-violet-500' },
+  'Partially Received': { bg: 'bg-cyan-500/10', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500' },
+  Received: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+  Cancelled: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', dot: 'bg-rose-500' },
+  Closed: { bg: 'bg-zinc-500/10', text: 'text-zinc-700 dark:text-zinc-400', dot: 'bg-zinc-500' },
+}
+
+export interface PurchaseOrderItem {
+  id: string
+  poId: string
+  assetTypeId?: string | null
+  description: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+  receivedQuantity: number
+  notes?: string | null
+  createdAt: string
+  assetType?: AssetType | null
+}
+
+export interface PurchaseOrder {
+  id: string
+  poNumber: string
+  vendorId: string
+  status: PurchaseOrderStatus | string
+  orderDate: string
+  expectedDate?: string | null
+  receivedDate?: string | null
+  subtotal: number
+  taxRate: number
+  taxAmount: number
+  shippingCost: number
+  totalAmount: number
+  currency: string
+  requestedById?: string | null
+  approvedById?: string | null
+  approvedAt?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  vendor?: Vendor
+  requestedBy?: Person | null
+  approvedBy?: Person | null
+  items?: PurchaseOrderItem[]
+  _count?: { items: number }
+}
+
+// ============ Asset Disposal ============
+export type DisposalMethod =
+  | 'Sold'
+  | 'Recycled'
+  | 'Donated'
+  | 'Scrapped'
+  | 'Returned to Vendor'
+  | 'Trade-in'
+  | 'Disposed'
+
+export const DISPOSAL_METHODS: DisposalMethod[] = [
+  'Sold',
+  'Recycled',
+  'Donated',
+  'Scrapped',
+  'Returned to Vendor',
+  'Trade-in',
+  'Disposed',
+]
+
+export const DISPOSAL_METHOD_CONFIG: Record<
+  DisposalMethod,
+  { bg: string; text: string; icon: string }
+> = {
+  Sold: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', icon: 'DollarSign' },
+  Recycled: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', icon: 'Recycle' },
+  Donated: { bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', icon: 'Gift' },
+  Scrapped: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', icon: 'Trash2' },
+  'Returned to Vendor': { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', icon: 'Undo2' },
+  'Trade-in': { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', icon: 'ArrowLeftRight' },
+  Disposed: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', icon: 'Trash' },
+}
+
+export interface AssetDisposal {
+  id: string
+  assetId: string
+  disposalNumber?: string | null
+  method: DisposalMethod | string
+  reason?: string | null
+  disposalDate: string
+  residualValue: number
+  disposalCost: number
+  netProceeds: number
+  buyerRecipient?: string | null
+  conditionAtDisposal?: string | null
+  environmentalCompliant: boolean
+  certificateNumber?: string | null
+  approvedById?: string | null
+  approvedAt?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  asset?: Asset
+  approvedBy?: Person | null
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { assetsApi, assetActivityApi } from '@/lib/api'
+import { assetsApi, assetActivityApi, disposalsApi } from '@/lib/api'
 import { useNav } from '@/lib/nav'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,9 @@ import {
   Boxes,
   KeyRound,
   ArrowLeftRight,
+  Recycle,
+  Gift,
+  Undo2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -118,6 +121,12 @@ export function AssetDetailView({ id }: { id: string }) {
   const { data: licenses } = useQuery({
     queryKey: ['asset-licenses', id],
     queryFn: () => assetActivityApi.maintenance(id).then(() => licensesForAsset(id)),
+    enabled: !!id,
+  })
+
+  const { data: disposals } = useQuery({
+    queryKey: ['asset-disposals', id],
+    queryFn: () => disposalsApi.listForAsset(id),
     enabled: !!id,
   })
 
@@ -250,7 +259,7 @@ export function AssetDetailView({ id }: { id: string }) {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-8 h-auto">
           <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
           <TabsTrigger value="hardware" className="text-xs">Hardware</TabsTrigger>
           {isMobile && <TabsTrigger value="mobile" className="text-xs">Mobile</TabsTrigger>}
@@ -258,6 +267,7 @@ export function AssetDetailView({ id }: { id: string }) {
           <TabsTrigger value="maintenance" className="text-xs">Maintenance ({maintCount})</TabsTrigger>
           <TabsTrigger value="images" className="text-xs">Images ({asset._count?.images || 0})</TabsTrigger>
           <TabsTrigger value="history" className="text-xs">History ({asset._count?.history || 0})</TabsTrigger>
+          <TabsTrigger value="disposals" className="text-xs">Disposals ({disposals?.length || 0})</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
@@ -537,6 +547,70 @@ export function AssetDetailView({ id }: { id: string }) {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </SectionCard>
+        </TabsContent>
+
+        {/* Disposals */}
+        <TabsContent value="disposals" className="mt-4">
+          <SectionCard title="Disposal History" icon={Trash2}>
+            {!disposals || disposals.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <Trash2 className="h-10 w-10 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">No disposal records yet</p>
+                <p className="text-xs text-muted-foreground">When this asset is disposed, sold, or recycled, the record will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {disposals.map((d) => {
+                  const methodIcon = (m: string) => {
+                    if (m === 'Recycled') return Recycle
+                    if (m === 'Donated') return Gift
+                    if (m === 'Returned to Vendor') return Undo2
+                    if (m === 'Sold' || m === 'Trade-in') return DollarSign
+                    return Trash2
+                  }
+                  const Icon = methodIcon(d.method)
+                  return (
+                    <div key={d.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${d.netProceeds >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
+                            <Icon className={`h-4 w-4 ${d.netProceeds >= 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{d.method}</span>
+                              <Badge variant="outline" className="text-[10px] font-mono">{d.disposalNumber}</Badge>
+                              {d.environmentalCompliant && (
+                                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-0">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Eco
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {formatDate(d.disposalDate)} · {d.buyerRecipient || 'No recipient'}
+                            </p>
+                            {d.reason && <p className="text-xs text-muted-foreground italic mt-1">{d.reason}</p>}
+                            {d.certificateNumber && (
+                              <p className="text-[11px] text-muted-foreground mt-1">Certificate: <span className="font-mono">{d.certificateNumber}</span></p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">Net Proceeds</p>
+                          <p className={`text-base font-bold tabular-nums ${d.netProceeds >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {formatCurrency(d.netProceeds)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Residual {formatCurrency(d.residualValue)} − Cost {formatCurrency(d.disposalCost)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </SectionCard>

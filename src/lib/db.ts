@@ -268,6 +268,93 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_deprule_type ON DepreciationRule(assetTypeId);
     CREATE INDEX IF NOT EXISTS idx_notif_type ON Notification(type);
     CREATE INDEX IF NOT EXISTS idx_notif_unread ON Notification(isRead, createdAt);
+
+    -- ============ Vendor / Supplier ============
+    CREATE TABLE IF NOT EXISTS Vendor (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT,
+      contactPerson TEXT,
+      email TEXT,
+      phone TEXT,
+      website TEXT,
+      address TEXT,
+      taxId TEXT,
+      paymentTerms TEXT,
+      rating INTEGER NOT NULL DEFAULT 0,
+      isActive INTEGER NOT NULL DEFAULT 1,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- ============ Purchase Order ============
+    CREATE TABLE IF NOT EXISTS PurchaseOrder (
+      id TEXT PRIMARY KEY,
+      poNumber TEXT UNIQUE NOT NULL,
+      vendorId TEXT NOT NULL REFERENCES Vendor(id) ON DELETE RESTRICT,
+      status TEXT NOT NULL DEFAULT 'Draft',
+      orderDate TEXT NOT NULL,
+      expectedDate TEXT,
+      receivedDate TEXT,
+      subtotal REAL NOT NULL DEFAULT 0,
+      taxRate REAL NOT NULL DEFAULT 0,
+      taxAmount REAL NOT NULL DEFAULT 0,
+      shippingCost REAL NOT NULL DEFAULT 0,
+      totalAmount REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      requestedById TEXT REFERENCES Person(id) ON DELETE SET NULL,
+      approvedById TEXT REFERENCES Person(id) ON DELETE SET NULL,
+      approvedAt TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS PurchaseOrderItem (
+      id TEXT PRIMARY KEY,
+      poId TEXT NOT NULL REFERENCES PurchaseOrder(id) ON DELETE CASCADE,
+      assetTypeId TEXT REFERENCES AssetType(id) ON DELETE SET NULL,
+      description TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unitPrice REAL NOT NULL DEFAULT 0,
+      totalPrice REAL NOT NULL DEFAULT 0,
+      receivedQuantity INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- ============ Asset Disposal ============
+    CREATE TABLE IF NOT EXISTS AssetDisposal (
+      id TEXT PRIMARY KEY,
+      assetId TEXT NOT NULL REFERENCES Asset(id) ON DELETE RESTRICT,
+      disposalNumber TEXT UNIQUE,
+      method TEXT NOT NULL DEFAULT 'Sold',
+      reason TEXT,
+      disposalDate TEXT NOT NULL,
+      residualValue REAL NOT NULL DEFAULT 0,
+      disposalCost REAL NOT NULL DEFAULT 0,
+      netProceeds REAL NOT NULL DEFAULT 0,
+      buyerRecipient TEXT,
+      conditionAtDisposal TEXT,
+      environmentalCompliant INTEGER NOT NULL DEFAULT 1,
+      certificateNumber TEXT,
+      approvedById TEXT REFERENCES Person(id) ON DELETE SET NULL,
+      approvedAt TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vendor_name ON Vendor(name);
+    CREATE INDEX IF NOT EXISTS idx_vendor_active ON Vendor(isActive);
+    CREATE INDEX IF NOT EXISTS idx_po_vendor ON PurchaseOrder(vendorId);
+    CREATE INDEX IF NOT EXISTS idx_po_status ON PurchaseOrder(status);
+    CREATE INDEX IF NOT EXISTS idx_po_date ON PurchaseOrder(orderDate);
+    CREATE INDEX IF NOT EXISTS idx_poitem_po ON PurchaseOrderItem(poId);
+    CREATE INDEX IF NOT EXISTS idx_disposal_asset ON AssetDisposal(assetId);
+    CREATE INDEX IF NOT EXISTS idx_disposal_date ON AssetDisposal(disposalDate);
+    CREATE INDEX IF NOT EXISTS idx_disposal_method ON AssetDisposal(method);
   `)
 }
 

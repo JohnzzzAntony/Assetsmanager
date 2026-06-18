@@ -80,13 +80,26 @@ function pad(n: number, len = 4) {
   return String(n).padStart(len, '0')
 }
 
-export function seedDatabase() {
+export function seedDatabase(opts: { force?: boolean } = {}) {
   initDb()
 
   // Check if already seeded
   const count = db.prepare('SELECT COUNT(*) as c FROM AssetType').get() as { c: number }
-  if (count.c > 0) {
+  if (count.c > 0 && !opts.force) {
     return { success: true, message: 'Database already seeded', skipped: true }
+  }
+
+  // If force, wipe all tables first
+  if (opts.force && count.c > 0) {
+    const tableNames = [
+      'AssetImage', 'AssignmentHistory', 'ActivityLog', 'MaintenanceSchedule',
+      'AssetLicense', 'SoftwareLicense', 'CheckoutRequest', 'DepreciationRule',
+      'Notification', 'PurchaseOrderItem', 'PurchaseOrder', 'Vendor',
+      'AssetDisposal', 'Asset', 'Person', 'Department', 'Location', 'AssetType',
+    ]
+    for (const t of tableNames) {
+      try { db.exec(`DELETE FROM ${t}`) } catch {}
+    }
   }
 
   const now = new Date().toISOString()
@@ -423,8 +436,135 @@ export function seedDatabase() {
     // ignore notification seed errors
   }
 
+  // ---------- Seed Vendors ----------
+  const VENDORS = [
+    { name: 'Dell Technologies', category: 'Hardware', contactPerson: 'Mike Chen', email: 'mike.chen@dell.com', phone: '+1-512-728-0001', website: 'dell.com', address: 'One Dell Way, Round Rock, TX', taxId: 'US-DELL-001', paymentTerms: 'Net 30', rating: 5 },
+    { name: 'HP Enterprise', category: 'Hardware', contactPerson: 'Sarah Williams', email: 'sarah.w@hp.com', phone: '+1-650-857-0002', website: 'hp.com', address: '1701 E Mossy Oaks Rd, Spring, TX', taxId: 'US-HP-002', paymentTerms: 'Net 45', rating: 4 },
+    { name: 'Apple India', category: 'Hardware', contactPerson: 'Anil Kapoor', email: 'anil.k@apple.com', phone: '+91-80-4045-0003', website: 'apple.com', address: 'iConnect, UB City, Bangalore', taxId: 'IN-APPL-003', paymentTerms: 'Prepaid', rating: 5 },
+    { name: 'Lenovo India', category: 'Hardware', contactPerson: 'Pooja Bhatt', email: 'pooja.b@lenovo.com', phone: '+91-80-6767-0004', website: 'lenovo.com', address: 'Lenovo Tower, Bangalore', taxId: 'IN-LNV-004', paymentTerms: 'Net 30', rating: 4 },
+    { name: 'Microsoft Licensing', category: 'Software', contactPerson: 'David Park', email: 'david.park@microsoft.com', phone: '+1-425-882-0005', website: 'microsoft.com', address: 'One Microsoft Way, Redmond, WA', taxId: 'US-MSFT-005', paymentTerms: 'Annual', rating: 5 },
+    { name: 'Adobe Systems', category: 'Software', contactPerson: 'Emma Stone', email: 'emma.s@adobe.com', phone: '+1-408-536-0006', website: 'adobe.com', address: '345 Park Ave, San Jose, CA', taxId: 'US-ADBE-006', paymentTerms: 'Annual', rating: 4 },
+    { name: 'Cisco Systems', category: 'Networking', contactPerson: 'Raj Malhotra', email: 'raj.m@cisco.com', phone: '+91-80-4410-0007', website: 'cisco.com', address: 'Cisco Tower, Bangalore', taxId: 'IN-CSCO-007', paymentTerms: 'Net 60', rating: 5 },
+    { name: 'Logitech India', category: 'Peripherals', contactPerson: 'Sara Khan', email: 'sara.k@logitech.com', phone: '+91-80-2255-0008', website: 'logitech.com', address: 'Logitech India, Mumbai', taxId: 'IN-LGTI-008', paymentTerms: 'Net 30', rating: 3 },
+    { name: 'IT Care Services', category: 'Services', contactPerson: 'Vivek Rao', email: 'vivek@itcare.com', phone: '+91-80-5566-0009', website: 'itcare.example.com', address: 'Service Hub, Whitefield, Bangalore', taxId: 'IN-ITCR-009', paymentTerms: 'Monthly', rating: 4 },
+    { name: 'GreenCycle Recyclers', category: 'Services', contactPerson: 'Meera Joshi', email: 'meera@greencycle.com', phone: '+91-80-7788-0010', website: 'greencycle.example.com', address: 'Eco Park, Mumbai', taxId: 'IN-GNCY-010', paymentTerms: 'On Pickup', rating: 5 },
+  ]
+  const insVendor = db.prepare(
+    `INSERT INTO Vendor (id, name, category, contactPerson, email, phone, website, address, taxId, paymentTerms, rating, isActive, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  const vendorIds: string[] = []
+  for (const v of VENDORS) {
+    const id = generateId()
+    vendorIds.push(id)
+    insVendor.run(id, v.name, v.category, v.contactPerson, v.email, v.phone, v.website, v.address, v.taxId, v.paymentTerms, v.rating, 1, null, now, now)
+  }
+
+  // ---------- Seed Purchase Orders ----------
+  const PO_DATA = [
+    { poNumber: 'PO-2024-1001', vendorIdx: 0, status: 'Received', orderDate: '2024-01-15', expectedDate: '2024-01-25', receivedDate: '2024-01-24', taxRate: 8, shipping: 50, currency: 'USD', requesterIdx: 0, items: [
+      { at: 'Desktop', desc: 'Dell Optiplex 7010 SFF Desktop', qty: 5, unit: 650 },
+      { at: 'Monitor', desc: 'Dell P2419H 24" Monitor', qty: 5, unit: 180 },
+    ]},
+    { poNumber: 'PO-2024-1002', vendorIdx: 2, status: 'Received', orderDate: '2024-02-10', expectedDate: '2024-02-20', receivedDate: '2024-02-19', taxRate: 18, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+      { at: 'Laptop', desc: 'MacBook Pro 14" M3 Pro', qty: 3, unit: 1999 },
+      { at: 'Mobile', desc: 'iPhone 15 Pro Max 256GB', qty: 5, unit: 1199 },
+    ]},
+    { poNumber: 'PO-2024-1003', vendorIdx: 4, status: 'Received', orderDate: '2024-03-05', expectedDate: '2024-03-15', receivedDate: '2024-03-14', taxRate: 0, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+      { at: null, desc: 'Microsoft 365 E3 Annual License (50 seats)', qty: 50, unit: 32 },
+      { at: null, desc: 'Windows 11 Pro Upgrade License', qty: 20, unit: 99 },
+    ]},
+    { poNumber: 'PO-2024-1004', vendorIdx: 3, status: 'Partially Received', orderDate: '2024-04-20', expectedDate: '2024-05-05', receivedDate: null, taxRate: 18, shipping: 25, currency: 'USD', requesterIdx: 2, items: [
+      { at: 'Laptop', desc: 'Lenovo ThinkPad X1 Carbon Gen 11', qty: 4, unit: 1600 },
+      { at: 'Laptop', desc: 'Lenovo ThinkPad E14', qty: 6, unit: 850 },
+    ]},
+    { poNumber: 'PO-2024-1005', vendorIdx: 5, status: 'Ordered', orderDate: '2024-05-12', expectedDate: '2024-05-25', receivedDate: null, taxRate: 0, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+      { at: null, desc: 'Adobe Creative Cloud All Apps (10 seats, annual)', qty: 10, unit: 599 },
+    ]},
+    { poNumber: 'PO-2024-1006', vendorIdx: 1, status: 'Pending Approval', orderDate: '2024-06-01', expectedDate: '2024-06-20', receivedDate: null, taxRate: 8, shipping: 75, currency: 'USD', requesterIdx: 0, items: [
+      { at: 'Desktop', desc: 'HP EliteDesk 800 G9 Desktop', qty: 8, unit: 920 },
+      { at: 'Monitor', desc: 'HP M24fw Monitor', qty: 8, unit: 165 },
+    ]},
+    { poNumber: 'PO-2024-1007', vendorIdx: 6, status: 'Approved', orderDate: '2024-06-15', expectedDate: '2024-07-01', receivedDate: null, taxRate: 18, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+      { at: 'Other', desc: 'Cisco Catalyst 2960 Switch', qty: 2, unit: 1200 },
+      { at: 'Other', desc: 'Cisco Access Point (Wi-Fi 6)', qty: 5, unit: 480 },
+    ]},
+    { poNumber: 'PO-2024-1008', vendorIdx: 7, status: 'Draft', orderDate: '2024-07-01', expectedDate: '2024-07-15', receivedDate: null, taxRate: 18, shipping: 15, currency: 'USD', requesterIdx: 0, items: [
+      { at: 'Peripheral', desc: 'Logitech MX Master 3S Mouse', qty: 20, unit: 99 },
+      { at: 'Peripheral', desc: 'Logitech MX Keys Keyboard', qty: 20, unit: 119 },
+    ]},
+  ]
+  const insPO = db.prepare(
+    `INSERT INTO PurchaseOrder (id, poNumber, vendorId, status, orderDate, expectedDate, receivedDate, subtotal, taxRate, taxAmount, shippingCost, totalAmount, currency, requestedById, approvedById, approvedAt, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  const insPOItem = db.prepare(
+    `INSERT INTO PurchaseOrderItem (id, poId, assetTypeId, description, quantity, unitPrice, totalPrice, receivedQuantity, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  let poCount = 0
+  for (const p of PO_DATA) {
+    const id = generateId()
+    const subtotal = p.items.reduce((s, it) => s + it.qty * it.unit, 0)
+    const taxAmount = (subtotal * p.taxRate) / 100
+    const total = subtotal + taxAmount + p.shipping
+    const approverId = p.status !== 'Draft' && p.status !== 'Pending Approval' ? personRows[0].id : null
+    const approvedAt = approverId ? now : null
+    insPO.run(
+      id, p.poNumber, vendorIds[p.vendorIdx], p.status, p.orderDate, p.expectedDate, p.receivedDate,
+      subtotal, p.taxRate, taxAmount, p.shipping, total, p.currency, personRows[p.requesterIdx].id,
+      approverId, approvedAt, null, now, now
+    )
+    for (const it of p.items) {
+      const typeId = it.at ? typeRows.find((t) => t.name === it.at)?.id : null
+      const receivedQty = p.status === 'Received' ? it.qty : (p.status === 'Partially Received' ? Math.floor(it.qty / 2) : 0)
+      insPOItem.run(
+        generateId(), id, typeId ?? null, it.desc, it.qty, it.unit, it.qty * it.unit, receivedQty, null, now
+      )
+    }
+    poCount++
+  }
+
+  // ---------- Seed Asset Disposals ----------
+  // Pick retired assets for disposal records; if none, mark some old stock as Retired via disposal
+  const disposalCandidates = db.prepare(`
+    SELECT a.id, a.assetTag, a.make, a.model, a.cost, a.purchaseDate
+    FROM Asset a
+    WHERE a.status IN ('Repair', 'Retired') OR a.id IN (
+      SELECT id FROM Asset WHERE make IN ('Lenovo','HP') LIMIT 4
+    )
+    LIMIT 4
+  `).all() as any[]
+  const disposalMethods = ['Sold', 'Recycled', 'Donated', 'Scrapped']
+  const disposalReasons = [
+    'End of life - hardware obsolete',
+    'Beyond economic repair',
+    'Replaced with newer model',
+    'Warranty expired and recycled',
+  ]
+  const insDisposal = db.prepare(
+    `INSERT INTO AssetDisposal (id, assetId, disposalNumber, method, reason, disposalDate, residualValue, disposalCost, netProceeds, buyerRecipient, conditionAtDisposal, environmentalCompliant, certificateNumber, approvedById, approvedAt, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  let disposalCount = 0
+  disposalCandidates.forEach((a, i) => {
+    const method = disposalMethods[i % disposalMethods.length]
+    const residual = method === 'Sold' ? Math.round((a.cost || 500) * 0.15) : 0
+    const dispCost = method === 'Recycled' ? 50 : (method === 'Scrapped' ? 25 : 0)
+    const net = residual - dispCost
+    const dispDate = new Date()
+    dispDate.setDate(dispDate.getDate() - (30 + i * 15))
+    const certNum = method === 'Recycled' || method === 'Scrapped' ? `EWP-${2024}-${String(i + 100)}` : null
+    insDisposal.run(
+      generateId(), a.id, `DISP-2024-${String(200 + i)}`, method, disposalReasons[i],
+      dispDate.toISOString(), residual, dispCost, net,
+      method === 'Sold' ? 'EcoBuy Recommerce' : (method === 'Donated' ? 'Local School Trust' : 'GreenCycle Recyclers'),
+      'Poor', 1, certNum, personRows[0].id, dispDate.toISOString(),
+      `Asset disposed via ${method}`, now, now
+    )
+    // Update asset status to Retired
+    db.prepare("UPDATE Asset SET status = 'Retired', updatedAt = ? WHERE id = ?").run(now, a.id)
+    disposalCount++
+  })
+
   return {
     success: true,
-    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries, ${depCount} depreciation rules, ${checkoutCount} checkout requests, ${notifCount} notifications`,
+    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries, ${depCount} depreciation rules, ${checkoutCount} checkout requests, ${notifCount} notifications, ${VENDORS.length} vendors, ${poCount} purchase orders, ${disposalCount} disposals`,
   }
 }

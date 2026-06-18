@@ -34,6 +34,10 @@ import {
   TrendingDown,
   Bell,
   BellRing,
+  Store,
+  ShoppingCart,
+  Trash2,
+  Recycle,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -747,6 +751,80 @@ export function DashboardView() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Procurement & Lifecycle Overview */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Vendors card */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#0ea5e9' }}
+          onClick={() => navigate('vendors')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendors</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10 transition-transform group-hover:scale-110">
+              <Store className="h-4 w-4 text-sky-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.vendors?.total ?? 0}</div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="text-emerald-600 font-medium">{stats.vendors?.active ?? 0} active</span>
+              <span>Manage suppliers</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Purchase Orders card */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#8b5cf6' }}
+          onClick={() => navigate('purchase-orders')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Purchase Orders</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 transition-transform group-hover:scale-110">
+              <ShoppingCart className="h-4 w-4 text-violet-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.procurement?.totalPOs ?? 0}</div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="text-amber-600 font-medium">{stats.procurement?.pendingApproval ?? 0} pending</span>
+              <span className="text-sky-600 font-medium">{stats.procurement?.open ?? 0} open</span>
+            </div>
+            <div className="mt-1.5 text-[11px] text-muted-foreground">
+              Total spend: <span className="font-semibold text-foreground">{formatCurrency(stats.procurement?.totalSpent ?? 0)}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Disposals card */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#10b981' }}
+          onClick={() => navigate('disposals')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Disposals</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 transition-transform group-hover:scale-110">
+              <Recycle className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.disposals?.total ?? 0}</div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="text-emerald-600 font-medium">+{formatCurrency(stats.disposals?.totalRecovered ?? 0)}</span>
+              <span className="text-rose-600 font-medium">-{formatCurrency(stats.disposals?.totalCost ?? 0)}</span>
+            </div>
+            {(stats.disposals?.pendingApproval ?? 0) > 0 && (
+              <div className="mt-1.5 text-[11px] text-amber-600 font-medium">
+                {stats.disposals?.pendingApproval} awaiting approval
               </div>
             )}
           </CardContent>

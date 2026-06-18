@@ -8,7 +8,9 @@ import { seedDatabase } from '@/lib/seed'
 export async function POST(req: NextRequest) {
   try {
     initDb()
-    const result = seedDatabase()
+    const sp = req.nextUrl.searchParams
+    const force = sp.get('force') === 'true'
+    const result = seedDatabase({ force })
     return NextResponse.json(result)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -17,10 +19,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     initDb()
-    const result = seedDatabase()
+    const sp = req.nextUrl.searchParams
+    const force = sp.get('force') === 'true'
+    const result = seedDatabase({ force })
     return NextResponse.json(result)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

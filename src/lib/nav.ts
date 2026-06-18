@@ -21,6 +21,9 @@ export type ViewName =
   | 'checkouts'
   | 'depreciation'
   | 'notifications'
+  | 'vendors'
+  | 'purchase-orders'
+  | 'disposals'
 
 interface NavState {
   view: ViewName
