@@ -16,7 +16,6 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useQuery } from '@tanstack/react-query'
 import { dashboardApi } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
 
 function HeaderSearch() {
   const { navigate } = useNav()
@@ -72,6 +71,9 @@ function HeaderTitle() {
     'audit-log': 'Audit Log',
     licenses: 'Software Licenses',
     'asset-labels': 'Print Asset Labels',
+    checkouts: 'Check-out Requests',
+    depreciation: 'Asset Depreciation',
+    notifications: 'Notifications',
   }
   const showBack = ['asset-detail', 'asset-edit'].includes(view)
   return (
@@ -93,11 +95,18 @@ function HeaderTitle() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile()
+  const { navigate } = useNav()
   const { data: stats } = useQuery({
     queryKey: ['dashboard-header'],
     queryFn: () => dashboardApi.get(),
     refetchInterval: 60000,
   })
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications-unread-count'],
+    queryFn: () => fetch('/api/notifications?unread=true&limit=200').then((r) => r.json()),
+    refetchInterval: 30000,
+  })
+  const unreadCount = Array.isArray(notifData) ? notifData.length : 0
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -111,14 +120,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-2 ml-auto md:ml-0">
             <QuickActions />
-            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-3 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+            <button
+              onClick={() => navigate('notifications')}
+              className="relative hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-3 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer"
+              title="View notifications"
+            >
               <Bell className="h-4 w-4 text-muted-foreground" />
-              {stats && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                  {stats.warrantyExpiringSoon}
-                </Badge>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
               )}
-            </div>
+            </button>
             <ThemeToggle />
             <Button variant="ghost" size="icon" className="hidden sm:inline-flex h-9 w-9">
               <HelpCircle className="h-4 w-4" />

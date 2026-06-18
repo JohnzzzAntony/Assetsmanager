@@ -30,6 +30,10 @@ import {
   KeyRound,
   ScrollText,
   Clock,
+  ArrowLeftRight,
+  TrendingDown,
+  Bell,
+  BellRing,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -265,6 +269,106 @@ export function DashboardView() {
           color="#06b6d4"
           trend="within 30 days"
         />
+      </div>
+
+      {/* Operations Overview - new features stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Checkouts */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#8b5cf6' }}
+          onClick={() => navigate('checkouts')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Check-out Requests</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 transition-transform group-hover:scale-110">
+              <ArrowLeftRight className="h-4 w-4 text-violet-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.checkouts?.total ?? 0}</div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="text-amber-600 font-medium">{stats.checkouts?.pending ?? 0} pending</span>
+              <span className="text-violet-600 font-medium">{stats.checkouts?.checkedOut ?? 0} out</span>
+              {(stats.checkouts?.overdue ?? 0) > 0 && (
+                <span className="text-rose-600 font-medium">{stats.checkouts?.overdue} overdue</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Depreciation */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#10b981' }}
+          onClick={() => navigate('depreciation')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Asset Value</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 transition-transform group-hover:scale-110">
+              <TrendingDown className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">
+              {formatCurrency(stats.depreciation?.totalCurrentValue ?? 0)}
+            </div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span>of {formatCurrency(stats.depreciation?.totalPurchaseValue ?? 0)} purchase</span>
+              <span className="text-rose-600 font-medium">-{formatCurrency(stats.depreciation?.totalDepreciation ?? 0)}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Notifications */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: (stats.notifications?.unread ?? 0) > 0 ? '#f43f5e' : '#0ea5e9' }}
+          onClick={() => navigate('notifications')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notifications</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10 transition-transform group-hover:scale-110">
+              {(stats.notifications?.unread ?? 0) > 0 ? (
+                <BellRing className="h-4 w-4 text-rose-600 animate-pulse" />
+              ) : (
+                <Bell className="h-4 w-4 text-sky-600" />
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">
+              {stats.notifications?.unread ?? 0}
+              <span className="text-sm font-normal text-muted-foreground ml-1">unread</span>
+            </div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span>{stats.notifications?.total ?? 0} total</span>
+              {(stats.notifications?.critical ?? 0) > 0 && (
+                <span className="text-rose-600 font-medium">{stats.notifications?.critical} critical</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Quick add new asset */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#0f172a' }}
+          onClick={() => navigate('asset-new')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Add Asset</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 transition-transform group-hover:scale-110">
+              <Plus className="h-4 w-4 text-primary" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-base font-medium leading-tight mt-1">Add a new asset to the inventory</div>
+            <div className="mt-1 text-[10px] text-muted-foreground">
+              Click to start the asset creation form
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Maintenance & License Stats Row */}

@@ -213,6 +213,24 @@ export interface DashboardStats {
     totalValue: number
   }
   auditLog?: ActivityLog[]
+  checkouts?: {
+    total: number
+    pending: number
+    checkedOut: number
+    overdue: number
+  }
+  depreciation?: {
+    totalAssets: number
+    totalPurchaseValue: number
+    totalCurrentValue: number
+    totalDepreciation: number
+    fullyDepreciatedCount: number
+  }
+  notifications?: {
+    total: number
+    unread: number
+    critical: number
+  }
 }
 
 export interface OcrResult {
@@ -337,4 +355,139 @@ export interface AssetLicense {
   createdAt: string
   license?: SoftwareLicense
   asset?: Asset
+}
+
+// ============ Checkout Requests ============
+export type CheckoutRequestType = 'Checkout' | 'Checkin' | 'Reserve'
+export type CheckoutRequestStatus =
+  | 'Pending'
+  | 'Approved'
+  | 'Rejected'
+  | 'Checked Out'
+  | 'Checked In'
+  | 'Cancelled'
+  | 'Overdue'
+
+export const CHECKOUT_STATUSES: CheckoutRequestStatus[] = [
+  'Pending',
+  'Approved',
+  'Rejected',
+  'Checked Out',
+  'Checked In',
+  'Cancelled',
+  'Overdue',
+]
+
+export const CHECKOUT_STATUS_CONFIG: Record<
+  CheckoutRequestStatus,
+  { bg: string; text: string; dot: string }
+> = {
+  Pending: { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', dot: 'bg-amber-500' },
+  Approved: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500' },
+  Rejected: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', dot: 'bg-rose-500' },
+  'Checked Out': { bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', dot: 'bg-violet-500' },
+  'Checked In': { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+  Cancelled: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', dot: 'bg-slate-400' },
+  Overdue: { bg: 'bg-red-500/10', text: 'text-red-700 dark:text-red-400', dot: 'bg-red-500' },
+}
+
+export interface CheckoutRequest {
+  id: string
+  assetId: string
+  requestedById: string
+  requestType: CheckoutRequestType | string
+  status: CheckoutRequestStatus | string
+  reason?: string | null
+  requestedStartDate: string
+  requestedReturnDate?: string | null
+  approvedById?: string | null
+  approvedAt?: string | null
+  decisionNotes?: string | null
+  checkedOutAt?: string | null
+  checkedInAt?: string | null
+  actualReturnDate?: string | null
+  conditionAtReturn?: string | null
+  createdAt: string
+  updatedAt: string
+  asset?: Asset
+  requestedBy?: Person
+  approvedBy?: Person | null
+}
+
+// ============ Depreciation ============
+export type DepreciationMethod = 'straight-line' | 'declining-balance' | 'units-of-production'
+
+export const DEPRECIATION_METHODS: { value: DepreciationMethod; label: string; description: string }[] = [
+  { value: 'straight-line', label: 'Straight Line', description: 'Equal depreciation each year' },
+  { value: 'declining-balance', label: 'Declining Balance', description: 'Double declining balance (2x rate)' },
+  { value: 'units-of-production', label: 'Units of Production', description: 'Based on usage' },
+]
+
+export interface DepreciationRule {
+  id: string
+  name: string
+  assetTypeId?: string | null
+  method: DepreciationMethod | string
+  usefulLifeYears: number
+  salvageValuePercent: number
+  description?: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  assetType?: AssetType | null
+}
+
+export interface DepreciationCalc {
+  asset: Asset
+  rule?: DepreciationRule | null
+  purchaseCost: number
+  currentValue: number
+  depreciation: number
+  depreciationPercent: number
+  yearsElapsed: number
+  yearsRemaining: number
+  annualDepreciation: number
+  salvageValue: number
+  method: string
+  isFullyDepreciated: boolean
+}
+
+// ============ Notifications ============
+export type NotificationType =
+  | 'warranty_expiring'
+  | 'maintenance_overdue'
+  | 'maintenance_scheduled'
+  | 'license_expiring'
+  | 'license_expired'
+  | 'checkout_request'
+  | 'checkout_overdue'
+  | 'low_stock'
+  | 'asset_created'
+  | 'system'
+
+export type NotificationSeverity = 'info' | 'warning' | 'critical' | 'success'
+
+export const NOTIFICATION_SEVERITY_CONFIG: Record<
+  NotificationSeverity,
+  { bg: string; text: string; icon: string }
+> = {
+  info: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', icon: 'Info' },
+  warning: { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', icon: 'AlertTriangle' },
+  critical: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', icon: 'AlertOctagon' },
+  success: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', icon: 'CheckCircle2' },
+}
+
+export interface AppNotification {
+  id: string
+  type: NotificationType | string
+  severity: NotificationSeverity | string
+  title: string
+  message: string
+  entityType?: string | null
+  entityId?: string | null
+  isRead: boolean
+  actionUrl?: string | null
+  actionLabel?: string | null
+  createdAt: string
+  readAt?: string | null
 }

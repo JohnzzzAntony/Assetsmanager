@@ -17,6 +17,9 @@ import { MaintenanceView } from '@/components/views/maintenance-view'
 import { AuditLogView } from '@/components/views/audit-log-view'
 import { LicensesView } from '@/components/views/licenses-view'
 import { AssetLabelsView } from '@/components/views/asset-labels-view'
+import { CheckoutsView } from '@/components/views/checkouts-view'
+import { DepreciationView } from '@/components/views/depreciation-view'
+import { NotificationsView } from '@/components/views/notifications-view'
 import { useQuery } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -100,6 +103,12 @@ function ViewRouter() {
       return <LicensesView />
     case 'asset-labels':
       return <AssetLabelsView />
+    case 'checkouts':
+      return <CheckoutsView />
+    case 'depreciation':
+      return <DepreciationView />
+    case 'notifications':
+      return <NotificationsView />
     default:
       return <DashboardView />
   }

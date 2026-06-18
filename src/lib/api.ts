@@ -13,6 +13,10 @@ import type {
   ActivityLog,
   SoftwareLicense,
   AssetLicense,
+  CheckoutRequest,
+  DepreciationRule,
+  DepreciationCalc,
+  AppNotification,
 } from './types'
 
 class ApiError extends Error {
@@ -213,6 +217,70 @@ export const importApi = {
     })
   },
   seed: () => request<{ success: boolean; message: string }>('/api/seed', { method: 'POST' }),
+}
+
+// ---- Checkout Requests ----
+export const checkoutApi = {
+  list: (query?: { assetId?: string; requestedById?: string; status?: string; requestType?: string; limit?: number }) => {
+    const params = new URLSearchParams()
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+      })
+    }
+    const qs = params.toString()
+    return request<CheckoutRequest[]>(`/api/checkouts${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: string) => request<CheckoutRequest>(`/api/checkouts/${id}`),
+  create: (data: Partial<CheckoutRequest>) =>
+    request<CheckoutRequest>('/api/checkouts', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<CheckoutRequest>) =>
+    request<CheckoutRequest>(`/api/checkouts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/checkouts/${id}`, { method: 'DELETE' }),
+  approve: (id: string, approverId: string, notes?: string) =>
+    request<CheckoutRequest>(`/api/checkouts/${id}/approve`, { method: 'POST', body: JSON.stringify({ approverId, notes }) }),
+  reject: (id: string, approverId: string, notes?: string) =>
+    request<CheckoutRequest>(`/api/checkouts/${id}/reject`, { method: 'POST', body: JSON.stringify({ approverId, notes }) }),
+  checkOut: (id: string) =>
+    request<CheckoutRequest>(`/api/checkouts/${id}/check-out`, { method: 'POST' }),
+  checkIn: (id: string, condition?: string) =>
+    request<CheckoutRequest>(`/api/checkouts/${id}/check-in`, { method: 'POST', body: JSON.stringify({ condition }) }),
+  listForAsset: (assetId: string) => request<CheckoutRequest[]>(`/api/assets/${assetId}/checkouts`),
+}
+
+// ---- Depreciation ----
+export const depreciationApi = {
+  listRules: () => request<DepreciationRule[]>('/api/depreciation/rules'),
+  createRule: (data: Partial<DepreciationRule>) =>
+    request<DepreciationRule>('/api/depreciation/rules', { method: 'POST', body: JSON.stringify(data) }),
+  updateRule: (id: string, data: Partial<DepreciationRule>) =>
+    request<DepreciationRule>(`/api/depreciation/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRule: (id: string) => request<void>(`/api/depreciation/rules/${id}`, { method: 'DELETE' }),
+  calculate: (assetId?: string) => {
+    const qs = assetId ? `?assetId=${assetId}` : ''
+    return request<DepreciationCalc | DepreciationCalc[]>(`/api/depreciation/calculate${qs}`)
+  },
+  stats: () => request<{ totalAssets: number; totalPurchaseValue: number; totalCurrentValue: number; totalDepreciation: number; fullyDepreciatedCount: number }>('/api/depreciation/calculate?stats=true'),
+}
+
+// ---- Notifications ----
+export const notificationApi = {
+  list: (query?: { limit?: number; unread?: boolean; type?: string }) => {
+    const params = new URLSearchParams()
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+      })
+    }
+    const qs = params.toString()
+    return request<AppNotification[]>(`/api/notifications${qs ? `?${qs}` : ''}`)
+  },
+  create: (data: Partial<AppNotification>) =>
+    request<AppNotification>('/api/notifications', { method: 'POST', body: JSON.stringify(data) }),
+  markRead: (id: string) => request<void>(`/api/notifications/${id}`, { method: 'PATCH' }),
+  delete: (id: string) => request<void>(`/api/notifications/${id}`, { method: 'DELETE' }),
+  markAllRead: () => request<void>('/api/notifications/mark-all-read', { method: 'POST' }),
+  regenerate: () => request<{ created: number; cleared: number }>('/api/notifications/regenerate', { method: 'POST' }),
 }
 
 export { ApiError }

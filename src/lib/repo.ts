@@ -13,6 +13,10 @@ import type {
   ActivityLog,
   SoftwareLicense,
   AssetLicense,
+  CheckoutRequest,
+  DepreciationRule,
+  DepreciationCalc,
+  AppNotification,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -1028,4 +1032,493 @@ export function logAssetActivity(action: string, assetId: string, details?: stri
   try {
     activityLogRepo.log(action, 'Asset', assetId, details)
   } catch {}
+}
+
+// ============ Checkout Requests ============
+export interface CheckoutQuery {
+  assetId?: string
+  requestedById?: string
+  status?: string
+  requestType?: string
+  limit?: number
+}
+
+export const checkoutRepo = {
+  list(opts: CheckoutQuery = {}): CheckoutRequest[] {
+    ensure()
+    const limit = Math.min(opts.limit || 200, 500)
+    const where: string[] = []
+    const params: unknown[] = []
+    if (opts.assetId) { where.push('c.assetId = ?'); params.push(opts.assetId) }
+    if (opts.requestedById) { where.push('c.requestedById = ?'); params.push(opts.requestedById) }
+    if (opts.status) { where.push('c.status = ?'); params.push(opts.status) }
+    if (opts.requestType) { where.push('c.requestType = ?'); params.push(opts.requestType) }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const r = db.prepare(
+      `SELECT c.*,
+        a.assetTag, a.make, a.model, a.serialNumber, t.name as typeName,
+        p.fullName as requesterName, p.email as requesterEmail,
+        ap.fullName as approverName
+       FROM CheckoutRequest c
+       LEFT JOIN Asset a ON c.assetId = a.id
+       LEFT JOIN AssetType t ON a.assetTypeId = t.id
+       LEFT JOIN Person p ON c.requestedById = p.id
+       LEFT JOIN Person ap ON c.approvedById = ap.id
+       ${whereSql}
+       ORDER BY c.createdAt DESC LIMIT ?`
+    ).all(...params, limit)
+    return rows<CheckoutRequest & {
+      assetTag?: string; make?: string; model?: string; serialNumber?: string; typeName?: string
+      requesterName?: string; requesterEmail?: string; approverName?: string
+    }>(r).map((c) => ({
+      ...c,
+      asset: c.assetTag ? {
+        id: c.assetId,
+        assetTag: (c as any).assetTag,
+        make: (c as any).make,
+        model: (c as any).model,
+        serialNumber: (c as any).serialNumber,
+        assetType: (c as any).typeName ? { id: '', name: (c as any).typeName } : undefined,
+      } as Asset : undefined,
+      requestedBy: c.requesterName ? {
+        id: c.requestedById,
+        fullName: (c as any).requesterName,
+        email: (c as any).requesterEmail,
+      } as Person : undefined,
+      approvedBy: (c as any).approverName ? {
+        id: c.approvedById!,
+        fullName: (c as any).approverName,
+      } as Person : null,
+    }))
+  },
+  listForAsset(assetId: string): CheckoutRequest[] {
+    return this.list({ assetId, limit: 50 })
+  },
+  get(id: string): CheckoutRequest | null {
+    ensure()
+    return row<CheckoutRequest>(db.prepare('SELECT * FROM CheckoutRequest WHERE id = ?').get(id))
+  },
+  create(data: Partial<CheckoutRequest>): CheckoutRequest {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO CheckoutRequest (id, assetId, requestedById, requestType, status, reason, requestedStartDate, requestedReturnDate, approvedById, approvedAt, decisionNotes, checkedOutAt, checkedInAt, actualReturnDate, conditionAtReturn, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      data.assetId,
+      data.requestedById,
+      data.requestType ?? 'Checkout',
+      data.status ?? 'Pending',
+      data.reason ?? null,
+      data.requestedStartDate ?? now,
+      data.requestedReturnDate ?? null,
+      data.approvedById ?? null,
+      data.approvedAt ?? null,
+      data.decisionNotes ?? null,
+      data.checkedOutAt ?? null,
+      data.checkedInAt ?? null,
+      data.actualReturnDate ?? null,
+      data.conditionAtReturn ?? null,
+      now,
+      now
+    )
+    activityLogRepo.log('checkout.created', 'Asset', data.assetId!, `New ${data.requestType || 'Checkout'} request`)
+    return this.get(id)!
+  },
+  update(id: string, data: Partial<CheckoutRequest>): CheckoutRequest | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    db.prepare(
+      `UPDATE CheckoutRequest SET status = ?, reason = ?, requestedReturnDate = ?, approvedById = ?, approvedAt = ?, decisionNotes = ?, checkedOutAt = ?, checkedInAt = ?, actualReturnDate = ?, conditionAtReturn = ?, updatedAt = ? WHERE id = ?`
+    ).run(
+      data.status ?? cur.status,
+      data.reason ?? cur.reason,
+      data.requestedReturnDate ?? cur.requestedReturnDate,
+      data.approvedById ?? cur.approvedById,
+      data.approvedAt ?? cur.approvedAt,
+      data.decisionNotes ?? cur.decisionNotes,
+      data.checkedOutAt ?? cur.checkedOutAt,
+      data.checkedInAt ?? cur.checkedInAt,
+      data.actualReturnDate ?? cur.actualReturnDate,
+      data.conditionAtReturn ?? cur.conditionAtReturn,
+      now,
+      id
+    )
+    if (data.status && data.status !== cur.status) {
+      activityLogRepo.log('checkout.updated', 'Asset', cur.assetId, `Checkout request status: ${cur.status} → ${data.status}`)
+    }
+    return this.get(id)
+  },
+  delete(id: string): void {
+    ensure()
+    db.prepare('DELETE FROM CheckoutRequest WHERE id = ?').run(id)
+  },
+  approve(id: string, approverId: string, notes?: string): CheckoutRequest | null {
+    return this.update(id, {
+      status: 'Approved',
+      approvedById: approverId,
+      approvedAt: new Date().toISOString(),
+      decisionNotes: notes,
+    })
+  },
+  reject(id: string, approverId: string, notes?: string): CheckoutRequest | null {
+    return this.update(id, {
+      status: 'Rejected',
+      approvedById: approverId,
+      approvedAt: new Date().toISOString(),
+      decisionNotes: notes,
+    })
+  },
+  checkOut(id: string): CheckoutRequest | null {
+    return this.update(id, {
+      status: 'Checked Out',
+      checkedOutAt: new Date().toISOString(),
+    })
+  },
+  checkIn(id: string, condition?: string): CheckoutRequest | null {
+    return this.update(id, {
+      status: 'Checked In',
+      checkedInAt: new Date().toISOString(),
+      actualReturnDate: new Date().toISOString(),
+      conditionAtReturn: condition,
+    })
+  },
+  stats(): { total: number; pending: number; approved: number; checkedOut: number; overdue: number; rejected: number } {
+    ensure()
+    const total = (db.prepare('SELECT COUNT(*) as c FROM CheckoutRequest').get() as { c: number }).c
+    const pending = (db.prepare(`SELECT COUNT(*) as c FROM CheckoutRequest WHERE status='Pending'`).get() as { c: number }).c
+    const approved = (db.prepare(`SELECT COUNT(*) as c FROM CheckoutRequest WHERE status='Approved'`).get() as { c: number }).c
+    const checkedOut = (db.prepare(`SELECT COUNT(*) as c FROM CheckoutRequest WHERE status='Checked Out'`).get() as { c: number }).c
+    const rejected = (db.prepare(`SELECT COUNT(*) as c FROM CheckoutRequest WHERE status='Rejected'`).get() as { c: number }).c
+    const now = new Date().toISOString()
+    const overdue = (db.prepare(
+      `SELECT COUNT(*) as c FROM CheckoutRequest WHERE status='Checked Out' AND requestedReturnDate IS NOT NULL AND requestedReturnDate < ?`
+    ).get(now) as { c: number }).c
+    return { total, pending, approved, checkedOut, overdue, rejected }
+  },
+}
+
+// ============ Depreciation Rules & Calculations ============
+export const depreciationRepo = {
+  list(): DepreciationRule[] {
+    ensure()
+    const r = db.prepare(`
+      SELECT d.*, t.name as typeName
+      FROM DepreciationRule d
+      LEFT JOIN AssetType t ON d.assetTypeId = t.id
+      ORDER BY d.name
+    `).all()
+    return rows<DepreciationRule & { typeName?: string }>(r).map((d) => ({
+      ...d,
+      isActive: Boolean((d as any).isActive),
+      assetType: (d as any).typeName ? { id: d.assetTypeId!, name: (d as any).typeName } : null,
+    }))
+  },
+  get(id: string): DepreciationRule | null {
+    ensure()
+    const r = row<DepreciationRule & { typeName?: string }>(db.prepare(`
+      SELECT d.*, t.name as typeName FROM DepreciationRule d
+      LEFT JOIN AssetType t ON d.assetTypeId = t.id WHERE d.id = ?
+    `).get(id))
+    if (!r) return null
+    return { ...r, isActive: Boolean((r as any).isActive), assetType: (r as any).typeName ? { id: r.assetTypeId!, name: (r as any).typeName } : null }
+  },
+  findByAssetType(assetTypeId: string): DepreciationRule | null {
+    ensure()
+    // Look for asset-type-specific rule first, then fall back to global
+    let r = row<DepreciationRule & { typeName?: string }>(db.prepare(`
+      SELECT d.*, t.name as typeName FROM DepreciationRule d
+      LEFT JOIN AssetType t ON d.assetTypeId = t.id
+      WHERE d.assetTypeId = ? AND d.isActive = 1
+    `).get(assetTypeId))
+    if (!r) {
+      r = row<DepreciationRule & { typeName?: string }>(db.prepare(`
+        SELECT d.*, NULL as typeName FROM DepreciationRule d
+        WHERE d.assetTypeId IS NULL AND d.isActive = 1
+        ORDER BY d.createdAt ASC LIMIT 1
+      `).get())
+    }
+    if (!r) return null
+    return { ...r, isActive: Boolean((r as any).isActive), assetType: (r as any).typeName ? { id: r.assetTypeId!, name: (r as any).typeName } : null }
+  },
+  create(data: Partial<DepreciationRule>): DepreciationRule {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO DepreciationRule (id, name, assetTypeId, method, usefulLifeYears, salvageValuePercent, description, isActive, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id, data.name, data.assetTypeId ?? null, data.method ?? 'straight-line',
+      Number(data.usefulLifeYears ?? 4), Number(data.salvageValuePercent ?? 0),
+      data.description ?? null, data.isActive === false ? 0 : 1, now, now
+    )
+    return this.get(id)!
+  },
+  update(id: string, data: Partial<DepreciationRule>): DepreciationRule | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    db.prepare(
+      `UPDATE DepreciationRule SET name = ?, assetTypeId = ?, method = ?, usefulLifeYears = ?, salvageValuePercent = ?, description = ?, isActive = ?, updatedAt = ? WHERE id = ?`
+    ).run(
+      data.name ?? cur.name, data.assetTypeId ?? cur.assetTypeId,
+      data.method ?? cur.method,
+      data.usefulLifeYears != null ? Number(data.usefulLifeYears) : cur.usefulLifeYears,
+      data.salvageValuePercent != null ? Number(data.salvageValuePercent) : cur.salvageValuePercent,
+      data.description ?? cur.description,
+      data.isActive != null ? (data.isActive ? 1 : 0) : (cur.isActive ? 1 : 0),
+      now, id
+    )
+    return this.get(id)
+  },
+  delete(id: string): void {
+    ensure()
+    db.prepare('DELETE FROM DepreciationRule WHERE id = ?').run(id)
+  },
+  calculate(asset: Asset): DepreciationCalc | null {
+    if (asset.cost == null || asset.cost <= 0 || !asset.purchaseDate) {
+      return null
+    }
+    const rule = this.findByAssetType(asset.assetTypeId)
+    const usefulLifeYears = rule?.usefulLifeYears ?? 4
+    const salvagePercent = rule?.salvageValuePercent ?? 0
+    const method = rule?.method ?? 'straight-line'
+
+    const purchaseCost = asset.cost
+    const salvageValue = purchaseCost * (salvagePercent / 100)
+    const depreciableAmount = purchaseCost - salvageValue
+
+    const purchaseDate = new Date(asset.purchaseDate)
+    const now = new Date()
+    const yearsElapsed = Math.max(0, (now.getTime() - purchaseDate.getTime()) / (365.25 * 24 * 3600 * 1000))
+    const yearsElapsedRounded = Math.floor(yearsElapsed)
+    const yearsRemaining = Math.max(0, usefulLifeYears - yearsElapsedRounded)
+
+    let currentValue = purchaseCost
+    let annualDepreciation = 0
+    let depreciationPercent = 0
+
+    if (method === 'straight-line') {
+      annualDepreciation = depreciableAmount / usefulLifeYears
+      const depreciation = Math.min(depreciableAmount, annualDepreciation * yearsElapsed)
+      currentValue = purchaseCost - depreciation
+      depreciationPercent = (depreciation / purchaseCost) * 100
+    } else if (method === 'declining-balance') {
+      // Double declining balance
+      const rate = (2 / usefulLifeYears)
+      let bookValue = purchaseCost
+      let year = 0
+      while (year < yearsElapsedRounded && bookValue > salvageValue) {
+        const dep = Math.max(0, bookValue * rate)
+        bookValue = Math.max(salvageValue, bookValue - dep)
+        year++
+      }
+      currentValue = bookValue
+      annualDepreciation = currentValue * rate
+      depreciationPercent = ((purchaseCost - currentValue) / purchaseCost) * 100
+    } else {
+      // units-of-production: treat years as "units" (fallback simple straight-line)
+      annualDepreciation = depreciableAmount / usefulLifeYears
+      const depreciation = Math.min(depreciableAmount, annualDepreciation * yearsElapsed)
+      currentValue = purchaseCost - depreciation
+      depreciationPercent = (depreciation / purchaseCost) * 100
+    }
+
+    const depreciation = purchaseCost - currentValue
+    const isFullyDepreciated = currentValue <= salvageValue || yearsElapsedRounded >= usefulLifeYears
+
+    return {
+      asset,
+      rule,
+      purchaseCost,
+      currentValue: Math.round(currentValue * 100) / 100,
+      depreciation: Math.round(depreciation * 100) / 100,
+      depreciationPercent: Math.round(depreciationPercent * 100) / 100,
+      yearsElapsed: Math.round(yearsElapsed * 100) / 100,
+      yearsRemaining,
+      annualDepreciation: Math.round(annualDepreciation * 100) / 100,
+      salvageValue: Math.round(salvageValue * 100) / 100,
+      method,
+      isFullyDepreciated,
+    }
+  },
+  calculateForAll(): DepreciationCalc[] {
+    ensure()
+    const assets = db.prepare(`
+      SELECT a.*, t.name as typeName FROM Asset a
+      LEFT JOIN AssetType t ON a.assetTypeId = t.id
+      WHERE a.cost IS NOT NULL AND a.cost > 0 AND a.purchaseDate IS NOT NULL
+      ORDER BY a.assetTag
+    `).all() as any[]
+    const results: DepreciationCalc[] = []
+    for (const a of assets) {
+      const asset: Asset = {
+        ...a,
+        assetType: a.typeName ? { id: a.assetTypeId, name: a.typeName } : undefined,
+      } as Asset
+      const calc = this.calculate(asset)
+      if (calc) results.push(calc)
+    }
+    return results
+  },
+  stats(): { totalAssets: number; totalPurchaseValue: number; totalCurrentValue: number; totalDepreciation: number; fullyDepreciatedCount: number } {
+    const calcs = this.calculateForAll()
+    return {
+      totalAssets: calcs.length,
+      totalPurchaseValue: Math.round(calcs.reduce((s, c) => s + c.purchaseCost, 0) * 100) / 100,
+      totalCurrentValue: Math.round(calcs.reduce((s, c) => s + c.currentValue, 0) * 100) / 100,
+      totalDepreciation: Math.round(calcs.reduce((s, c) => s + c.depreciation, 0) * 100) / 100,
+      fullyDepreciatedCount: calcs.filter((c) => c.isFullyDepreciated).length,
+    }
+  },
+}
+
+// ============ Notifications ============
+export const notificationRepo = {
+  list(opts: { limit?: number; onlyUnread?: boolean; type?: string } = {}): AppNotification[] {
+    ensure()
+    const limit = Math.min(opts.limit || 100, 500)
+    const where: string[] = []
+    const params: unknown[] = []
+    if (opts.onlyUnread) { where.push('isRead = 0') }
+    if (opts.type) { where.push('type = ?'); params.push(opts.type) }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const r = db.prepare(
+      `SELECT * FROM Notification ${whereSql} ORDER BY createdAt DESC LIMIT ?`
+    ).all(...params, limit)
+    return rows<AppNotification>(r).map((n) => ({ ...n, isRead: Boolean((n as any).isRead) }))
+  },
+  create(data: Partial<AppNotification>): AppNotification {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO Notification (id, type, severity, title, message, entityType, entityId, isRead, actionUrl, actionLabel, createdAt, readAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NULL)`
+    ).run(
+      id, data.type, data.severity ?? 'info', data.title, data.message,
+      data.entityType ?? null, data.entityId ?? null,
+      data.actionUrl ?? null, data.actionLabel ?? null, now
+    )
+    return row<AppNotification>(db.prepare('SELECT * FROM Notification WHERE id = ?').get(id))!
+  },
+  markRead(id: string): void {
+    ensure()
+    db.prepare('UPDATE Notification SET isRead = 1, readAt = ? WHERE id = ?')
+      .run(new Date().toISOString(), id)
+  },
+  markAllRead(): void {
+    ensure()
+    db.prepare('UPDATE Notification SET isRead = 1, readAt = ? WHERE isRead = 0')
+      .run(new Date().toISOString())
+  },
+  delete(id: string): void {
+    ensure()
+    db.prepare('DELETE FROM Notification WHERE id = ?').run(id)
+  },
+  clearAll(): void {
+    ensure()
+    db.prepare('DELETE FROM Notification').run()
+  },
+  count(opts: { onlyUnread?: boolean } = {}): number {
+    ensure()
+    const sql = opts.onlyUnread ? `SELECT COUNT(*) as c FROM Notification WHERE isRead = 0` : `SELECT COUNT(*) as c FROM Notification`
+    return (db.prepare(sql).get() as { c: number }).c
+  },
+  // Generate notifications from system state (warranty, maintenance overdue, license expiring)
+  regenerateSystemNotifications(): { created: number; cleared: number } {
+    ensure()
+    // Clear existing system notifications
+    const cleared = (db.prepare(`DELETE FROM Notification WHERE type IN ('warranty_expiring','maintenance_overdue','license_expiring','license_expired','low_stock')`).run() as any).changes || 0
+    let created = 0
+    const now = new Date()
+    const in30 = new Date(); in30.setDate(now.getDate() + 30)
+    const in7 = new Date(); in7.setDate(now.getDate() + 7)
+
+    // Warranty expiring
+    const warrantyRows = db.prepare(`
+      SELECT id, assetTag, make, model, warrantyExpiry FROM Asset
+      WHERE warrantyExpiry IS NOT NULL AND warrantyExpiry > ? AND warrantyExpiry <= ?
+    `).all(now.toISOString(), in30.toISOString()) as any[]
+    for (const a of warrantyRows) {
+      this.create({
+        type: 'warranty_expiring',
+        severity: 'warning',
+        title: 'Warranty Expiring Soon',
+        message: `${a.make} ${a.model} (${a.assetTag}) warranty expires soon`,
+        entityType: 'Asset',
+        entityId: a.id,
+        actionUrl: 'asset-detail',
+        actionLabel: 'View Asset',
+      })
+      created++
+    }
+
+    // Maintenance overdue
+    const overdueMaint = db.prepare(`
+      SELECT m.id, m.title, m.scheduledFor, a.assetTag, a.make, a.model, a.id as assetId
+      FROM MaintenanceSchedule m
+      LEFT JOIN Asset a ON m.assetId = a.id
+      WHERE m.status IN ('Scheduled','In Progress') AND m.scheduledFor < ?
+    `).all(now.toISOString()) as any[]
+    for (const m of overdueMaint) {
+      this.create({
+        type: 'maintenance_overdue',
+        severity: 'critical',
+        title: 'Maintenance Overdue',
+        message: `"${m.title}" for ${m.make} ${m.model} (${m.assetTag}) was due ${new Date(m.scheduledFor).toLocaleDateString()}`,
+        entityType: 'Asset',
+        entityId: m.assetId,
+        actionUrl: 'maintenance',
+        actionLabel: 'View Maintenance',
+      })
+      created++
+    }
+
+    // License expiring soon
+    const expiringLic = db.prepare(`
+      SELECT id, name, vendor, expiryDate FROM SoftwareLicense
+      WHERE expiryDate IS NOT NULL AND expiryDate > ? AND expiryDate <= ?
+    `).all(now.toISOString(), in30.toISOString()) as any[]
+    for (const l of expiringLic) {
+      this.create({
+        type: 'license_expiring',
+        severity: 'warning',
+        title: 'License Expiring Soon',
+        message: `${l.name} (${l.vendor || 'vendor'}) expires ${new Date(l.expiryDate).toLocaleDateString()}`,
+        entityType: 'License',
+        entityId: l.id,
+        actionUrl: 'licenses',
+        actionLabel: 'View Licenses',
+      })
+      created++
+    }
+
+    // License already expired
+    const expiredLic = db.prepare(`
+      SELECT id, name, vendor, expiryDate FROM SoftwareLicense
+      WHERE expiryDate IS NOT NULL AND expiryDate < ?
+    `).all(now.toISOString()) as any[]
+    for (const l of expiredLic) {
+      this.create({
+        type: 'license_expired',
+        severity: 'critical',
+        title: 'License Expired',
+        message: `${l.name} (${l.vendor || 'vendor'}) expired ${new Date(l.expiryDate).toLocaleDateString()}`,
+        entityType: 'License',
+        entityId: l.id,
+        actionUrl: 'licenses',
+        actionLabel: 'View Licenses',
+      })
+      created++
+    }
+
+    return { created, cleared }
+  },
 }

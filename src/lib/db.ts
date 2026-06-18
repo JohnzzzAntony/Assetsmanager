@@ -213,6 +213,61 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_asset_serial ON Asset(serialNumber);
     CREATE INDEX IF NOT EXISTS idx_history_asset ON AssignmentHistory(assetId);
     CREATE INDEX IF NOT EXISTS idx_images_asset ON AssetImage(assetId);
+
+    CREATE TABLE IF NOT EXISTS CheckoutRequest (
+      id TEXT PRIMARY KEY,
+      assetId TEXT NOT NULL REFERENCES Asset(id) ON DELETE CASCADE,
+      requestedById TEXT NOT NULL REFERENCES Person(id) ON DELETE CASCADE,
+      requestType TEXT NOT NULL DEFAULT 'Checkout',
+      status TEXT NOT NULL DEFAULT 'Pending',
+      reason TEXT,
+      requestedStartDate TEXT NOT NULL,
+      requestedReturnDate TEXT,
+      approvedById TEXT REFERENCES Person(id) ON DELETE SET NULL,
+      approvedAt TEXT,
+      decisionNotes TEXT,
+      checkedOutAt TEXT,
+      checkedInAt TEXT,
+      actualReturnDate TEXT,
+      conditionAtReturn TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS DepreciationRule (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      assetTypeId TEXT REFERENCES AssetType(id) ON DELETE SET NULL,
+      method TEXT NOT NULL DEFAULT 'straight-line',
+      usefulLifeYears INTEGER NOT NULL DEFAULT 4,
+      salvageValuePercent REAL NOT NULL DEFAULT 0,
+      description TEXT,
+      isActive INTEGER NOT NULL DEFAULT 1,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS Notification (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'info',
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      entityType TEXT,
+      entityId TEXT,
+      isRead INTEGER NOT NULL DEFAULT 0,
+      actionUrl TEXT,
+      actionLabel TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      readAt TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_checkout_asset ON CheckoutRequest(assetId);
+    CREATE INDEX IF NOT EXISTS idx_checkout_requester ON CheckoutRequest(requestedById);
+    CREATE INDEX IF NOT EXISTS idx_checkout_status ON CheckoutRequest(status);
+    CREATE INDEX IF NOT EXISTS idx_deprule_type ON DepreciationRule(assetTypeId);
+    CREATE INDEX IF NOT EXISTS idx_notif_type ON Notification(type);
+    CREATE INDEX IF NOT EXISTS idx_notif_unread ON Notification(isRead, createdAt);
   `)
 }
 

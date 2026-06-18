@@ -314,8 +314,117 @@ export function seedDatabase() {
     logCount++
   }
 
+  // ---------- Seed Depreciation Rules ----------
+  const typeRows = db.prepare('SELECT id, name FROM AssetType').all() as { id: string; name: string }[]
+  const depRules = [
+    { name: 'Standard IT Equipment (4yr, 10% salvage)', typeName: 'Laptop', method: 'straight-line', life: 4, salvage: 10 },
+    { name: 'Desktop Computers (5yr, 5% salvage)', typeName: 'Desktop', method: 'straight-line', life: 5, salvage: 5 },
+    { name: 'Mobile Devices (3yr, 0% salvage)', typeName: 'Mobile', method: 'declining-balance', life: 3, salvage: 0 },
+    { name: 'Tablets (3yr, 5% salvage)', typeName: 'Tablet', method: 'straight-line', life: 3, salvage: 5 },
+    { name: 'Monitors (6yr, 10% salvage)', typeName: 'Monitor', method: 'straight-line', life: 6, salvage: 10 },
+    { name: 'Peripherals (2yr, 0% salvage)', typeName: 'Peripheral', method: 'straight-line', life: 2, salvage: 0 },
+    { name: 'Default Rule (4yr, 0% salvage)', typeName: null, method: 'straight-line', life: 4, salvage: 0 },
+  ]
+  const insDep = db.prepare(
+    `INSERT INTO DepreciationRule (id, name, assetTypeId, method, usefulLifeYears, salvageValuePercent, description, isActive, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  let depCount = 0
+  for (const r of depRules) {
+    const id = generateId()
+    const typeId = r.typeName ? typeRows.find((t) => t.name === r.typeName)?.id : null
+    insDep.run(
+      id, r.name, typeId ?? null, r.method, r.life, r.salvage,
+      `Auto-created rule for ${r.typeName || 'all asset types'}`,
+      1, now, now
+    )
+    depCount++
+  }
+
+  // ---------- Seed Checkout Requests ----------
+  const personRows = db.prepare('SELECT id FROM Person').all() as { id: string }[]
+  const checkoutStatuses = ['Pending', 'Approved', 'Checked Out', 'Checked In', 'Rejected']
+  const insCheckout = db.prepare(
+    `INSERT INTO CheckoutRequest (id, assetId, requestedById, requestType, status, reason, requestedStartDate, requestedReturnDate, approvedById, approvedAt, decisionNotes, checkedOutAt, checkedInAt, actualReturnDate, conditionAtReturn, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  let checkoutCount = 0
+  for (let i = 0; i < 8; i++) {
+    const a = assetRows[i % assetRows.length]
+    const requester = personRows[(i + 3) % personRows.length]
+    const approver = personRows[0]
+    const status = checkoutStatuses[i % checkoutStatuses.length]
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - (i * 7))
+    const returnDate = new Date(startDate)
+    returnDate.setDate(returnDate.getDate() + 14)
+    const checkedOutAt = status === 'Checked Out' || status === 'Checked In' ? startDate.toISOString() : null
+    const checkedInAt = status === 'Checked In' ? new Date().toISOString() : null
+    const actualReturnDate = status === 'Checked In' ? new Date().toISOString() : null
+    const approvedAt = status !== 'Pending' ? startDate.toISOString() : null
+    const decisionNotes = status === 'Approved' || status === 'Checked Out' || status === 'Checked In'
+      ? 'Approved for business use'
+      : status === 'Rejected' ? 'Asset currently in use by another team' : null
+    insCheckout.run(
+      generateId(), a.id, requester.id, 'Checkout', status,
+      `Need this asset for ${['client project', 'remote work', 'training session', 'testing', 'travel'][i % 5]}`,
+      startDate.toISOString(),
+      returnDate.toISOString(),
+      status !== 'Pending' ? approver.id : null,
+      approvedAt,
+      decisionNotes,
+      checkedOutAt, checkedInAt, actualReturnDate,
+      status === 'Checked In' ? 'Good condition' : null,
+      startDate.toISOString(), startDate.toISOString()
+    )
+    checkoutCount++
+  }
+
+  // ---------- Generate system notifications ----------
+  let notifCount = 0
+  try {
+    // Use the repo to generate notifications
+    // Inline implementation to avoid circular import issues
+    const in30 = new Date(); in30.setDate(in30.getDate() + 60)  // use 60 days for seed to generate some
+    const inNow = new Date()
+    // Warranty expiring (extend the window for seed)
+    const warrantyRows = db.prepare(`
+      SELECT id, assetTag, make, model, warrantyExpiry FROM Asset
+      WHERE warrantyExpiry IS NOT NULL
+    `).all() as any[]
+    const insNotif = db.prepare(
+      `INSERT INTO Notification (id, type, severity, title, message, entityType, entityId, isRead, actionUrl, actionLabel, createdAt, readAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NULL)`
+    )
+    for (const a of warrantyRows.slice(0, 4)) {
+      const expDate = new Date(a.warrantyExpiry)
+      const diffDays = Math.floor((expDate.getTime() - inNow.getTime()) / (24 * 3600 * 1000))
+      if (diffDays < 0) {
+        insNotif.run(generateId(), 'warranty_expiring', 'critical', 'Warranty Expired',
+          `${a.make} ${a.model} (${a.assetTag}) warranty expired`, 'Asset', a.id, 'asset-detail', 'View Asset', inNow.toISOString())
+        notifCount++
+      } else if (diffDays < 60) {
+        insNotif.run(generateId(), 'warranty_expiring', 'warning', 'Warranty Expiring Soon',
+          `${a.make} ${a.model} (${a.assetTag}) warranty expires in ${diffDays} days`, 'Asset', a.id, 'asset-detail', 'View Asset', inNow.toISOString())
+        notifCount++
+      }
+    }
+    // Maintenance overdue notifications
+    const overdueMaint = db.prepare(`
+      SELECT m.title, m.scheduledFor, a.assetTag, a.make, a.model, a.id as assetId
+      FROM MaintenanceSchedule m
+      LEFT JOIN Asset a ON m.assetId = a.id
+      WHERE m.status IN ('Scheduled','In Progress','Overdue') AND m.scheduledFor < ?
+    `).all(inNow.toISOString()) as any[]
+    for (const m of overdueMaint.slice(0, 3)) {
+      insNotif.run(generateId(), 'maintenance_overdue', 'critical', 'Maintenance Overdue',
+        `"${m.title}" for ${m.make} ${m.model} (${m.assetTag}) was due ${new Date(m.scheduledFor).toLocaleDateString()}`,
+        'Asset', m.assetId, 'maintenance', 'View Maintenance', inNow.toISOString())
+      notifCount++
+    }
+  } catch (e) {
+    // ignore notification seed errors
+  }
+
   return {
     success: true,
-    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries`,
+    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries, ${depCount} depreciation rules, ${checkoutCount} checkout requests, ${notifCount} notifications`,
   }
 }

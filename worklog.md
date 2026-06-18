@@ -122,3 +122,100 @@ Stage Summary:
 - All previously working features (Dashboard, Assets CRUD, OCR, Import, Departments, Locations, Persons, Asset Types, Reports) continue to work
 - ESLint passes cleanly with 0 errors
 - App is fully functional and feature-complete
+
+---
+Task ID: 4
+Agent: Main (orchestrator)
+Task: Continue development — QA test, add 3 new features (Asset Check-out/Check-in, Depreciation Tracking, Notifications/Alerts Center), polish styling further
+
+Work Log:
+- Reviewed prior worklog (Tasks 1-3) — app was already stable with 15 views, 32 API routes, ESLint passing
+- QA tested all 18 existing views via agent-browser: dashboard, assets list, asset detail (with maintenance tab + quick actions), asset form, OCR upload, departments, locations, persons, asset types, reports, import, maintenance, audit log, licenses, asset labels — all return 200, zero errors in dev.log
+- Confirmed no bugs to fix; proceeded with new features
+
+- Extended database schema (db.ts) with 3 new tables:
+  - CheckoutRequest (assetId, requestedById, requestType, status, reason, dates, approver, condition)
+  - DepreciationRule (name, assetTypeId, method, usefulLifeYears, salvageValuePercent, isActive)
+  - Notification (type, severity, title, message, entityType, entityId, isRead, actionUrl)
+  - Added 5 new indexes
+
+- Extended types.ts:
+  - CheckoutRequestType, CheckoutRequestStatus, CHECKOUT_STATUSES, CHECKOUT_STATUS_CONFIG, CheckoutRequest interface
+  - DepreciationMethod, DEPRECIATION_METHODS, DepreciationRule, DepreciationCalc interfaces
+  - NotificationType, NotificationSeverity, NOTIFICATION_SEVERITY_CONFIG, AppNotification interface
+  - Extended DashboardStats with checkouts, depreciation, notifications fields
+
+- Extended repo.ts with 3 new repos (~400 lines):
+  - checkoutRepo: list (with JOINs to Asset/Person), listForAsset, get, create, update, delete, approve, reject, checkOut, checkIn, stats
+  - depreciationRepo: list, get, findByAssetType, create, update, delete, calculate (per-asset), calculateForAll, stats
+    - calculate() supports 3 methods: straight-line, declining-balance (double-declining), units-of-production
+    - Returns currentValue, depreciation, depreciationPercent, yearsElapsed/Remaining, annualDepreciation, salvageValue, isFullyDepreciated
+  - notificationRepo: list, create, markRead, markAllRead, delete, clearAll, count, regenerateSystemNotifications
+    - regenerateSystemNotifications() scans system state and creates alerts for: warranty expiring (30 days), maintenance overdue, license expiring/expired
+
+- Extended seed.ts to seed 7 depreciation rules (one per asset type + 1 default), 8 checkout requests (mixed Pending/Approved/Checked Out/Checked In/Rejected), and generated notifications from warranty/maintenance state
+  - Final seed message: 7 types, 8 depts, 5 locs, 10 persons, 20 assets, 7 licenses, 19 maintenance, 30 audit entries, 7 depreciation rules, 8 checkout requests, N notifications
+
+- Created 14 new API routes:
+  - /api/checkouts (GET, POST)
+  - /api/checkouts/[id] (GET, PUT, DELETE)
+  - /api/checkouts/[id]/approve (POST)
+  - /api/checkouts/[id]/reject (POST)
+  - /api/checkouts/[id]/check-out (POST — also updates asset status to 'In Use')
+  - /api/checkouts/[id]/check-in (POST — also updates asset status to 'In Stock')
+  - /api/assets/[id]/checkouts (GET)
+  - /api/depreciation/rules (GET, POST)
+  - /api/depreciation/rules/[id] (GET, PUT, DELETE)
+  - /api/depreciation/calculate (GET — supports ?assetId= and ?stats=true)
+  - /api/notifications (GET, POST)
+  - /api/notifications/[id] (PATCH — mark read, DELETE)
+  - /api/notifications/mark-all-read (POST)
+  - /api/notifications/regenerate (POST)
+
+- Updated /api/dashboard route to include checkoutStats, depreciationStats, and notification stats
+
+- Extended api.ts with checkoutApi, depreciationApi, notificationApi client methods
+
+- Extended nav.ts with 3 new view names: checkouts, depreciation, notifications
+
+- Extended sidebar.tsx with 3 new nav items (all marked "NEW"): Notifications (Overview group), Check-out Requests, Depreciation (Manage group)
+
+- Updated app-shell.tsx:
+  - Added new view titles (Check-out Requests, Asset Depreciation, Notifications)
+  - Replaced static bell icon with interactive button that navigates to notifications
+  - Added live unread notification count badge (red circle with count) on bell icon
+  - Polls /api/notifications?unread=true every 30 seconds
+
+- Created 3 new view components:
+  - checkouts-view.tsx (~360 lines): 6 stat tiles (Total, Pending, Approved, Checked Out, Overdue, Rejected) + filter + table with status badges + Approve/Reject/Check Out/Check In action buttons + new request dialog with asset/requester/dates/reason + approve/reject dialog with decision notes
+  - depreciation-view.tsx (~370 lines): 4 stat tiles + tab switcher (Asset Calculations / Depreciation Rules) + asset calcs table with depreciation progress bars + rules table with edit/delete + rule form dialog (name, assetType, method, life years, salvage %, description)
+  - notifications-view.tsx (~280 lines): 4 stat tiles (Total, Critical, Warnings, Unread) + severity/type filters + Show Unread toggle + Refresh Alerts + Mark all read buttons + scrollable notification list with severity icons, type badges, hover actions (mark read, delete), click-to-navigate to related entity
+
+- Updated dashboard-view.tsx:
+  - Added new "Operations Overview" section with 4 clickable cards: Check-out Requests (with pending/out/overdue breakdown), Current Asset Value (purchase vs current), Notifications (unread count with pulsing bell when unread), Quick Add Asset
+  - Cards have hover effects (icon scale, shadow), tabular-nums, status color coding
+
+- Updated asset-detail-view.tsx:
+  - Added "Check-out" button next to Edit (navigates to checkouts view)
+
+- Fixed bug: hardcoded approver ID in checkouts view was failing FK constraint; replaced with dynamic lookup of IT Manager person from persons API
+
+- Verified all features work end-to-end via agent-browser:
+  - Checkouts: created request, opened approve dialog, approved request (toast "Request approved")
+  - Depreciation: viewed asset calculations table with depreciation values, viewed rules table with 7 rules, tab switching works
+  - Notifications: clicked notification → navigated to maintenance view, "Mark all read" toast appeared, "Refresh Alerts" generated 11 new notifications
+  - Dashboard: new Operations Overview cards render with real data (8 checkouts, $3,813 current value, 10 unread notifications)
+
+Stage Summary:
+- 3 major new features added: Check-out/Check-in workflow, Asset Depreciation tracking, Notifications/Alerts Center
+- 14 new API routes created (total now 46)
+- 3 new view components (total now 18)
+- 3 new database tables (CheckoutRequest, DepreciationRule, Notification)
+- Seed data expanded: 7 depreciation rules, 8 checkout requests, auto-generated notifications
+- Asset value tracking: $14,584 purchase value → $3,813 current value (-$10,770 total depreciation), 6 fully depreciated assets
+- Live notification badge in header with 30s polling
+- Dashboard enhanced with Operations Overview section
+- All previously working features continue to work
+- ESLint passes cleanly (0 errors)
+- Zero errors in dev.log (last 100 lines)
+- All 46 API endpoints return 200

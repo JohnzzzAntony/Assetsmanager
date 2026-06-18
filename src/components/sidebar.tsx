@@ -24,6 +24,9 @@ import {
   ScrollText,
   KeyRound,
   QrCode,
+  ArrowLeftRight,
+  TrendingDown,
+  Bell,
 } from 'lucide-react'
 import type { ViewName } from '@/lib/nav'
 
@@ -40,11 +43,14 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Assets', view: 'assets', icon: Package, group: 'Overview' },
   { label: 'Reports', view: 'reports', icon: BarChart3, group: 'Overview' },
   { label: 'Audit Log', view: 'audit-log', icon: ScrollText, group: 'Overview', badge: 'new' },
+  { label: 'Notifications', view: 'notifications', icon: Bell, group: 'Overview', badge: 'new' },
   { label: 'Add Asset', view: 'asset-new', icon: Boxes, group: 'Create' },
   { label: 'Add via Image (OCR)', view: 'ocr-upload', icon: ScanText, group: 'Create' },
   { label: 'Import Excel', view: 'import', icon: Upload, group: 'Create' },
   { label: 'Print Asset Labels', view: 'asset-labels', icon: QrCode, group: 'Create', badge: 'new' },
+  { label: 'Check-out Requests', view: 'checkouts', icon: ArrowLeftRight, group: 'Manage', badge: 'new' },
   { label: 'Maintenance', view: 'maintenance', icon: Wrench, group: 'Manage', badge: 'new' },
+  { label: 'Depreciation', view: 'depreciation', icon: TrendingDown, group: 'Manage', badge: 'new' },
   { label: 'Software Licenses', view: 'licenses', icon: KeyRound, group: 'Manage', badge: 'new' },
   { label: 'Departments', view: 'departments', icon: Building2, group: 'Manage' },
   { label: 'Locations', view: 'locations', icon: MapPin, group: 'Manage' },

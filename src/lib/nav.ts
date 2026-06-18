@@ -18,6 +18,9 @@ export type ViewName =
   | 'audit-log'
   | 'licenses'
   | 'asset-labels'
+  | 'checkouts'
+  | 'depreciation'
+  | 'notifications'
 
 interface NavState {
   view: ViewName
