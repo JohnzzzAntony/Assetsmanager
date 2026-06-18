@@ -1,23 +1,41 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
-import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi, bookingsApi, tagsApi, exportApi } from '@/lib/api'
+import { useState, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi, bookingsApi, tagsApi, exportApi, reportsApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency } from '@/lib/format'
 import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES } from '@/lib/types'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend,
 } from 'recharts'
-import { Download, TrendingUp, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock } from 'lucide-react'
+import { Download, TrendingUp, TrendingDown, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock, LineChart as LineChartIcon, RefreshCw, CalendarRange } from 'lucide-react'
 import { toast } from 'sonner'
 
 const STATUS_COLORS: Record<string, string> = {
   'In Use': '#10b981', 'In Stock': '#64748b', Repair: '#f59e0b', Retired: '#f43f5e', Lost: '#ef4444',
 }
 const CHART_COLORS = ['#0f172a', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+
+// Format a YYYY-MM month string as "MMM yy" (e.g. "2026-04" -> "Apr 26")
+function fmtMonth(m: string): string {
+  if (!m || m.length < 7) return m ?? ''
+  const [y, mo] = m.split('-')
+  const mi = parseInt(mo, 10) - 1
+  const yi = parseInt(y, 10)
+  if (isNaN(mi) || isNaN(yi)) return m
+  return new Date(yi, mi, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+}
+
+// Compact Y-axis currency formatter: $1.5k, $12k, $0
+function fmtCompactCurrency(v: number): string {
+  if (v >= 1000) return `$${Math.round(v / 1000)}k`
+  return `$${Math.round(v)}`
+}
 
 export function ReportsView() {
   const { data: stats } = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() })
@@ -31,6 +49,51 @@ export function ReportsView() {
   const { data: deprStats } = useQuery({ queryKey: ['depr-stats-report'], queryFn: () => depreciationApi.stats() })
   const { data: bookings } = useQuery({ queryKey: ['bookings-report'], queryFn: () => bookingsApi.list({ limit: 500 }) })
   const { data: tags } = useQuery({ queryKey: ['tags-report'], queryFn: () => tagsApi.list() })
+  const qc = useQueryClient()
+
+  // Date Range filter state (affects Acquisition Trend + Cost Trend)
+  const [range, setRange] = useState<'all' | '30d' | '90d' | '365d' | 'custom'>('all')
+  const [customStart, setCustomStart] = useState<string>('')
+  const [customEnd, setCustomEnd] = useState<string>('')
+
+  // Map the selected date range to a number of months for the cost-trend query
+  const months = useMemo(() => {
+    if (range === '30d') return 1
+    if (range === '90d') return 3
+    if (range === '365d') return 12
+    if (range === 'custom' && customStart && customEnd) {
+      const s = new Date(customStart)
+      const e = new Date(customEnd)
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+        const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)))
+        return Math.max(1, Math.min(60, Math.ceil(days / 30)))
+      }
+    }
+    return 24 // All Time (24 months back max)
+  }, [range, customStart, customEnd])
+
+  const rangeLabel = useMemo(() => {
+    if (range === '30d') return 'Last 30 days'
+    if (range === '90d') return 'Last 90 days'
+    if (range === '365d') return 'Last 365 days'
+    if (range === 'custom') return 'Custom Range'
+    return 'All Time'
+  }, [range])
+
+  const { data: costTrend } = useQuery({
+    queryKey: ['cost-trend', months],
+    queryFn: () => reportsApi.costTrend(months),
+  })
+
+  const { data: lifecycle } = useQuery({
+    queryKey: ['lifecycle-report'],
+    queryFn: () => reportsApi.lifecycle(),
+  })
+
+  function refreshAll() {
+    qc.invalidateQueries()
+    toast.success('Refreshing all reports...')
+  }
 
   function exportFull() {
     exportApi.download(exportApi.assets())
@@ -53,7 +116,7 @@ export function ReportsView() {
   }
   const trendData = Object.entries(trend)
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-12)
+    .slice(-months)
     .map(([month, count]) => ({ month, count }))
 
   // Value by type
@@ -77,13 +140,63 @@ export function ReportsView() {
     <div className="space-y-5 animate-fade-in-up">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold flex items-center gap-2"><Activity className="h-5 w-5" /> Reports & Analytics</h2>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Activity className="h-5 w-5" /> Reports & Analytics
+            <Badge variant="secondary" className="text-xs font-normal">{rangeLabel}</Badge>
+          </h2>
           <p className="text-sm text-muted-foreground">Insights and exportable reports</p>
         </div>
-        <Button onClick={exportFull} disabled={!assetsAll}>
-          <Download className="h-4 w-4 mr-1.5" /> Export Full Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={refreshAll} title="Refresh reports">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button onClick={exportFull} disabled={!assetsAll}>
+            <Download className="h-4 w-4 mr-1.5" /> Export Full Report
+          </Button>
+        </div>
       </div>
+
+      {/* Date Range filter */}
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <CalendarRange className="h-4 w-4" />
+            <span>Date Range:</span>
+          </div>
+          <Select value={range} onValueChange={(v) => setRange(v as typeof range)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="365d">Last 365 days</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+          {range === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                aria-label="Start date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <input
+                type="date"
+                aria-label="End date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+          )}
+          <Badge variant="outline" className="ml-auto">{range !== 'all' ? `${months} month${months === 1 ? '' : 's'}` : '24 months max'}</Badge>
+        </CardContent>
+      </Card>
 
       {/* KPI cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -166,6 +279,38 @@ export function ReportsView() {
                   <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
                   <Area type="monotone" dataKey="count" stroke="#0f172a" strokeWidth={2} fill="url(#grad)" />
                 </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Cost Trend Over Time */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <LineChartIcon className="h-4 w-4 text-violet-600" /> Cost Trend Over Time
+            </CardTitle>
+            <CardDescription>Monthly purchase, maintenance, and disposal costs</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!costTrend || costTrend.data.length === 0 ||
+             costTrend.data.every((p) => p.purchase === 0 && p.maintenance === 0 && p.disposal === 0) ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">No cost data in this range</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={costTrend.data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(m: string) => fmtMonth(m)} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtCompactCurrency(v)} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+                    formatter={(v: number) => formatCurrency(v)}
+                  />
+                  <Legend />
+                  <Line type="monotone" dataKey="purchase" name="Purchase" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="maintenance" name="Maintenance" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="disposal" name="Disposal" stroke="#f43f5e" strokeWidth={2} dot={false} />
+                </LineChart>
               </ResponsiveContainer>
             )}
           </CardContent>
@@ -570,6 +715,155 @@ export function ReportsView() {
                 No tags to display
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Asset Lifecycle Cost Analysis */}
+      <div className="flex items-center gap-2 mt-2">
+        <TrendingUp className="h-5 w-5 text-violet-600" />
+        <h3 className="text-base font-semibold">Asset Lifecycle Cost Analysis</h3>
+      </div>
+      <p className="text-sm text-muted-foreground mt-1">Purchase + maintenance + disposal costs vs residual value, by asset type</p>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Lifecycle Stacked Bar Chart */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="h-4 w-4 text-violet-600" /> Lifecycle Cost Breakdown
+            </CardTitle>
+            <CardDescription>Stacked purchase, maintenance, and disposal costs by asset type</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!lifecycle || lifecycle.byType.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">No lifecycle cost data</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={lifecycle.byType} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+                  <XAxis dataKey="assetType" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtCompactCurrency(v)} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+                    formatter={(v: number) => formatCurrency(v)}
+                  />
+                  <Legend />
+                  <Bar dataKey="purchaseCost" name="Purchase" stackId="cost" fill="#8b5cf6" />
+                  <Bar dataKey="maintenanceCost" name="Maintenance" stackId="cost" fill="#f59e0b" />
+                  <Bar dataKey="disposalCost" name="Disposal" stackId="cost" fill="#f43f5e" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Lifecycle Summary Table */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-600" /> Cost Summary by Type
+            </CardTitle>
+            <CardDescription>Per-asset-type breakdown with totals</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!lifecycle || lifecycle.byType.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">No lifecycle cost data</p>
+            ) : (
+              <div className="overflow-x-auto scrollbar-thin max-h-80 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-background z-10">
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2 pr-2 font-medium">Type</th>
+                      <th className="pb-2 pr-2 font-medium text-right">Count</th>
+                      <th className="pb-2 pr-2 font-medium text-right">Purchase</th>
+                      <th className="pb-2 pr-2 font-medium text-right">Maint.</th>
+                      <th className="pb-2 pr-2 font-medium text-right">Disposal</th>
+                      <th className="pb-2 pr-2 font-medium text-right">Residual</th>
+                      <th className="pb-2 font-medium text-right">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lifecycle.byType.map((row) => (
+                      <tr key={row.assetType} className="border-b last:border-0">
+                        <td className="py-1.5 pr-2 font-medium">{row.assetType}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{row.assetCount}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums text-violet-700 dark:text-violet-400">{formatCurrency(row.purchaseCost)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums text-amber-700 dark:text-amber-400">{formatCurrency(row.maintenanceCost)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums text-rose-700 dark:text-rose-400">{formatCurrency(row.disposalCost)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(row.residualValue)}</td>
+                        <td className="py-1.5 text-right tabular-nums font-semibold">{formatCurrency(row.netCost)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 bg-muted/40 font-bold">
+                      <td className="py-2 pr-2">TOTAL</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">{lifecycle.totals.assetCount}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.purchaseCost)}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.maintenanceCost)}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.disposalCost)}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.residualValue)}</td>
+                      <td className="py-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.netCost)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Lifecycle KPI tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Purchase Cost</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.purchaseCost)}</p>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
+                <DollarSign className="h-4 w-4 text-violet-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Maintenance Cost</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.maintenanceCost)}</p>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+                <Wrench className="h-4 w-4 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4" style={{ borderLeftColor: '#f43f5e' }}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Disposal Cost</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.disposalCost)}</p>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/10">
+                <Trash2 className="h-4 w-4 text-rose-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4" style={{ borderLeftColor: '#10b981' }}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Net Cost (after residual)</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.netCost)}</p>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                <TrendingDown className="h-4 w-4 text-emerald-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

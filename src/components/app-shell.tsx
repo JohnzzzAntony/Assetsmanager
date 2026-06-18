@@ -114,10 +114,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const unreadCount = Array.isArray(notifData) ? notifData.length : 0
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full bg-background theme-transition">
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0">
-        <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md lg:px-6">
+        <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md lg:px-6 sticky-elevated">
           {isMobile && <MobileNav />}
           <HeaderTitle />
           <div className="hidden md:flex flex-1 justify-center px-4">
@@ -127,18 +127,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <QuickActions />
             <button
               onClick={() => navigate('notifications')}
-              className="relative hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-3 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer"
+              className="relative hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-3 py-1.5 hover:bg-muted/50 hover:border-primary/30 transition-all cursor-pointer group"
               title="View notifications"
             >
-              <Bell className="h-4 w-4 text-muted-foreground" />
+              <Bell className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white animate-pop-in">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
             </button>
             <ThemeToggle />
-            <Button variant="ghost" size="icon" className="hidden sm:inline-flex h-9 w-9">
+            <Button variant="ghost" size="icon" className="hidden sm:inline-flex h-9 w-9 hover:bg-accent">
               <HelpCircle className="h-4 w-4" />
             </Button>
           </div>
@@ -151,30 +151,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2">
               <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-medium text-foreground/80">AssetHub</span>
-              <span>·</span>
-              <span>IT Asset Manager v2.1</span>
+              <span className="opacity-50">·</span>
+              <span>IT Asset Manager v2.2</span>
+              <span className="hidden sm:inline opacity-50">·</span>
+              <span className="hidden sm:inline rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Round 4</span>
             </div>
             <div className="flex items-center gap-3">
               <span>{stats ? `${stats.totalAssets} assets · ${stats.totalPersons} persons · ${stats.totalDepartments} depts` : 'Loading...'}</span>
               {stats?.procurement && (
                 <>
-                  <span className="hidden sm:inline">·</span>
+                  <span className="hidden sm:inline opacity-50">·</span>
                   <span className="hidden sm:inline">{stats.procurement.totalPOs} POs · ${stats.procurement.totalSpent.toLocaleString()} spent</span>
                 </>
               )}
               {stats?.bookings && stats.bookings.total > 0 && (
                 <>
-                  <span className="hidden md:inline">·</span>
+                  <span className="hidden md:inline opacity-50">·</span>
                   <span className="hidden md:inline">{stats.bookings.total} bookings · {stats.bookings.active} active</span>
                 </>
               )}
               {stats?.tags && stats.tags.totalTags > 0 && (
                 <>
-                  <span className="hidden md:inline">·</span>
+                  <span className="hidden md:inline opacity-50">·</span>
                   <span className="hidden md:inline">{stats.tags.totalTags} tags</span>
                 </>
               )}
-              <span className="hidden sm:inline">·</span>
+              <span className="hidden sm:inline opacity-50">·</span>
               <span className="hidden sm:inline">{new Date().getFullYear()} · All systems operational</span>
             </div>
           </div>

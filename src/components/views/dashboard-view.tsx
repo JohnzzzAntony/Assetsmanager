@@ -81,18 +81,19 @@ function StatCard({
 }) {
   return (
     <Card
-      className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+      className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift"
       style={{ borderLeftColor: color }}
       onClick={onClick}
     >
-      <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ backgroundColor: `${color}0a` }} />
+      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ backgroundColor: `${color}14` }} />
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{ background: `linear-gradient(135deg, ${color}08, transparent 70%)` }} />
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
         <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</CardTitle>
         <div
-          className="flex h-9 w-9 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110"
+          className="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
           style={{ backgroundColor: `${color}1a` }}
         >
-          <Icon className="h-4 w-4" style={{ color }} />
+          <Icon className="h-4 w-4 transition-transform" style={{ color }} />
         </div>
       </CardHeader>
       <CardContent className="relative">
@@ -124,19 +125,20 @@ function QuickActionCard({
   return (
     <button
       onClick={onClick}
-      className="card-hover group flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left"
+      className="card-hover hover-lift group flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left relative overflow-hidden"
     >
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{ background: `linear-gradient(135deg, ${color}10, transparent 70%)` }} />
       <div
-        className="flex h-10 w-10 items-center justify-center rounded-lg transition-transform group-hover:scale-110"
+        className="flex h-10 w-10 items-center justify-center rounded-lg transition-transform group-hover:scale-110 group-hover:-rotate-3 relative"
         style={{ backgroundColor: `${color}1a` }}
       >
-        <Icon className="h-5 w-5" style={{ color }} />
+        <Icon className="h-5 w-5 transition-transform" style={{ color }} />
       </div>
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-0.5 relative">
         <span className="text-sm font-semibold">{title}</span>
         <span className="text-xs text-muted-foreground">{description}</span>
       </div>
-      <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-1 relative">
         Open <ArrowRight className="h-3 w-3" />
       </span>
     </button>
@@ -186,9 +188,9 @@ export function DashboardView() {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-xl border bg-card p-6">
-        <div className="absolute inset-0 gradient-mesh opacity-60" />
-        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary/5 blur-3xl" />
+      <div className="relative overflow-hidden rounded-xl border bg-card p-6 hover-lift">
+        <div className="absolute inset-0 hero-gradient opacity-100" />
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary/5 blur-3xl animate-pulse-soft" />
         <div className="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-emerald-500/5 blur-3xl" />
         <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1.5">

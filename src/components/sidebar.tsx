@@ -76,8 +76,9 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
     <nav className="flex flex-col gap-5 px-3 py-4">
       {groups.map((group) => (
         <div key={group} className="flex flex-col gap-1">
-          <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-            {group}
+          <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 relative">
+            <span className="relative z-10">{group}</span>
+            <span className="absolute left-3 right-3 bottom-0 h-px section-divider opacity-50" />
           </div>
           {NAV_ITEMS.filter((i) => (i.group || 'Other') === group).map((item) => {
             const Icon = item.icon
@@ -93,19 +94,19 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
                 className={cn(
                   'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
                   active
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    ? 'bg-primary text-primary-foreground shadow-sm nav-active-glow'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-0.5'
                 )}
               >
-                <Icon className={cn('h-4 w-4 shrink-0', active ? '' : 'text-muted-foreground/60 group-hover:text-foreground')} />
+                <Icon className={cn('h-4 w-4 shrink-0 transition-transform', active ? '' : 'text-muted-foreground/60 group-hover:text-foreground group-hover:scale-110')} />
                 <span className="flex-1 text-left">{item.label}</span>
                 {item.badge === 'new' && (
                   <span className={cn(
-                    'rounded px-1 py-0.5 text-[9px] font-bold uppercase',
-                    active ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                    'rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+                    active ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500/25'
                   )}>New</span>
                 )}
-                {active && <ChevronRight className="h-4 w-4" />}
+                {active && <ChevronRight className="h-4 w-4 animate-slide-in-right" />}
               </button>
             )
           })}

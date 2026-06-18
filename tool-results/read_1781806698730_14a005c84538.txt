@@ -1,0 +1,1154 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useMemo } from 'react'
+     4→     4→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     5→     5→import { bookingsApi, exportApi, assetsApi, personsApi } from '@/lib/api'
+     6→     6→import {
+     7→     7→  BOOKING_STATUSES,
+     8→     8→  BOOKING_STATUS_CONFIG,
+     9→     9→} from '@/lib/types'
+    10→    10→import type { AssetBooking, BookingStatus } from '@/lib/types'
+    11→    11→import { useNav } from '@/lib/nav'
+    12→    12→import { formatRelative, formatDateTime } from '@/lib/format'
+    13→    13→import {
+    14→    14→  Card,
+    15→    15→  CardContent,
+    16→    16→} from '@/components/ui/card'
+    17→    17→import { Button } from '@/components/ui/button'
+    18→    18→import { Input } from '@/components/ui/input'
+    19→    19→import { Label } from '@/components/ui/label'
+    20→    20→import { Textarea } from '@/components/ui/textarea'
+    21→    21→import { Badge } from '@/components/ui/badge'
+    22→    22→import { Skeleton } from '@/components/ui/skeleton'
+    23→    23→import { Separator } from '@/components/ui/separator'
+    24→    24→import { Progress } from '@/components/ui/progress'
+    25→    25→import {
+    26→    26→  Dialog,
+    27→    27→  DialogContent,
+    28→    28→  DialogDescription,
+    29→    29→  DialogFooter,
+    30→    30→  DialogHeader,
+    31→    31→  DialogTitle,
+    32→    32→} from '@/components/ui/dialog'
+    33→    33→import {
+    34→    34→  Select,
+    35→    35→  SelectContent,
+    36→    36→  SelectItem,
+    37→    37→  SelectTrigger,
+    38→    38→  SelectValue,
+    39→    39→} from '@/components/ui/select'
+    40→    40→import {
+    41→    41→  Tabs,
+    42→    42→  TabsList,
+    43→    43→  TabsTrigger,
+    44→    44→} from '@/components/ui/tabs'
+    45→    45→import {
+    46→    46→  DropdownMenu,
+    47→    47→  DropdownMenuContent,
+    48→    48→  DropdownMenuItem,
+    49→    49→  DropdownMenuSeparator,
+    50→    50→  DropdownMenuTrigger,
+    51→    51→} from '@/components/ui/dropdown-menu'
+    52→    52→import {
+    53→    53→  AlertDialog,
+    54→    54→  AlertDialogAction,
+    55→    55→  AlertDialogCancel,
+    56→    56→  AlertDialogContent,
+    57→    57→  AlertDialogDescription,
+    58→    58→  AlertDialogFooter,
+    59→    59→  AlertDialogHeader,
+    60→    60→  AlertDialogTitle,
+    61→    61→} from '@/components/ui/alert-dialog'
+    62→    62→import {
+    63→    63→  CalendarClock,
+    64→    64→  Plus,
+    65→    65→  Search,
+    66→    66→  Download,
+    67→    67→  CheckCircle2,
+    68→    68→  XCircle,
+    69→    69→  Clock,
+    70→    70→  ArrowRightLeft,
+    71→    71→  Calendar,
+    72→    72→  User,
+    73→    73→  Package,
+    74→    74→  Pencil,
+    75→    75→  Trash2,
+    76→    76→  AlertTriangle,
+    77→    77→  Check,
+    78→    78→  X,
+    79→    79→  ChevronRight,
+    80→    80→  Filter,
+    81→    81→  Sparkles,
+    82→    82→  CalendarDays,
+    83→    83→  CalendarRange,
+    84→    84→  Hourglass,
+    85→    85→  MoreVertical,
+    86→    86→} from 'lucide-react'
+    87→    87→import { toast } from 'sonner'
+    88→    88→
+    89→    89→// ============================================================
+    90→    90→// Helpers
+    91→    91→// ============================================================
+    92→    92→
+    93→    93→// Static hex map per booking status — used for inline-styled left status bars
+    94→    94→// (Tailwind purges dynamic class names so we use inline styles for the bar color).
+    95→    95→const STATUS_HEX: Record<BookingStatus, string> = {
+    96→    96→  Pending: '#f59e0b',
+    97→    97→  Approved: '#0ea5e9',
+    98→    98→  Rejected: '#f43f5e',
+    99→    99→  Active: '#10b981',
+   100→   100→  Completed: '#71717a',
+   101→   101→  Cancelled: '#64748b',
+   102→   102→}
+   103→   103→
+   104→   104→function durationDays(start?: string | null, end?: string | null): number {
+   105→   105→  if (!start || !end) return 0
+   106→   106→  const s = new Date(start).getTime()
+   107→   107→  const e = new Date(end).getTime()
+   108→   108→  if (isNaN(s) || isNaN(e)) return 0
+   109→   109→  return Math.max(Math.ceil((e - s) / (1000 * 60 * 60 * 24)), 0)
+   110→   110→}
+   111→   111→
+   112→   112→function toDateTimeLocal(iso?: string | null): string {
+   113→   113→  if (!iso) return ''
+   114→   114→  const d = new Date(iso)
+   115→   115→  if (isNaN(d.getTime())) return ''
+   116→   116→  const pad = (n: number) => String(n).padStart(2, '0')
+   117→   117→  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+   118→   118→}
+   119→   119→
+   120→   120→function fromDateTimeLocal(v: string): string {
+   121→   121→  if (!v) return ''
+   122→   122→  return new Date(v).toISOString()
+   123→   123→}
+   124→   124→
+   125→   125→function initials(name?: string | null): string {
+   126→   126→  if (!name) return '?'
+   127→   127→  return name
+   128→   128→    .split(' ')
+   129→   129→    .map((p) => p[0])
+   130→   130→    .filter(Boolean)
+   131→   131→    .slice(0, 2)
+   132→   132→    .join('')
+   133→   133→    .toUpperCase()
+   134→   134→}
+   135→   135→
+   136→   136→// Pleasant avatar tints — pick deterministically by name hash
+   137→   137→const AVATAR_TINTS = [
+   138→   138→  '#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b',
+   139→   139→  '#ec4899', '#14b8a6', '#f97316', '#6366f1',
+   140→   140→]
+   141→   141→function pickTint(seed?: string | null): string {
+   142→   142→  if (!seed) return AVATAR_TINTS[0]
+   143→   143→  let h = 0
+   144→   144→  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0
+   145→   145→  return AVATAR_TINTS[Math.abs(h) % AVATAR_TINTS.length]
+   146→   146→}
+   147→   147→
+   148→   148→// ============================================================
+   149→   149→// Small building blocks
+   150→   150→// ============================================================
+   151→   151→
+   152→   152→function StatTile({
+   153→   153→  label,
+   154→   154→  value,
+   155→   155→  icon: Icon,
+   156→   156→  color,
+   157→   157→  hint,
+   158→   158→}: {
+   159→   159→  label: string
+   160→   160→  value: number
+   161→   161→  icon: typeof Clock
+   162→   162→  color: string
+   163→   163→  hint?: string
+   164→   164→}) {
+   165→   165→  return (
+   166→   166→    <Card className="overflow-hidden border-l-4 card-hover shadow-sm" style={{ borderLeftColor: color }}>
+   167→   167→      <CardContent className="p-4">
+   168→   168→        <div className="flex items-center justify-between gap-2">
+   169→   169→          <div className="min-w-0">
+   170→   170→            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground truncate">
+   171→   171→              {label}
+   172→   172→            </p>
+   173→   173→            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+   174→   174→            {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{hint}</p>}
+   175→   175→          </div>
+   176→   176→          <div
+   177→   177→            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+   178→   178→            style={{ backgroundColor: `${color}1a` }}
+   179→   179→          >
+   180→   180→            <Icon className="h-5 w-5" style={{ color }} />
+   181→   181→          </div>
+   182→   182→        </div>
+   183→   183→      </CardContent>
+   184→   184→    </Card>
+   185→   185→  )
+   186→   186→}
+   187→   187→
+   188→   188→function StatusBadge({ status }: { status: string }) {
+   189→   189→  const cfg = BOOKING_STATUS_CONFIG[status as BookingStatus] || BOOKING_STATUS_CONFIG.Pending
+   190→   190→  return (
+   191→   191→    <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1.5 px-2`}>
+   192→   192→      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   193→   193→      {cfg.label}
+   194→   194→    </Badge>
+   195→   195→  )
+   196→   196→}
+   197→   197→
+   198→   198→function Avatar({ name, className }: { name?: string | null; className?: string }) {
+   199→   199→  const tint = pickTint(name)
+   200→   200→  return (
+   201→   201→    <div
+   202→   202→      className={`flex items-center justify-center rounded-full text-white font-semibold shrink-0 ${className ?? 'h-9 w-9 text-xs'}`}
+   203→   203→      style={{ backgroundColor: tint }}
+   204→   204→      title={name ?? ''}
+   205→   205→    >
+   206→   206→      {initials(name)}
+   207→   207→    </div>
+   208→   208→  )
+   209→   209→}
+   210→   210→
+   211→   211→// Small inline progress shown on Active booking cards — elapsed time visualization
+   212→   212→function ActiveProgress({ start, end }: { start: string; end: string }) {
+   213→   213→  const s = new Date(start).getTime()
+   214→   214→  const e = new Date(end).getTime()
+   215→   215→  const now = Date.now()
+   216→   216→  if (isNaN(s) || isNaN(e) || e <= s) return null
+   217→   217→  const pct = Math.min(100, Math.max(0, ((now - s) / (e - s)) * 100))
+   218→   218→  return (
+   219→   219→    <div className="mt-2 max-w-xs">
+   220→   220→      <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+   221→   221→        <span>Started {formatRelative(start)}</span>
+   222→   222→        <span className="tabular-nums">{Math.round(pct)}% elapsed</span>
+   223→   223→      </div>
+   224→   224→      <Progress value={pct} className="h-1.5" />
+   225→   225→    </div>
+   226→   226→  )
+   227→   227→}
+   228→   228→
+   229→   229→// ============================================================
+   230→   230→// Booking Card
+   231→   231→// ============================================================
+   232→   232→
+   233→   233→interface BookingCardProps {
+   234→   234→  booking: AssetBooking
+   235→   235→  onApprove: (b: AssetBooking) => void
+   236→   236→  onReject: (b: AssetBooking) => void
+   237→   237→  onCheckOut: (b: AssetBooking) => void
+   238→   238→  onCheckIn: (b: AssetBooking) => void
+   239→   239→  onEdit: (b: AssetBooking) => void
+   240→   240→  onDelete: (b: AssetBooking) => void
+   241→   241→  onCancel: (b: AssetBooking) => void
+   242→   242→}
+   243→   243→
+   244→   244→function BookingCard({
+   245→   245→  booking,
+   246→   246→  onApprove,
+   247→   247→  onReject,
+   248→   248→  onCheckOut,
+   249→   249→  onCheckIn,
+   250→   250→  onEdit,
+   251→   251→  onDelete,
+   252→   252→  onCancel,
+   253→   253→}: BookingCardProps) {
+   254→   254→  const { navigate } = useNav()
+   255→   255→  const status = (booking.status as BookingStatus) || 'Pending'
+   256→   256→  const cfg = BOOKING_STATUS_CONFIG[status] || BOOKING_STATUS_CONFIG.Pending
+   257→   257→  const hex = STATUS_HEX[status] ?? '#64748b'
+   258→   258→  const dur = durationDays(booking.startDate, booking.endDate)
+   259→   259→  const now = Date.now()
+   260→   260→  const isUpcoming = new Date(booking.startDate).getTime() > now
+   261→   261→  const isOverdue = status === 'Active' && new Date(booking.endDate).getTime() < now
+   262→   262→  const isTerminal = status === 'Completed' || status === 'Cancelled' || status === 'Rejected'
+   263→   263→
+   264→   264→  return (
+   265→   265→    <Card className="card-hover overflow-hidden relative shadow-sm">
+   266→   266→      {/* Colored left status bar */}
+   267→   267→      <div
+   268→   268→        className="absolute left-0 top-0 bottom-0 w-1.5"
+   269→   269→        style={{ backgroundColor: hex }}
+   270→   270→        aria-hidden
+   271→   271→      />
+   272→   272→      <CardContent className="p-4 pl-5">
+   273→   273→        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+   274→   274→          {/* LEFT — title + purpose + asset chip */}
+   275→   275→          <div className="min-w-0 flex-1">
+   276→   276→            <div className="flex items-start gap-2">
+   277→   277→              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${cfg.dot}`} />
+   278→   278→              <div className="min-w-0 flex-1">
+   279→   279→                <h4 className="text-base font-semibold leading-tight truncate">{booking.title}</h4>
+   280→   280→                {booking.purpose ? (
+   281→   281→                  <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{booking.purpose}</p>
+   282→   282→                ) : null}
+   283→   283→              </div>
+   284→   284→            </div>
+   285→   285→            {/* Asset chip */}
+   286→   286→            <button
+   287→   287→              type="button"
+   288→   288→              onClick={() => booking.asset && navigate('asset-detail', { id: booking.assetId })}
+   289→   289→              className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-muted/60 hover:bg-muted px-2 py-1 text-xs transition-colors max-w-full"
+   290→   290→            >
+   291→   291→              <Package className="h-3 w-3 text-muted-foreground shrink-0" />
+   292→   292→              <span className="font-medium text-foreground truncate max-w-[220px]">
+   293→   293→                {booking.asset
+   294→   294→                  ? `${booking.asset.make ?? ''} ${booking.asset.model ?? ''}`.trim() || 'Untitled asset'
+   295→   295→                  : 'Unknown asset'}
+   296→   296→              </span>
+   297→   297→              {booking.asset?.assetTag && (
+   298→   298→                <span className="font-mono text-[10px] text-muted-foreground shrink-0">{booking.asset.assetTag}</span>
+   299→   299→              )}
+   300→   300→              <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+   301→   301→            </button>
+   302→   302→            {status === 'Active' && booking.startDate && booking.endDate && (
+   303→   303→              <ActiveProgress start={booking.startDate} end={booking.endDate} />
+   304→   304→            )}
+   305→   305→          </div>
+   306→   306→
+   307→   307→          {/* MIDDLE — bookedBy + schedule */}
+   308→   308→          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6 md:min-w-[420px]">
+   309→   309→            {/* Booked By */}
+   310→   310→            <div className="flex items-center gap-2">
+   311→   311→              <Avatar name={booking.bookedBy?.fullName} className="h-8 w-8 text-[10px]" />
+   312→   312→              <div className="min-w-0">
+   313→   313→                <p className="text-[10px] uppercase font-medium text-muted-foreground tracking-wide flex items-center gap-1">
+   314→   314→                  <User className="h-2.5 w-2.5" /> Booked by
+   315→   315→                </p>
+   316→   316→                <p className="text-sm font-medium truncate max-w-[160px]">
+   317→   317→                  {booking.bookedBy?.fullName ?? '—'}
+   318→   318→                </p>
+   319→   319→              </div>
+   320→   320→            </div>
+   321→   321→
+   322→   322→            {/* Schedule */}
+   323→   323→            <div className="flex items-start gap-2">
+   324→   324→              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 shrink-0">
+   325→   325→                <Calendar className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+   326→   326→              </div>
+   327→   327→              <div className="min-w-0">
+   328→   328→                <p className="text-[10px] uppercase font-medium text-muted-foreground tracking-wide">Schedule</p>
+   329→   329→                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
+   330→   330→                  <span className="font-medium">{formatDateTime(booking.startDate)}</span>
+   331→   331→                  <ArrowRightLeft className="h-3 w-3 text-muted-foreground" />
+   332→   332→                  <span className="font-medium">{formatDateTime(booking.endDate)}</span>
+   333→   333→                </div>
+   334→   334→                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+   335→   335→                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-muted-foreground/20">
+   336→   336→                    <CalendarDays className="h-2.5 w-2.5" />
+   337→   337→                    {dur} {dur === 1 ? 'day' : 'days'}
+   338→   338→                  </Badge>
+   339→   339→                  {isUpcoming && !isTerminal && (
+   340→   340→                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300">
+   341→   341→                      <Hourglass className="h-2.5 w-2.5" /> Upcoming
+   342→   342→                    </Badge>
+   343→   343→                  )}
+   344→   344→                  {isOverdue && (
+   345→   345→                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300">
+   346→   346→                      <AlertTriangle className="h-2.5 w-2.5" /> Overdue
+   347→   347→                    </Badge>
+   348→   348→                  )}
+   349→   349→                </div>
+   350→   350→              </div>
+   351→   351→            </div>
+   352→   352→          </div>
+   353→   353→
+   354→   354→          {/* RIGHT — status badge + actions */}
+   355→   355→          <div className="flex items-center gap-2 md:justify-end">
+   356→   356→            <StatusBadge status={booking.status} />
+   357→   357→            <DropdownMenu>
+   358→   358→              <DropdownMenuTrigger asChild>
+   359→   359→                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Booking actions">
+   360→   360→                  <MoreVertical className="h-4 w-4" />
+   361→   361→                </Button>
+   362→   362→              </DropdownMenuTrigger>
+   363→   363→              <DropdownMenuContent align="end" className="w-48">
+   364→   364→                {status === 'Pending' && (
+   365→   365→                  <>
+   366→   366→                    <DropdownMenuItem
+   367→   367→                      onClick={() => onApprove(booking)}
+   368→   368→                      className="text-emerald-600 dark:text-emerald-400 focus:text-emerald-700 dark:focus:text-emerald-300 cursor-pointer"
+   369→   369→                    >
+   370→   370→                      <Check className="h-4 w-4 mr-2" /> Approve
+   371→   371→                    </DropdownMenuItem>
+   372→   372→                    <DropdownMenuItem
+   373→   373→                      onClick={() => onReject(booking)}
+   374→   374→                      className="text-rose-600 dark:text-rose-400 focus:text-rose-700 dark:focus:text-rose-300 cursor-pointer"
+   375→   375→                    >
+   376→   376→                      <X className="h-4 w-4 mr-2" /> Reject
+   377→   377→                    </DropdownMenuItem>
+   378→   378→                    <DropdownMenuSeparator />
+   379→   379→                  </>
+   380→   380→                )}
+   381→   381→                {status === 'Approved' && (
+   382→   382→                  <>
+   383→   383→                    <DropdownMenuItem
+   384→   384→                      onClick={() => onCheckOut(booking)}
+   385→   385→                      className="text-violet-600 dark:text-violet-400 focus:text-violet-700 dark:focus:text-violet-300 cursor-pointer"
+   386→   386→                    >
+   387→   387→                      <ArrowRightLeft className="h-4 w-4 mr-2" /> Check Out
+   388→   388→                    </DropdownMenuItem>
+   389→   389→                    <DropdownMenuSeparator />
+   390→   390→                  </>
+   391→   391→                )}
+   392→   392→                {status === 'Active' && (
+   393→   393→                  <>
+   394→   394→                    <DropdownMenuItem
+   395→   395→                      onClick={() => onCheckIn(booking)}
+   396→   396→                      className="text-emerald-600 dark:text-emerald-400 focus:text-emerald-700 dark:focus:text-emerald-300 cursor-pointer"
+   397→   397→                    >
+   398→   398→                      <CheckCircle2 className="h-4 w-4 mr-2" /> Check In
+   399→   399→                    </DropdownMenuItem>
+   400→   400→                    <DropdownMenuSeparator />
+   401→   401→                  </>
+   402→   402→                )}
+   403→   403→                {!isTerminal && (
+   404→   404→                  <DropdownMenuItem
+   405→   405→                    onClick={() => onCancel(booking)}
+   406→   406→                    className="cursor-pointer"
+   407→   407→                  >
+   408→   408→                    <XCircle className="h-4 w-4 mr-2" /> Cancel Booking
+   409→   409→                  </DropdownMenuItem>
+   410→   410→                )}
+   411→   411→                <DropdownMenuItem onClick={() => onEdit(booking)} className="cursor-pointer">
+   412→   412→                  <Pencil className="h-4 w-4 mr-2" /> Edit
+   413→   413→                </DropdownMenuItem>
+   414→   414→                <DropdownMenuItem
+   415→   415→                  onClick={() => onDelete(booking)}
+   416→   416→                  className="text-rose-600 dark:text-rose-400 focus:text-rose-700 dark:focus:text-rose-300 cursor-pointer"
+   417→   417→                >
+   418→   418→                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+   419→   419→                </DropdownMenuItem>
+   420→   420→              </DropdownMenuContent>
+   421→   421→            </DropdownMenu>
+   422→   422→          </div>
+   423→   423→        </div>
+   424→   424→      </CardContent>
+   425→   425→    </Card>
+   426→   426→  )
+   427→   427→}
+   428→   428→
+   429→   429→// ============================================================
+   430→   430→// Skeleton
+   431→   431→// ============================================================
+   432→   432→
+   433→   433→function BookingCardSkeleton() {
+   434→   434→  return (
+   435→   435→    <Card className="overflow-hidden relative shadow-sm">
+   436→   436→      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-muted" aria-hidden />
+   437→   437→      <CardContent className="p-4 pl-5">
+   438→   438→        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+   439→   439→          <div className="flex-1 space-y-2">
+   440→   440→            <Skeleton className="h-5 w-2/3" />
+   441→   441→            <Skeleton className="h-3 w-1/2" />
+   442→   442→            <Skeleton className="h-5 w-40 rounded-md" />
+   443→   443→          </div>
+   444→   444→          <div className="flex items-center gap-4">
+   445→   445→            <Skeleton className="h-8 w-8 rounded-full" />
+   446→   446→            <div className="space-y-1.5">
+   447→   447→              <Skeleton className="h-3 w-20" />
+   448→   448→              <Skeleton className="h-4 w-32" />
+   449→   449→            </div>
+   450→   450→          </div>
+   451→   451→          <Skeleton className="h-6 w-24" />
+   452→   452→          <Skeleton className="h-8 w-8 rounded-md" />
+   453→   453→        </div>
+   454→   454→      </CardContent>
+   455→   455→    </Card>
+   456→   456→  )
+   457→   457→}
+   458→   458→
+   459→   459→// ============================================================
+   460→   460→// Empty State
+   461→   461→// ============================================================
+   462→   462→
+   463→   463→function EmptyState({ onCreate }: { onCreate: () => void }) {
+   464→   464→  return (
+   465→   465→    <Card className="bg-dot-pattern border-dashed border-2">
+   466→   466→      <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+   467→   467→        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-500/10 border border-sky-500/20">
+   468→   468→          <CalendarClock className="h-7 w-7 text-sky-600 dark:text-sky-400" />
+   469→   469→        </div>
+   470→   470→        <div>
+   471→   471→          <h3 className="text-base font-semibold">No bookings yet</h3>
+   472→   472→          <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+   473→   473→            Reserve a shared asset — like a laptop, projector, or camera — for an upcoming event, trip, or meeting.
+   474→   474→          </p>
+   475→   475→        </div>
+   476→   476→        <Button onClick={onCreate}>
+   477→   477→          <Plus className="h-4 w-4 mr-1.5" /> Create First Booking
+   478→   478→        </Button>
+   479→   479→      </CardContent>
+   480→   480→    </Card>
+   481→   481→  )
+   482→   482→}
+   483→   483→
+   484→   484→// ============================================================
+   485→   485→// Booking Form Dialog (create + edit)
+   486→   486→// ============================================================
+   487→   487→
+   488→   488→function BookingFormDialog({
+   489→   489→  open,
+   490→   490→  onOpenChange,
+   491→   491→  booking,
+   492→   492→}: {
+   493→   493→  open: boolean
+   494→   494→  onOpenChange: (v: boolean) => void
+   495→   495→  booking: AssetBooking | null
+   496→   496→}) {
+   497→   497→  const qc = useQueryClient()
+   498→   498→  const { data: assetsRes } = useQuery({
+   499→   499→    queryKey: ['assets-all'],
+   500→   500→    queryFn: () => assetsApi.list({ pageSize: 200 }),
+   501→   501→  })
+   502→   502→  const { data: persons } = useQuery({ queryKey: ['persons'], queryFn: () => personsApi.list() })
+   503→   503→
+   504→   504→  const [form, setForm] = useState<Record<string, string>>({})
+   505→   505→  const [errors, setErrors] = useState<Record<string, string>>({})
+   506→   506→  const [saving, setSaving] = useState(false)
+   507→   507→
+   508→   508→  // Sync form whenever the dialog opens (reset for create, or prefill for edit)
+   509→   509→  useMemo(() => {
+   510→   510→    if (open) {
+   511→   511→      setForm({
+   512→   512→        title: booking?.title ?? '',
+   513→   513→        assetId: booking?.assetId ?? '',
+   514→   514→        bookedById: booking?.bookedById ?? '',
+   515→   515→        purpose: booking?.purpose ?? '',
+   516→   516→        startDate: booking ? toDateTimeLocal(booking.startDate) : '',
+   517→   517→        endDate: booking ? toDateTimeLocal(booking.endDate) : '',
+   518→   518→        notes: booking?.notes ?? '',
+   519→   519→      })
+   520→   520→      setErrors({})
+   521→   521→    }
+   522→   522→  }, [open, booking])
+   523→   523→
+   524→   524→  function validate(): boolean {
+   525→   525→    const e: Record<string, string> = {}
+   526→   526→    if (!form.title?.trim()) e.title = 'Title is required'
+   527→   527→    if (!form.assetId) e.assetId = 'Asset is required'
+   528→   528→    if (!form.bookedById) e.bookedById = 'Person is required'
+   529→   529→    if (!form.startDate) e.startDate = 'Start date is required'
+   530→   530→    if (!form.endDate) e.endDate = 'End date is required'
+   531→   531→    if (form.startDate && form.endDate && new Date(form.endDate) <= new Date(form.startDate)) {
+   532→   532→      e.endDate = 'End must be after start'
+   533→   533→    }
+   534→   534→    setErrors(e)
+   535→   535→    return Object.keys(e).length === 0
+   536→   536→  }
+   537→   537→
+   538→   538→  async function save() {
+   539→   539→    if (!validate()) return
+   540→   540→    setSaving(true)
+   541→   541→    try {
+   542→   542→      const payload = {
+   543→   543→        title: form.title.trim(),
+   544→   544→        assetId: form.assetId,
+   545→   545→        bookedById: form.bookedById,
+   546→   546→        purpose: form.purpose.trim() || null,
+   547→   547→        startDate: fromDateTimeLocal(form.startDate),
+   548→   548→        endDate: fromDateTimeLocal(form.endDate),
+   549→   549→        notes: form.notes.trim() || null,
+   550→   550→      }
+   551→   551→      if (booking) {
+   552→   552→        await bookingsApi.update(booking.id, payload)
+   553→   553→        toast.success('Booking updated')
+   554→   554→      } else {
+   555→   555→        const created = await bookingsApi.create(payload)
+   556→   556→        toast.success('Booking created')
+   557→   557→        // Conflict warning
+   558→   558→        const conflicts = (created as AssetBooking)?._conflicts
+   559→   559→        if (conflicts && conflicts.length > 0) {
+   560→   560→          toast.warning(
+   561→   561→            `Note: This booking conflicts with ${conflicts.length} existing booking${conflicts.length === 1 ? '' : 's'}`
+   562→   562→          )
+   563→   563→        }
+   564→   564→      }
+   565→   565→      qc.invalidateQueries({ queryKey: ['bookings'] })
+   566→   566→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   567→   567→      onOpenChange(false)
+   568→   568→    } catch (e) {
+   569→   569→      toast.error('Save failed: ' + String(e))
+   570→   570→    } finally {
+   571→   571→      setSaving(false)
+   572→   572→    }
+   573→   573→  }
+   574→   574→
+   575→   575→  return (
+   576→   576→    <Dialog open={open} onOpenChange={onOpenChange}>
+   577→   577→      <DialogContent className="max-w-lg">
+   578→   578→        <DialogHeader>
+   579→   579→          <DialogTitle className="flex items-center gap-2">
+   580→   580→            <CalendarClock className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+   581→   581→            {booking ? 'Edit Booking' : 'New Booking'}
+   582→   582→          </DialogTitle>
+   583→   583→          <DialogDescription>
+   584→   584→            {booking
+   585→   585→              ? 'Update booking details, schedule, or notes.'
+   586→   586→              : 'Reserve a shared asset for a specific time window. Approval may be required.'}
+   587→   587→          </DialogDescription>
+   588→   588→        </DialogHeader>
+   589→   589→
+   590→   590→        <div className="grid gap-3 max-h-[60vh] overflow-y-auto scrollbar-thin pr-1">
+   591→   591→          {/* Title */}
+   592→   592→          <div className="space-y-1.5">
+   593→   593→            <Label className="text-xs">Title *</Label>
+   594→   594→            <Input
+   595→   595→              value={form.title ?? ''}
+   596→   596→              onChange={(e) => setForm({ ...form, title: e.target.value })}
+   597→   597→              placeholder="e.g., Projector for Q4 planning session"
+   598→   598→              className={errors.title ? 'border-rose-500 focus-visible:ring-rose-500/30' : ''}
+   599→   599→            />
+   600→   600→            {errors.title && <p className="text-[11px] text-rose-600">{errors.title}</p>}
+   601→   601→          </div>
+   602→   602→
+   603→   603→          {/* Asset + Booked By */}
+   604→   604→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   605→   605→            <div className="space-y-1.5">
+   606→   606→              <Label className="text-xs">Asset *</Label>
+   607→   607→              <Select value={form.assetId ?? ''} onValueChange={(v) => setForm({ ...form, assetId: v })}>
+   608→   608→                <SelectTrigger className={errors.assetId ? 'border-rose-500' : ''}>
+   609→   609→                  <SelectValue placeholder="Select asset" />
+   610→   610→                </SelectTrigger>
+   611→   611→                <SelectContent className="max-h-64">
+   612→   612→                  {assetsRes?.data?.map((a) => (
+   613→   613→                    <SelectItem key={a.id} value={a.id}>
+   614→   614→                      {a.assetTag ? `${a.assetTag} — ` : ''}
+   615→   615→                      {a.make ?? ''} {a.model ?? ''}
+   616→   616→                    </SelectItem>
+   617→   617→                  ))}
+   618→   618→                </SelectContent>
+   619→   619→              </Select>
+   620→   620→              {errors.assetId && <p className="text-[11px] text-rose-600">{errors.assetId}</p>}
+   621→   621→            </div>
+   622→   622→            <div className="space-y-1.5">
+   623→   623→              <Label className="text-xs">Booked By *</Label>
+   624→   624→              <Select value={form.bookedById ?? ''} onValueChange={(v) => setForm({ ...form, bookedById: v })}>
+   625→   625→                <SelectTrigger className={errors.bookedById ? 'border-rose-500' : ''}>
+   626→   626→                  <SelectValue placeholder="Select person" />
+   627→   627→                </SelectTrigger>
+   628→   628→                <SelectContent className="max-h-64">
+   629→   629→                  {persons?.map((p) => (
+   630→   630→                    <SelectItem key={p.id} value={p.id}>
+   631→   631→                      {p.fullName}
+   632→   632→                      {p.role ? ` (${p.role})` : ''}
+   633→   633→                    </SelectItem>
+   634→   634→                  ))}
+   635→   635→                </SelectContent>
+   636→   636→              </Select>
+   637→   637→              {errors.bookedById && <p className="text-[11px] text-rose-600">{errors.bookedById}</p>}
+   638→   638→            </div>
+   639→   639→          </div>
+   640→   640→
+   641→   641→          {/* Purpose */}
+   642→   642→          <div className="space-y-1.5">
+   643→   643→            <Label className="text-xs">Purpose</Label>
+   644→   644→            <Textarea
+   645→   645→              rows={2}
+   646→   646→              value={form.purpose ?? ''}
+   647→   647→              onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+   648→   648→              placeholder="Why do you need this asset?"
+   649→   649→            />
+   650→   650→          </div>
+   651→   651→
+   652→   652→          {/* Start + End */}
+   653→   653→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   654→   654→            <div className="space-y-1.5">
+   655→   655→              <Label className="text-xs">Start Date &amp; Time *</Label>
+   656→   656→              <Input
+   657→   657→                type="datetime-local"
+   658→   658→                value={form.startDate ?? ''}
+   659→   659→                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+   660→   660→                className={errors.startDate ? 'border-rose-500 focus-visible:ring-rose-500/30' : ''}
+   661→   661→              />
+   662→   662→              {errors.startDate && <p className="text-[11px] text-rose-600">{errors.startDate}</p>}
+   663→   663→            </div>
+   664→   664→            <div className="space-y-1.5">
+   665→   665→              <Label className="text-xs">End Date &amp; Time *</Label>
+   666→   666→              <Input
+   667→   667→                type="datetime-local"
+   668→   668→                value={form.endDate ?? ''}
+   669→   669→                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+   670→   670→                className={errors.endDate ? 'border-rose-500 focus-visible:ring-rose-500/30' : ''}
+   671→   671→              />
+   672→   672→              {errors.endDate && <p className="text-[11px] text-rose-600">{errors.endDate}</p>}
+   673→   673→            </div>
+   674→   674→          </div>
+   675→   675→
+   676→   676→          {/* Notes */}
+   677→   677→          <div className="space-y-1.5">
+   678→   678→            <Label className="text-xs">Notes (optional)</Label>
+   679→   679→            <Textarea
+   680→   680→              rows={2}
+   681→   681→              value={form.notes ?? ''}
+   682→   682→              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+   683→   683→              placeholder="Accessories needed, pickup instructions, etc."
+   684→   684→            />
+   685→   685→          </div>
+   686→   686→        </div>
+   687→   687→
+   688→   688→        <DialogFooter>
+   689→   689→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   690→   690→            Cancel
+   691→   691→          </Button>
+   692→   692→          <Button onClick={save} disabled={saving}>
+   693→   693→            {saving ? (
+   694→   694→              <>
+   695→   695→                <Sparkles className="h-4 w-4 mr-1.5 animate-pulse" />
+   696→   696→                {booking ? 'Saving...' : 'Creating...'}
+   697→   697→              </>
+   698→   698→            ) : (
+   699→   699→              <>
+   700→   700→                <Check className="h-4 w-4 mr-1.5" />
+   701→   701→                {booking ? 'Save Changes' : 'Create Booking'}
+   702→   702→              </>
+   703→   703→            )}
+   704→   704→          </Button>
+   705→   705→        </DialogFooter>
+   706→   706→      </DialogContent>
+   707→   707→    </Dialog>
+   708→   708→  )
+   709→   709→}
+   710→   710→
+   711→   711→// ============================================================
+   712→   712→// Check-In Dialog
+   713→   713→// ============================================================
+   714→   714→
+   715→   715→function CheckInDialog({
+   716→   716→  open,
+   717→   717→  onOpenChange,
+   718→   718→  booking,
+   719→   719→}: {
+   720→   720→  open: boolean
+   721→   721→  onOpenChange: (v: boolean) => void
+   722→   722→  booking: AssetBooking | null
+   723→   723→}) {
+   724→   724→  const qc = useQueryClient()
+   725→   725→  const [notes, setNotes] = useState('')
+   726→   726→  const [saving, setSaving] = useState(false)
+   727→   727→
+   728→   728→  useMemo(() => {
+   729→   729→    if (open) setNotes('')
+   730→   730→  }, [open])
+   731→   731→
+   732→   732→  async function submit() {
+   733→   733→    if (!booking) return
+   734→   734→    setSaving(true)
+   735→   735→    try {
+   736→   736→      await bookingsApi.checkIn(booking.id, notes.trim() || undefined)
+   737→   737→      toast.success('Asset checked in')
+   738→   738→      qc.invalidateQueries({ queryKey: ['bookings'] })
+   739→   739→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   740→   740→      onOpenChange(false)
+   741→   741→    } catch (e) {
+   742→   742→      toast.error('Check-in failed: ' + String(e))
+   743→   743→    } finally {
+   744→   744→      setSaving(false)
+   745→   745→    }
+   746→   746→  }
+   747→   747→
+   748→   748→  return (
+   749→   749→    <Dialog open={open} onOpenChange={onOpenChange}>
+   750→   750→      <DialogContent className="max-w-md">
+   751→   751→        <DialogHeader>
+   752→   752→          <DialogTitle className="flex items-center gap-2">
+   753→   753→            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+   754→   754→            Check In Asset
+   755→   755→          </DialogTitle>
+   756→   756→          <DialogDescription>
+   757→   757→            Return <strong>&ldquo;{booking?.title}&rdquo;</strong> and record the asset&apos;s condition.
+   758→   758→          </DialogDescription>
+   759→   759→        </DialogHeader>
+   760→   760→        <div className="space-y-3">
+   761→   761→          {booking?.asset && (
+   762→   762→            <div className="rounded-md bg-muted/60 px-3 py-2 text-xs flex items-center gap-2">
+   763→   763→              <Package className="h-3.5 w-3.5 text-muted-foreground" />
+   764→   764→              <span className="font-medium truncate">
+   765→   765→                {booking.asset.make ?? ''} {booking.asset.model ?? ''}
+   766→   766→              </span>
+   767→   767→              {booking.asset.assetTag && (
+   768→   768→                <span className="font-mono text-[10px] text-muted-foreground">{booking.asset.assetTag}</span>
+   769→   769→              )}
+   770→   770→            </div>
+   771→   771→          )}
+   772→   772→          <div className="space-y-1.5">
+   773→   773→            <Label className="text-xs">Condition / Notes (optional)</Label>
+   774→   774→            <Textarea
+   775→   775→              rows={4}
+   776→   776→              value={notes}
+   777→   777→              onChange={(e) => setNotes(e.target.value)}
+   778→   778→              placeholder="e.g., Returned in good condition. Minor scratch on case."
+   779→   779→            />
+   780→   780→          </div>
+   781→   781→        </div>
+   782→   782→        <DialogFooter>
+   783→   783→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   784→   784→            Cancel
+   785→   785→          </Button>
+   786→   786→          <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={submit} disabled={saving}>
+   787→   787→            <CheckCircle2 className="h-4 w-4 mr-1.5" />
+   788→   788→            {saving ? 'Checking in...' : 'Confirm Check-In'}
+   789→   789→          </Button>
+   790→   790→        </DialogFooter>
+   791→   791→      </DialogContent>
+   792→   792→    </Dialog>
+   793→   793→  )
+   794→   794→}
+   795→   795→
+   796→   796→// ============================================================
+   797→   797→// Main View
+   798→   798→// ============================================================
+   799→   799→
+   800→   800→export function BookingsView() {
+   801→   801→  const qc = useQueryClient()
+   802→   802→
+   803→   803→  const [search, setSearch] = useState('')
+   804→   804→  const [statusFilter, setStatusFilter] = useState<string>('all')
+   805→   805→  const [tab, setTab] = useState('all')
+   806→   806→
+   807→   807→  const [formOpen, setFormOpen] = useState(false)
+   808→   808→  const [editing, setEditing] = useState<AssetBooking | null>(null)
+   809→   809→  const [checkInBooking, setCheckInBooking] = useState<AssetBooking | null>(null)
+   810→   810→  const [deleteBooking, setDeleteBooking] = useState<AssetBooking | null>(null)
+   811→   811→
+   812→   812→  // Load ALL bookings once so tab counts are accurate (no server-side status filter)
+   813→   813→  const { data, isLoading } = useQuery({
+   814→   814→    queryKey: ['bookings', 'all'],
+   815→   815→    queryFn: () => bookingsApi.list({ limit: 500 }),
+   816→   816→  })
+   817→   817→
+   818→   818→  // Persons (to pick an approver for approve/reject actions)
+   819→   819→  const { data: persons } = useQuery({ queryKey: ['persons'], queryFn: () => personsApi.list() })
+   820→   820→
+   821→   821→  // Stats tiles
+   822→   822→  const stats = useMemo(() => {
+   823→   823→    if (!data) return { total: 0, pending: 0, approved: 0, active: 0, upcoming: 0 }
+   824→   824→    const now = Date.now()
+   825→   825→    return {
+   826→   826→      total: data.length,
+   827→   827→      pending: data.filter((b) => b.status === 'Pending').length,
+   828→   828→      approved: data.filter((b) => b.status === 'Approved').length,
+   829→   829→      active: data.filter((b) => b.status === 'Active').length,
+   830→   830→      upcoming: data.filter(
+   831→   831→        (b) =>
+   832→   832→          (b.status === 'Pending' || b.status === 'Approved') &&
+   833→   833→          new Date(b.startDate).getTime() > now
+   834→   834→      ).length,
+   835→   835→    }
+   836→   836→  }, [data])
+   837→   837→
+   838→   838→  // Tab definitions + counts
+   839→   839→  const tabs = useMemo(() => {
+   840→   840→    const c = {
+   841→   841→      all: data?.length ?? 0,
+   842→   842→      pending: data?.filter((b) => b.status === 'Pending').length ?? 0,
+   843→   843→      approved: data?.filter((b) => b.status === 'Approved').length ?? 0,
+   844→   844→      active: data?.filter((b) => b.status === 'Active').length ?? 0,
+   845→   845→      completed: data?.filter((b) => b.status === 'Completed').length ?? 0,
+   846→   846→      cancelled: data?.filter((b) => b.status === 'Cancelled' || b.status === 'Rejected').length ?? 0,
+   847→   847→    }
+   848→   848→    return [
+   849→   849→      { id: 'all', label: 'All', count: c.all },
+   850→   850→      { id: 'pending', label: 'Pending', count: c.pending },
+   851→   851→      { id: 'approved', label: 'Approved', count: c.approved },
+   852→   852→      { id: 'active', label: 'Active', count: c.active },
+   853→   853→      { id: 'completed', label: 'Completed', count: c.completed },
+   854→   854→      { id: 'cancelled', label: 'Cancelled / Rejected', count: c.cancelled },
+   855→   855→    ]
+   856→   856→  }, [data])
+   857→   857→
+   858→   858→  // Filtered list (search + status filter + tab)
+   859→   859→  const filtered = useMemo(() => {
+   860→   860→    if (!data) return []
+   861→   861→    let arr = data
+   862→   862→    const q = search.trim().toLowerCase()
+   863→   863→    if (q) {
+   864→   864→      arr = arr.filter((b) => {
+   865→   865→        const a = b.asset
+   866→   866→        return (
+   867→   867→          b.title.toLowerCase().includes(q) ||
+   868→   868→          (b.purpose ?? '').toLowerCase().includes(q) ||
+   869→   869→          (a?.make ?? '').toLowerCase().includes(q) ||
+   870→   870→          (a?.model ?? '').toLowerCase().includes(q) ||
+   871→   871→          (a?.assetTag ?? '').toLowerCase().includes(q) ||
+   872→   872→          (b.bookedBy?.fullName ?? '').toLowerCase().includes(q)
+   873→   873→        )
+   874→   874→      })
+   875→   875→    }
+   876→   876→    if (statusFilter !== 'all') {
+   877→   877→      arr = arr.filter((b) => b.status === statusFilter)
+   878→   878→    }
+   879→   879→    if (tab !== 'all') {
+   880→   880→      if (tab === 'cancelled') {
+   881→   881→        arr = arr.filter((b) => b.status === 'Cancelled' || b.status === 'Rejected')
+   882→   882→      } else {
+   883→   883→        const tabStatus =
+   884→   884→          tab.charAt(0).toUpperCase() + tab.slice(1) // 'pending' → 'Pending'
+   885→   885→        arr = arr.filter((b) => b.status === tabStatus)
+   886→   886→      }
+   887→   887→    }
+   888→   888→    // Sort: upcoming first (soonest start first), then past (most recent first)
+   889→   889→    const now = Date.now()
+   890→   890→    arr = [...arr].sort((a, b) => {
+   891→   891→      const as = new Date(a.startDate).getTime()
+   892→   892→      const bs = new Date(b.startDate).getTime()
+   893→   893→      const aUp = as > now ? 0 : 1
+   894→   894→      const bUp = bs > now ? 0 : 1
+   895→   895→      if (aUp !== bUp) return aUp - bUp
+   896→   896→      return aUp === 0 ? as - bs : bs - as
+   897→   897→    })
+   898→   898→    return arr
+   899→   899→  }, [data, search, statusFilter, tab])
+   900→   900→
+   901→   901→  // Action handlers
+   902→   902→  function getApprover() {
+   903→   903→    return persons?.find((p) => p.role === 'IT Manager') || persons?.[0]
+   904→   904→  }
+   905→   905→
+   906→   906→  async function handleApprove(b: AssetBooking) {
+   907→   907→    const approver = getApprover()
+   908→   908→    if (!approver) {
+   909→   909→      toast.error('No approver available — add a person first')
+   910→   910→      return
+   911→   911→    }
+   912→   912→    try {
+   913→   913→      await bookingsApi.approve(b.id, { approvedById: approver.id })
+   914→   914→      toast.success('Booking approved')
+   915→   915→      qc.invalidateQueries({ queryKey: ['bookings'] })
+   916→   916→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   917→   917→    } catch (e) {
+   918→   918→      toast.error('Approve failed: ' + String(e))
+   919→   919→    }
+   920→   920→  }
+   921→   921→
+   922→   922→  async function handleReject(b: AssetBooking) {
+   923→   923→    const approver = getApprover()
+   924→   924→    if (!approver) {
+   925→   925→      toast.error('No approver available — add a person first')
+   926→   926→      return
+   927→   927→    }
+   928→   928→    try {
+   929→   929→      await bookingsApi.reject(b.id, { approvedById: approver.id })
+   930→   930→      toast.success('Booking rejected')
+   931→   931→      qc.invalidateQueries({ queryKey: ['bookings'] })
+   932→   932→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   933→   933→    } catch (e) {
+   934→   934→      toast.error('Reject failed: ' + String(e))
+   935→   935→    }
+   936→   936→  }
+   937→   937→
+   938→   938→  async function handleCheckOut(b: AssetBooking) {
+   939→   939→    try {
+   940→   940→      await bookingsApi.checkOut(b.id)
+   941→   941→      toast.success('Asset checked out')
+   942→   942→      qc.invalidateQueries({ queryKey: ['bookings'] })
+   943→   943→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   944→   944→    } catch (e) {
+   945→   945→      toast.error('Check-out failed: ' + String(e))
+   946→   946→    }
+   947→   947→  }
+   948→   948→
+   949→   949→  async function handleCancel(b: AssetBooking) {
+   950→   950→    try {
+   951→   951→      await bookingsApi.update(b.id, { status: 'Cancelled' })
+   952→   952→      toast.success('Booking cancelled')
+   953→   953→      qc.invalidateQueries({ queryKey: ['bookings'] })
+   954→   954→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   955→   955→    } catch (e) {
+   956→   956→      toast.error('Cancel failed: ' + String(e))
+   957→   957→    }
+   958→   958→  }
+   959→   959→
+   960→   960→  async function handleDelete(b: AssetBooking) {
+   961→   961→    try {
+   962→   962→      await bookingsApi.delete(b.id)
+   963→   963→      toast.success('Booking deleted')
+   964→   964→      qc.invalidateQueries({ queryKey: ['bookings'] })
+   965→   965→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   966→   966→      setDeleteBooking(null)
+   967→   967→    } catch (e) {
+   968→   968→      toast.error('Delete failed: ' + String(e))
+   969→   969→    }
+   970→   970→  }
+   971→   971→
+   972→   972→  return (
+   973→   973→    <div className="space-y-5 animate-fade-in-up">
+   974→   974→      {/* ============ Header ============ */}
+   975→   975→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   976→   976→        <div className="flex items-start gap-3">
+   977→   977→          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/10 to-cyan-500/5 border border-sky-500/20">
+   978→   978→            <CalendarClock className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+   979→   979→          </div>
+   980→   980→          <div>
+   981→   981→            <h2 className="text-xl font-bold tracking-tight">
+   982→   982→              Asset <span className="gradient-text">Bookings</span> &amp; Reservations
+   983→   983→            </h2>
+   984→   984→            <p className="text-sm text-muted-foreground">
+   985→   985→              Schedule shared assets with approval workflow, check-out / check-in, and conflict detection.
+   986→   986→            </p>
+   987→   987→          </div>
+   988→   988→        </div>
+   989→   989→        <div className="flex items-center gap-2">
+   990→   990→          <Button variant="outline" onClick={() => exportApi.download(exportApi.bookings())}>
+   991→   991→            <Download className="h-4 w-4 mr-1.5" /> Export CSV
+   992→   992→          </Button>
+   993→   993→          <Button
+   994→   994→            onClick={() => {
+   995→   995→              setEditing(null)
+   996→   996→              setFormOpen(true)
+   997→   997→            }}
+   998→   998→          >
+   999→   999→            <Plus className="h-4 w-4 mr-1.5" /> New Booking
+  1000→  1000→          </Button>
+  1001→  1001→        </div>
+  1002→  1002→      </div>
+  1003→  1003→
+  1004→  1004→      {/* ============ Stats Tiles ============ */}
+  1005→  1005→      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+  1006→  1006→        <StatTile label="Total Bookings" value={stats.total} icon={CalendarRange} color="#0ea5e9" hint="all-time" />
+  1007→  1007→        <StatTile label="Pending Approval" value={stats.pending} icon={Clock} color="#f59e0b" hint="awaiting review" />
+  1008→  1008→        <StatTile label="Approved" value={stats.approved} icon={CheckCircle2} color="#8b5cf6" hint="ready to check out" />
+  1009→  1009→        <StatTile label="Active Now" value={stats.active} icon={ArrowRightLeft} color="#10b981" hint="checked out" />
+  1010→  1010→        <StatTile label="Upcoming" value={stats.upcoming} icon={CalendarDays} color="#64748b" hint="scheduled future" />
+  1011→  1011→      </div>
+  1012→  1012→
+  1013→  1013→      {/* ============ Filter Bar ============ */}
+  1014→  1014→      <Card>
+  1015→  1015→        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+  1016→  1016→          <div className="relative flex-1">
+  1017→  1017→            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1018→  1018→            <Input
+  1019→  1019→              value={search}
+  1020→  1020→              onChange={(e) => setSearch(e.target.value)}
+  1021→  1021→              placeholder="Search by title, purpose, asset, or person..."
+  1022→  1022→              className="pl-8 pr-8"
+  1023→  1023→            />
+  1024→  1024→            {search && (
+  1025→  1025→              <button
+  1026→  1026→                type="button"
+  1027→  1027→                onClick={() => setSearch('')}
+  1028→  1028→                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+  1029→  1029→                aria-label="Clear search"
+  1030→  1030→              >
+  1031→  1031→                <X className="h-3.5 w-3.5" />
+  1032→  1032→              </button>
+  1033→  1033→            )}
+  1034→  1034→          </div>
+  1035→  1035→          <div className="flex items-center gap-2">
+  1036→  1036→            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+  1037→  1037→            <Select value={statusFilter} onValueChange={setStatusFilter}>
+  1038→  1038→              <SelectTrigger className="h-9 w-44">
+  1039→  1039→                <SelectValue placeholder="All statuses" />
+  1040→  1040→              </SelectTrigger>
+  1041→  1041→              <SelectContent>
+  1042→  1042→                <SelectItem value="all">All Statuses</SelectItem>
+  1043→  1043→                {BOOKING_STATUSES.map((s) => (
+  1044→  1044→                  <SelectItem key={s} value={s}>
+  1045→  1045→                    {BOOKING_STATUS_CONFIG[s].label}
+  1046→  1046→                  </SelectItem>
+  1047→  1047→                ))}
+  1048→  1048→              </SelectContent>
+  1049→  1049→            </Select>
+  1050→  1050→          </div>
+  1051→  1051→        </CardContent>
+  1052→  1052→        <Separator />
+  1053→  1053→        <div className="px-4 py-2.5">
+  1054→  1054→          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+  1055→  1055→            <Calendar className="h-3 w-3" />
+  1056→  1056→            Showing all upcoming and past bookings
+  1057→  1057→          </p>
+  1058→  1058→        </div>
+  1059→  1059→      </Card>
+  1060→  1060→
+  1061→  1061→      {/* ============ Tabs ============ */}
+  1062→  1062→      <Tabs value={tab} onValueChange={setTab}>
+  1063→  1063→        <TabsList className="flex h-auto flex-wrap gap-1 bg-transparent p-0">
+  1064→  1064→          {tabs.map((t) => (
+  1065→  1065→            <TabsTrigger
+  1066→  1066→              key={t.id}
+  1067→  1067→              value={t.id}
+  1068→  1068→              className="gap-1.5 data-[state=active]:bg-sky-500/10 data-[state=active]:text-sky-700 dark:data-[state=active]:text-sky-300"
+  1069→  1069→            >
+  1070→  1070→              {t.label}
+  1071→  1071→              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] tabular-nums">
+  1072→  1072→                {t.count}
+  1073→  1073→              </Badge>
+  1074→  1074→            </TabsTrigger>
+  1075→  1075→          ))}
+  1076→  1076→        </TabsList>
+  1077→  1077→      </Tabs>
+  1078→  1078→
+  1079→  1079→      {/* ============ Bookings List ============ */}
+  1080→  1080→      {isLoading ? (
+  1081→  1081→        <div className="space-y-3">
+  1082→  1082→          {Array.from({ length: 5 }).map((_, i) => (
+  1083→  1083→            <BookingCardSkeleton key={i} />
+  1084→  1084→          ))}
+  1085→  1085→        </div>
+  1086→  1086→      ) : filtered.length === 0 ? (
+  1087→  1087→        <EmptyState
+  1088→  1088→          onCreate={() => {
+  1089→  1089→            setEditing(null)
+  1090→  1090→            setFormOpen(true)
+  1091→  1091→          }}
+  1092→  1092→        />
+  1093→  1093→      ) : (
+  1094→  1094→        <div
+  1095→  1095→          key={tab}
+  1096→  1096→          className="space-y-3 stagger-children max-h-[600px] overflow-y-auto scrollbar-thin pr-1"
+  1097→  1097→        >
+  1098→  1098→          {filtered.map((b) => (
+  1099→  1099→            <BookingCard
+  1100→  1100→              key={b.id}
+  1101→  1101→              booking={b}
+  1102→  1102→              onApprove={handleApprove}
+  1103→  1103→              onReject={handleReject}
+  1104→  1104→              onCheckOut={handleCheckOut}
+  1105→  1105→              onCheckIn={(bk) => setCheckInBooking(bk)}
+  1106→  1106→              onEdit={(bk) => {
+  1107→  1107→                setEditing(bk)
+  1108→  1108→                setFormOpen(true)
+  1109→  1109→              }}
+  1110→  1110→              onDelete={(bk) => setDeleteBooking(bk)}
+  1111→  1111→              onCancel={handleCancel}
+  1112→  1112→            />
+  1113→  1113→          ))}
+  1114→  1114→        </div>
+  1115→  1115→      )}
+  1116→  1116→
+  1117→  1117→      {/* ============ Form Dialog (create / edit) ============ */}
+  1118→  1118→      <BookingFormDialog open={formOpen} onOpenChange={setFormOpen} booking={editing} />
+  1119→  1119→
+  1120→  1120→      {/* ============ Check-In Dialog ============ */}
+  1121→  1121→      <CheckInDialog
+  1122→  1122→        open={!!checkInBooking}
+  1123→  1123→        onOpenChange={(v) => !v && setCheckInBooking(null)}
+  1124→  1124→        booking={checkInBooking}
+  1125→  1125→      />
+  1126→  1126→
+  1127→  1127→      {/* ============ Delete Confirmation ============ */}
+  1128→  1128→      <AlertDialog open={!!deleteBooking} onOpenChange={(v) => !v && setDeleteBooking(null)}>
+  1129→  1129→        <AlertDialogContent>
+  1130→  1130→          <AlertDialogHeader>
+  1131→  1131→            <AlertDialogTitle className="flex items-center gap-2">
+  1132→  1132→              <AlertTriangle className="h-5 w-5 text-rose-500" />
+  1133→  1133→              Delete booking?
+  1134→  1134→            </AlertDialogTitle>
+  1135→  1135→            <AlertDialogDescription>
+  1136→  1136→              This will permanently delete the booking <strong>&ldquo;{deleteBooking?.title}&rdquo;</strong>.
+  1137→  1137→              This action cannot be undone.
+  1138→  1138→            </AlertDialogDescription>
+  1139→  1139→          </AlertDialogHeader>
+  1140→  1140→          <AlertDialogFooter>
+  1141→  1141→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+  1142→  1142→            <AlertDialogAction
+  1143→  1143→              className="bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500/30"
+  1144→  1144→              onClick={() => deleteBooking && handleDelete(deleteBooking)}
+  1145→  1145→            >
+  1146→  1146→              <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+  1147→  1147→            </AlertDialogAction>
+  1148→  1148→          </AlertDialogFooter>
+  1149→  1149→        </AlertDialogContent>
+  1150→  1150→      </AlertDialog>
+  1151→  1151→    </div>
+  1152→  1152→  )
+  1153→  1153→}
+  1154→  1154→

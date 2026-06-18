@@ -83,8 +83,10 @@ import {
   CalendarRange,
   Hourglass,
   MoreVertical,
+  LayoutGrid,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { BookingsCalendarView } from './bookings-calendar-view'
 
 // ============================================================
 // Helpers
@@ -803,6 +805,7 @@ export function BookingsView() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [tab, setTab] = useState('all')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<AssetBooking | null>(null)
@@ -897,6 +900,30 @@ export function BookingsView() {
     })
     return arr
   }, [data, search, statusFilter, tab])
+
+  // Bookings shown in calendar mode — applies search + status filter only (no tab)
+  const calendarBookings = useMemo(() => {
+    if (!data) return []
+    let arr = data
+    const q = search.trim().toLowerCase()
+    if (q) {
+      arr = arr.filter((b) => {
+        const a = b.asset
+        return (
+          b.title.toLowerCase().includes(q) ||
+          (b.purpose ?? '').toLowerCase().includes(q) ||
+          (a?.make ?? '').toLowerCase().includes(q) ||
+          (a?.model ?? '').toLowerCase().includes(q) ||
+          (a?.assetTag ?? '').toLowerCase().includes(q) ||
+          (b.bookedBy?.fullName ?? '').toLowerCase().includes(q)
+        )
+      })
+    }
+    if (statusFilter !== 'all') {
+      arr = arr.filter((b) => b.status === statusFilter)
+    }
+    return arr
+  }, [data, search, statusFilter])
 
   // Action handlers
   function getApprover() {
@@ -1058,60 +1085,100 @@ export function BookingsView() {
         </div>
       </Card>
 
-      {/* ============ Tabs ============ */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex h-auto flex-wrap gap-1 bg-transparent p-0">
-          {tabs.map((t) => (
-            <TabsTrigger
-              key={t.id}
-              value={t.id}
-              className="gap-1.5 data-[state=active]:bg-sky-500/10 data-[state=active]:text-sky-700 dark:data-[state=active]:text-sky-300"
-            >
-              {t.label}
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] tabular-nums">
-                {t.count}
-              </Badge>
-            </TabsTrigger>
-          ))}
+      {/* ============ View Mode Toggle (List / Calendar) ============ */}
+      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'list' | 'calendar')}>
+        <TabsList className="flex h-auto gap-1 bg-transparent p-0">
+          <TabsTrigger
+            value="list"
+            className="gap-1.5 data-[state=active]:bg-sky-500/10 data-[state=active]:text-sky-700 dark:data-[state=active]:text-sky-300"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            List View
+          </TabsTrigger>
+          <TabsTrigger
+            value="calendar"
+            className="gap-1.5 data-[state=active]:bg-sky-500/10 data-[state=active]:text-sky-700 dark:data-[state=active]:text-sky-300"
+          >
+            <CalendarRange className="h-3.5 w-3.5" />
+            Calendar View
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {/* ============ Bookings List ============ */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <BookingCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          onCreate={() => {
-            setEditing(null)
+      {viewMode === 'calendar' ? (
+        /* ============ Calendar View ============ */
+        <BookingsCalendarView
+          bookings={calendarBookings}
+          isLoading={isLoading}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onCheckOut={handleCheckOut}
+          onCheckIn={(bk) => setCheckInBooking(bk)}
+          onEdit={(bk) => {
+            setEditing(bk)
             setFormOpen(true)
           }}
+          onDelete={(bk) => setDeleteBooking(bk)}
+          onCancel={handleCancel}
         />
       ) : (
-        <div
-          key={tab}
-          className="space-y-3 stagger-children max-h-[600px] overflow-y-auto scrollbar-thin pr-1"
-        >
-          {filtered.map((b) => (
-            <BookingCard
-              key={b.id}
-              booking={b}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              onCheckOut={handleCheckOut}
-              onCheckIn={(bk) => setCheckInBooking(bk)}
-              onEdit={(bk) => {
-                setEditing(bk)
+        <>
+          {/* ============ Status Tabs (list mode) ============ */}
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="flex h-auto flex-wrap gap-1 bg-transparent p-0">
+              {tabs.map((t) => (
+                <TabsTrigger
+                  key={t.id}
+                  value={t.id}
+                  className="gap-1.5 data-[state=active]:bg-sky-500/10 data-[state=active]:text-sky-700 dark:data-[state=active]:text-sky-300"
+                >
+                  {t.label}
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] tabular-nums">
+                    {t.count}
+                  </Badge>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          {/* ============ Bookings List ============ */}
+          {isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <BookingCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              onCreate={() => {
+                setEditing(null)
                 setFormOpen(true)
               }}
-              onDelete={(bk) => setDeleteBooking(bk)}
-              onCancel={handleCancel}
             />
-          ))}
-        </div>
+          ) : (
+            <div
+              key={tab}
+              className="space-y-3 stagger-children max-h-[600px] overflow-y-auto scrollbar-thin pr-1"
+            >
+              {filtered.map((b) => (
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  onCheckOut={handleCheckOut}
+                  onCheckIn={(bk) => setCheckInBooking(bk)}
+                  onEdit={(bk) => {
+                    setEditing(bk)
+                    setFormOpen(true)
+                  }}
+                  onDelete={(bk) => setDeleteBooking(bk)}
+                  onCancel={handleCancel}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* ============ Form Dialog (create / edit) ============ */}

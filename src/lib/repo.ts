@@ -257,6 +257,8 @@ export interface AssetQueryOpts {
   locationId?: string
   assignedToId?: string
   os?: string
+  tagIds?: string[]
+  tagMatch?: 'any' | 'all'
   page?: number
   pageSize?: number
   sortBy?: string
@@ -334,6 +336,23 @@ export const assetRepo = {
     if (opts.os) {
       where.push('a.os LIKE ?')
       params.push(`%${opts.os}%`)
+    }
+    // Tag filtering (any = OR, all = AND)
+    if (opts.tagIds && opts.tagIds.length > 0) {
+      const match = opts.tagMatch === 'all' ? 'all' : 'any'
+      if (match === 'all') {
+        // Asset must have ALL selected tags
+        const placeholders = opts.tagIds.map(() => '?').join(',')
+        where.push(
+          `a.id IN (SELECT assetId FROM AssetTagLink WHERE tagId IN (${placeholders}) GROUP BY assetId HAVING COUNT(DISTINCT tagId) = ${opts.tagIds.length})`
+        )
+        params.push(...opts.tagIds)
+      } else {
+        // Asset must have ANY of the selected tags
+        const placeholders = opts.tagIds.map(() => '?').join(',')
+        where.push(`a.id IN (SELECT assetId FROM AssetTagLink WHERE tagId IN (${placeholders}))`)
+        params.push(...opts.tagIds)
+      }
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
@@ -533,6 +552,135 @@ export const assetRepo = {
   delete(id: string): void {
     ensure()
     db.prepare('DELETE FROM Asset WHERE id = ?').run(id)
+  },
+
+  // ===== Bulk operations =====
+  bulkSetStatus(ids: string[], status: string): number {
+    ensure()
+    if (!ids.length) return 0
+    const now = new Date().toISOString()
+    const placeholders = ids.map(() => '?').join(',')
+    const info = db.prepare(`UPDATE Asset SET status = ?, updatedAt = ? WHERE id IN (${placeholders})`).run(status, now, ...ids)
+    for (const id of ids) {
+      logAssetActivity('asset.updated', id, `Bulk: status changed to ${status}`)
+    }
+    return info.changes
+  },
+
+  bulkDelete(ids: string[]): number {
+    ensure()
+    if (!ids.length) return 0
+    const placeholders = ids.map(() => '?').join(',')
+    for (const id of ids) {
+      logAssetActivity('asset.deleted', id, `Bulk: deleted asset`)
+    }
+    const info = db.prepare(`DELETE FROM Asset WHERE id IN (${placeholders})`).run(...ids)
+    return info.changes
+  },
+
+  bulkAssignTag(ids: string[], tagId: string): number {
+    ensure()
+    if (!ids.length) return 0
+    const now = new Date().toISOString()
+    const tag = assetTagRepo.get(tagId)
+    if (!tag) return 0
+    const ins = db.prepare('INSERT OR IGNORE INTO AssetTagLink (id, assetId, tagId, createdAt) VALUES (?, ?, ?, ?)')
+    let added = 0
+    for (const id of ids) {
+      const before = (db.prepare('SELECT COUNT(*) as c FROM AssetTagLink WHERE assetId = ? AND tagId = ?').get(id, tagId) as { c: number }).c
+      ins.run(generateId(), id, tagId, now)
+      const after = (db.prepare('SELECT COUNT(*) as c FROM AssetTagLink WHERE assetId = ? AND tagId = ?').get(id, tagId) as { c: number }).c
+      if (after > before) added++
+      logAssetActivity('tag.attached', id, `Bulk: tagged with ${tag.name}`)
+    }
+    return added
+  },
+
+  bulkRemoveTag(ids: string[], tagId: string): number {
+    ensure()
+    if (!ids.length) return 0
+    const tag = assetTagRepo.get(tagId)
+    if (!tag) return 0
+    const placeholders = ids.map(() => '?').join(',')
+    const info = db.prepare(`DELETE FROM AssetTagLink WHERE tagId = ? AND assetId IN (${placeholders})`).run(tagId, ...ids)
+    for (const id of ids) {
+      logAssetActivity('tag.detached', id, `Bulk: removed tag ${tag.name}`)
+    }
+    return info.changes
+  },
+
+  // ===== Asset lifecycle cost analysis =====
+  lifecycleCostByType(): {
+    assetType: string
+    assetCount: number
+    purchaseCost: number
+    maintenanceCost: number
+    disposalCost: number
+    residualValue: number
+    netCost: number
+  }[] {
+    ensure()
+    // Aggregate purchase cost + maintenance cost by asset type
+    const rows = db.prepare(`
+      SELECT
+        t.name as assetType,
+        COUNT(DISTINCT a.id) as assetCount,
+        COALESCE(SUM(a.cost), 0) as purchaseCost,
+        COALESCE((SELECT SUM(m.cost) FROM MaintenanceSchedule m WHERE m.assetId = a.id AND m.cost IS NOT NULL), 0) as maintenanceCost,
+        COALESCE((SELECT SUM(d.disposalCost) FROM AssetDisposal d WHERE d.assetId = a.id), 0) as disposalCost,
+        COALESCE((SELECT SUM(d.residualValue) FROM AssetDisposal d WHERE d.assetId = a.id), 0) as residualValue
+      FROM Asset a
+      JOIN AssetType t ON a.assetTypeId = t.id
+      GROUP BY t.id
+      ORDER BY purchaseCost DESC
+    `).all() as {
+      assetType: string
+      assetCount: number
+      purchaseCost: number
+      maintenanceCost: number
+      disposalCost: number
+      residualValue: number
+    }[]
+    return rows.map((r) => ({
+      assetType: r.assetType,
+      assetCount: r.assetCount,
+      purchaseCost: r.purchaseCost || 0,
+      maintenanceCost: r.maintenanceCost || 0,
+      disposalCost: r.disposalCost || 0,
+      residualValue: r.residualValue || 0,
+      netCost: (r.purchaseCost || 0) + (r.maintenanceCost || 0) + (r.disposalCost || 0) - (r.residualValue || 0),
+    }))
+  },
+
+  // ===== Asset cost-over-time trend =====
+  costTrend(monthsBack = 12): { month: string; purchase: number; maintenance: number; disposal: number }[] {
+    ensure()
+    const result: Record<string, { purchase: number; maintenance: number; disposal: number }> = {}
+    const now = new Date()
+    // Initialize last N months
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      result[key] = { purchase: 0, maintenance: 0, disposal: 0 }
+    }
+    // Asset purchases
+    const assetRows = db.prepare(`SELECT substr(purchaseDate, 1, 7) as month, COALESCE(SUM(cost), 0) as total FROM Asset WHERE purchaseDate IS NOT NULL GROUP BY month`).all() as { month: string; total: number }[]
+    for (const r of assetRows) {
+      if (result[r.month]) result[r.month].purchase = r.total
+    }
+    // Maintenance costs (by scheduledFor date)
+    const maintRows = db.prepare(`SELECT substr(scheduledFor, 1, 7) as month, COALESCE(SUM(cost), 0) as total FROM MaintenanceSchedule WHERE scheduledFor IS NOT NULL AND cost IS NOT NULL GROUP BY month`).all() as { month: string; total: number }[]
+    for (const r of maintRows) {
+      if (result[r.month]) result[r.month].maintenance = r.total
+    }
+    // Disposal costs
+    const dispRows = db.prepare(`SELECT substr(disposalDate, 1, 7) as month, COALESCE(SUM(disposalCost), 0) as total FROM AssetDisposal GROUP BY month`).all() as { month: string; total: number }[]
+    for (const r of dispRows) {
+      if (result[r.month]) result[r.month].disposal = r.total
+    }
+    return Object.entries(result)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, v]) => ({ month, ...v }))
   },
 
   assign(

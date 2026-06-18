@@ -114,6 +114,8 @@ export interface AssetQuery {
   locationId?: string
   assignedToId?: string
   os?: string
+  tagIds?: string[]
+  tagMatch?: 'any' | 'all'
   page?: number
   pageSize?: number
   sortBy?: string
@@ -125,7 +127,12 @@ export const assetsApi = {
     const params = new URLSearchParams()
     if (query) {
       Object.entries(query).forEach(([k, v]) => {
-        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+        if (v === undefined || v === '' || v === null) return
+        if (Array.isArray(v)) {
+          if (v.length > 0) params.set(k, v.join(','))
+        } else {
+          params.set(k, String(v))
+        }
       })
     }
     const qs = params.toString()
@@ -140,6 +147,8 @@ export const assetsApi = {
     request<Asset>(`/api/assets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) =>
     request<void>(`/api/assets/${id}`, { method: 'DELETE' }),
+  bulk: (body: { ids: string[]; action: 'setStatus' | 'delete' | 'assignTag' | 'removeTag'; payload?: { status?: string; tagId?: string } }) =>
+    request<{ success: boolean; affected: number; message: string }>('/api/assets/bulk', { method: 'POST', body: JSON.stringify(body) }),
   assign: (id: string, data: { personId?: string; departmentId?: string; locationId?: string; reason?: string; action?: string }) =>
     request<AssignmentHistory>(`/api/assets/${id}/assign`, { method: 'POST', body: JSON.stringify(data) }),
   history: (id: string) => request<AssignmentHistory[]>(`/api/assets/${id}/history`),
@@ -414,4 +423,37 @@ export const exportApi = {
     a.href = url
     a.click()
   },
+}
+
+// ---- Reports (analytics) ----
+export interface LifecycleCostByType {
+  assetType: string
+  assetCount: number
+  purchaseCost: number
+  maintenanceCost: number
+  disposalCost: number
+  residualValue: number
+  netCost: number
+}
+export interface LifecycleCostReport {
+  byType: LifecycleCostByType[]
+  totals: {
+    purchaseCost: number
+    maintenanceCost: number
+    disposalCost: number
+    residualValue: number
+    netCost: number
+    assetCount: number
+  }
+}
+export interface CostTrendPoint {
+  month: string
+  purchase: number
+  maintenance: number
+  disposal: number
+}
+
+export const reportsApi = {
+  lifecycle: () => request<LifecycleCostReport>('/api/reports/lifecycle'),
+  costTrend: (months = 12) => request<{ data: CostTrendPoint[] }>(`/api/reports/cost-trend?months=${months}`),
 }

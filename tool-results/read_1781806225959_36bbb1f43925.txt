@@ -1,0 +1,610 @@
+     1→'use client'
+     2→
+     3→import { useQuery } from '@tanstack/react-query'
+     4→import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi, bookingsApi, tagsApi, exportApi } from '@/lib/api'
+     5→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { formatCurrency } from '@/lib/format'
+     9→import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES } from '@/lib/types'
+    10→import {
+    11→  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+    12→  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend,
+    13→} from 'recharts'
+    14→import { Download, TrendingUp, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock } from 'lucide-react'
+    15→import { toast } from 'sonner'
+    16→
+    17→const STATUS_COLORS: Record<string, string> = {
+    18→  'In Use': '#10b981', 'In Stock': '#64748b', Repair: '#f59e0b', Retired: '#f43f5e', Lost: '#ef4444',
+    19→}
+    20→const CHART_COLORS = ['#0f172a', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+    21→
+    22→export function ReportsView() {
+    23→  const { data: stats } = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() })
+    24→  const { data: assetsAll } = useQuery({
+    25→    queryKey: ['all-assets-report'],
+    26→    queryFn: () => assetsApi.list({ pageSize: 100, sortBy: 'purchaseDate', sortDir: 'asc' }),
+    27→  })
+    28→  const { data: vendors } = useQuery({ queryKey: ['vendors-report'], queryFn: () => vendorsApi.list() })
+    29→  const { data: purchaseOrders } = useQuery({ queryKey: ['pos-report'], queryFn: () => purchaseOrdersApi.list() })
+    30→  const { data: disposals } = useQuery({ queryKey: ['disposals-report'], queryFn: () => disposalsApi.list() })
+    31→  const { data: deprStats } = useQuery({ queryKey: ['depr-stats-report'], queryFn: () => depreciationApi.stats() })
+    32→  const { data: bookings } = useQuery({ queryKey: ['bookings-report'], queryFn: () => bookingsApi.list({ limit: 500 }) })
+    33→  const { data: tags } = useQuery({ queryKey: ['tags-report'], queryFn: () => tagsApi.list() })
+    34→
+    35→  function exportFull() {
+    36→    exportApi.download(exportApi.assets())
+    37→    toast.success('Exporting full asset report...')
+    38→  }
+    39→
+    40→  if (!stats) {
+    41→    return <div className="h-64 shimmer rounded-lg" />
+    42→  }
+    43→
+    44→  // Build acquisition trend by month
+    45→  const trend: Record<string, number> = {}
+    46→  if (assetsAll) {
+    47→    assetsAll.data.forEach((a) => {
+    48→      if (a.purchaseDate) {
+    49→        const m = a.purchaseDate.slice(0, 7)
+    50→        trend[m] = (trend[m] || 0) + 1
+    51→      }
+    52→    })
+    53→  }
+    54→  const trendData = Object.entries(trend)
+    55→    .sort(([a], [b]) => a.localeCompare(b))
+    56→    .slice(-12)
+    57→    .map(([month, count]) => ({ month, count }))
+    58→
+    59→  // Value by type
+    60→  const valueByType = assetsAll
+    61→    ? Object.entries(
+    62→        assetsAll.data.reduce<Record<string, number>>((acc, a) => {
+    63→          const t = a.assetType?.name || 'Unknown'
+    64→          acc[t] = (acc[t] || 0) + (a.cost || 0)
+    65→          return acc
+    66→        }, {})
+    67→      ).map(([name, value]) => ({ name, value }))
+    68→    : []
+    69→
+    70→  const statusData = stats.byStatus.map((s) => ({
+    71→    name: s.status, value: s.count, fill: STATUS_COLORS[s.status] || '#94a3b8',
+    72→  }))
+    73→
+    74→  const utilization = stats.totalAssets > 0 ? Math.round((stats.inUse / stats.totalAssets) * 100) : 0
+    75→
+    76→  return (
+    77→    <div className="space-y-5 animate-fade-in-up">
+    78→      <div className="flex items-center justify-between">
+    79→        <div>
+    80→          <h2 className="text-lg font-bold flex items-center gap-2"><Activity className="h-5 w-5" /> Reports & Analytics</h2>
+    81→          <p className="text-sm text-muted-foreground">Insights and exportable reports</p>
+    82→        </div>
+    83→        <Button onClick={exportFull} disabled={!assetsAll}>
+    84→          <Download className="h-4 w-4 mr-1.5" /> Export Full Report
+    85→        </Button>
+    86→      </div>
+    87→
+    88→      {/* KPI cards */}
+    89→      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    90→        <Card className="border-l-4" style={{ borderLeftColor: '#10b981' }}>
+    91→          <CardContent className="pt-5">
+    92→            <div className="flex items-center justify-between">
+    93→              <div>
+    94→                <p className="text-xs text-muted-foreground">Utilization Rate</p>
+    95→                <p className="text-2xl font-bold">{utilization}%</p>
+    96→              </div>
+    97→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+    98→                <TrendingUp className="h-5 w-5 text-emerald-600" />
+    99→              </div>
+   100→            </div>
+   101→          </CardContent>
+   102→        </Card>
+   103→        <Card className="border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+   104→          <CardContent className="pt-5">
+   105→            <div className="flex items-center justify-between">
+   106→              <div>
+   107→                <p className="text-xs text-muted-foreground">Total Asset Value</p>
+   108→                <p className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</p>
+   109→              </div>
+   110→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10">
+   111→                <DollarSign className="h-5 w-5 text-violet-600" />
+   112→              </div>
+   113→            </div>
+   114→          </CardContent>
+   115→        </Card>
+   116→        <Card className="border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+   117→          <CardContent className="pt-5">
+   118→            <div className="flex items-center justify-between">
+   119→              <div>
+   120→                <p className="text-xs text-muted-foreground">In Repair</p>
+   121→                <p className="text-2xl font-bold">{stats.repair}</p>
+   122→              </div>
+   123→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+   124→                <Wrench className="h-5 w-5 text-amber-600" />
+   125→              </div>
+   126→            </div>
+   127→          </CardContent>
+   128→        </Card>
+   129→        <Card className="border-l-4" style={{ borderLeftColor: '#06b6d4' }}>
+   130→          <CardContent className="pt-5">
+   131→            <div className="flex items-center justify-between">
+   132→              <div>
+   133→                <p className="text-xs text-muted-foreground">Warranty Expiring</p>
+   134→                <p className="text-2xl font-bold">{stats.warrantyExpiringSoon}</p>
+   135→              </div>
+   136→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10">
+   137→                <AlertTriangle className="h-5 w-5 text-cyan-600" />
+   138→              </div>
+   139→            </div>
+   140→          </CardContent>
+   141→        </Card>
+   142→      </div>
+   143→
+   144→      <div className="grid gap-4 lg:grid-cols-2">
+   145→        {/* Acquisition trend */}
+   146→        <Card>
+   147→          <CardHeader className="pb-2">
+   148→            <CardTitle className="text-base">Asset Acquisition Trend</CardTitle>
+   149→            <CardDescription>Assets purchased per month (last 12 months)</CardDescription>
+   150→          </CardHeader>
+   151→          <CardContent>
+   152→            {trendData.length === 0 ? (
+   153→              <p className="py-12 text-center text-sm text-muted-foreground">No purchase date data</p>
+   154→            ) : (
+   155→              <ResponsiveContainer width="100%" height={240}>
+   156→                <AreaChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+   157→                  <defs>
+   158→                    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+   159→                      <stop offset="0%" stopColor="#0f172a" stopOpacity={0.3} />
+   160→                      <stop offset="100%" stopColor="#0f172a" stopOpacity={0} />
+   161→                    </linearGradient>
+   162→                  </defs>
+   163→                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   164→                  <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+   165→                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+   166→                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   167→                  <Area type="monotone" dataKey="count" stroke="#0f172a" strokeWidth={2} fill="url(#grad)" />
+   168→                </AreaChart>
+   169→              </ResponsiveContainer>
+   170→            )}
+   171→          </CardContent>
+   172→        </Card>
+   173→
+   174→        {/* Status donut */}
+   175→        <Card>
+   176→          <CardHeader className="pb-2">
+   177→            <CardTitle className="text-base">Status Distribution</CardTitle>
+   178→            <CardDescription>Asset count by status</CardDescription>
+   179→          </CardHeader>
+   180→          <CardContent>
+   181→            <ResponsiveContainer width="100%" height={240}>
+   182→              <PieChart>
+   183→                <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3}>
+   184→                  {statusData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+   185→                </Pie>
+   186→                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   187→              </PieChart>
+   188→            </ResponsiveContainer>
+   189→            <div className="mt-2 grid grid-cols-3 gap-2">
+   190→              {statusData.map((s) => (
+   191→                <div key={s.name} className="flex items-center gap-1.5 text-xs">
+   192→                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.fill }} />
+   193→                  <span className="text-muted-foreground">{s.name}</span>
+   194→                  <span className="ml-auto font-medium">{s.value}</span>
+   195→                </div>
+   196→              ))}
+   197→            </div>
+   198→          </CardContent>
+   199→        </Card>
+   200→
+   201→        {/* Value by type */}
+   202→        <Card>
+   203→          <CardHeader className="pb-2">
+   204→            <CardTitle className="text-base">Asset Value by Type</CardTitle>
+   205→            <CardDescription>Total cost grouped by asset type</CardDescription>
+   206→          </CardHeader>
+   207→          <CardContent>
+   208→            {valueByType.length === 0 ? (
+   209→              <p className="py-12 text-center text-sm text-muted-foreground">No cost data</p>
+   210→            ) : (
+   211→              <ResponsiveContainer width="100%" height={240}>
+   212→                <BarChart data={valueByType} layout="vertical" margin={{ top: 5, right: 20, left: 50, bottom: 5 }}>
+   213→                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   214→                  <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+   215→                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+   216→                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} formatter={(v: number) => formatCurrency(v)} />
+   217→                  <Bar dataKey="value" radius={[0, 6, 6, 0]} fill="#8b5cf6" />
+   218→                </BarChart>
+   219→              </ResponsiveContainer>
+   220→            )}
+   221→          </CardContent>
+   222→        </Card>
+   223→
+   224→        {/* Department breakdown */}
+   225→        <Card>
+   226→          <CardHeader className="pb-2">
+   227→            <CardTitle className="text-base">Assets by Department</CardTitle>
+   228→            <CardDescription>Distribution across teams</CardDescription>
+   229→          </CardHeader>
+   230→          <CardContent>
+   231→            {stats.byDepartment.length === 0 ? (
+   232→              <p className="py-12 text-center text-sm text-muted-foreground">No data</p>
+   233→            ) : (
+   234→              <ResponsiveContainer width="100%" height={240}>
+   235→                <BarChart data={stats.byDepartment} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+   236→                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   237→                  <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+   238→                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+   239→                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   240→                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+   241→                    {stats.byDepartment.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+   242→                  </Bar>
+   243→                </BarChart>
+   244→              </ResponsiveContainer>
+   245→            )}
+   246→          </CardContent>
+   247→        </Card>
+   248→      </div>
+   249→
+   250→      {/* Procurement & Vendor Analytics */}
+   251→      <div className="grid gap-4 lg:grid-cols-2">
+   252→        {/* Vendor Spend */}
+   253→        <Card>
+   254→          <CardHeader className="pb-2">
+   255→            <CardTitle className="text-base flex items-center gap-2">
+   256→              <Store className="h-4 w-4 text-sky-600" /> Vendor Spend
+   257→            </CardTitle>
+   258→            <CardDescription>Total purchase value by vendor (excludes Draft/Cancelled POs)</CardDescription>
+   259→          </CardHeader>
+   260→          <CardContent>
+   261→            {!vendors || vendors.length === 0 ? (
+   262→              <p className="py-12 text-center text-sm text-muted-foreground">No vendor data</p>
+   263→            ) : (
+   264→              <ResponsiveContainer width="100%" height={260}>
+   265→                <BarChart
+   266→                  data={vendors
+   267→                    .map((v) => ({ name: v.name, value: v._sum?.totalSpent ?? 0, pos: v._count?.purchaseOrders ?? 0 }))
+   268→                    .filter((v) => v.value > 0)
+   269→                    .sort((a, b) => b.value - a.value)
+   270→                    .slice(0, 8)}
+   271→                  layout="vertical"
+   272→                  margin={{ top: 5, right: 20, left: 60, bottom: 5 }}
+   273→                >
+   274→                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   275→                  <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+   276→                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={100} />
+   277→                  <Tooltip
+   278→                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+   279→                    formatter={(v: number) => formatCurrency(v)}
+   280→                  />
+   281→                  <Bar dataKey="value" radius={[0, 6, 6, 0]} fill="#0ea5e9" />
+   282→                </BarChart>
+   283→              </ResponsiveContainer>
+   284→            )}
+   285→          </CardContent>
+   286→        </Card>
+   287→
+   288→        {/* PO Status Breakdown */}
+   289→        <Card>
+   290→          <CardHeader className="pb-2">
+   291→            <CardTitle className="text-base flex items-center gap-2">
+   292→              <ShoppingCart className="h-4 w-4 text-violet-600" /> Purchase Order Status
+   293→            </CardTitle>
+   294→            <CardDescription>Distribution of POs by status</CardDescription>
+   295→          </CardHeader>
+   296→          <CardContent>
+   297→            {!purchaseOrders || purchaseOrders.length === 0 ? (
+   298→              <p className="py-12 text-center text-sm text-muted-foreground">No purchase orders</p>
+   299→            ) : (
+   300→              <>
+   301→                <ResponsiveContainer width="100%" height={200}>
+   302→                  <PieChart>
+   303→                    <Pie
+   304→                      data={Object.entries(
+   305→                        purchaseOrders.reduce<Record<string, number>>((acc, po) => {
+   306→                          acc[po.status] = (acc[po.status] || 0) + 1
+   307→                          return acc
+   308→                        }, {})
+   309→                      ).map(([name, value]) => ({ name, value }))}
+   310→                      dataKey="value"
+   311→                      nameKey="name"
+   312→                      cx="50%"
+   313→                      cy="50%"
+   314→                      innerRadius={50}
+   315→                      outerRadius={80}
+   316→                      paddingAngle={3}
+   317→                    >
+   318→                      {Object.entries(
+   319→                        purchaseOrders.reduce<Record<string, number>>((acc, po) => {
+   320→                          acc[po.status] = (acc[po.status] || 0) + 1
+   321→                          return acc
+   322→                        }, {})
+   323→                      ).map(([name], i) => {
+   324→                        const colors: Record<string, string> = {
+   325→                          Draft: '#94a3b8', 'Pending Approval': '#f59e0b', Approved: '#0ea5e9',
+   326→                          Ordered: '#8b5cf6', 'Partially Received': '#06b6d4', Received: '#10b981',
+   327→                          Cancelled: '#f43f5e', Closed: '#71717a',
+   328→                        }
+   329→                        return <Cell key={i} fill={colors[name] || '#94a3b8'} />
+   330→                      })}
+   331→                    </Pie>
+   332→                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   333→                  </PieChart>
+   334→                </ResponsiveContainer>
+   335→                <div className="mt-2 grid grid-cols-2 gap-1.5">
+   336→                  {Object.entries(
+   337→                    purchaseOrders.reduce<Record<string, number>>((acc, po) => {
+   338→                      acc[po.status] = (acc[po.status] || 0) + 1
+   339→                      return acc
+   340→                    }, {})
+   341→                  ).map(([name, count]) => (
+   342→                    <div key={name} className="flex items-center justify-between text-xs">
+   343→                      <span className="text-muted-foreground truncate">{name}</span>
+   344→                      <span className="ml-2 font-medium tabular-nums">{count}</span>
+   345→                    </div>
+   346→                  ))}
+   347→                </div>
+   348→              </>
+   349→            )}
+   350→          </CardContent>
+   351→        </Card>
+   352→
+   353→        {/* Depreciation Summary */}
+   354→        <Card>
+   355→          <CardHeader className="pb-2">
+   356→            <CardTitle className="text-base flex items-center gap-2">
+   357→              <TrendingUp className="h-4 w-4 text-emerald-600" /> Depreciation Summary
+   358→            </CardTitle>
+   359→            <CardDescription>Purchase value vs current value</CardDescription>
+   360→          </CardHeader>
+   361→          <CardContent>
+   362→            {!deprStats ? (
+   363→              <p className="py-12 text-center text-sm text-muted-foreground">No depreciation data</p>
+   364→            ) : (
+   365→              <div className="space-y-4">
+   366→                <div className="grid grid-cols-2 gap-3">
+   367→                  <div className="rounded-lg bg-violet-500/10 p-3">
+   368→                    <p className="text-xs text-muted-foreground">Purchase Value</p>
+   369→                    <p className="text-lg font-bold tabular-nums text-violet-700 dark:text-violet-400">
+   370→                      {formatCurrency(deprStats.totalPurchaseValue)}
+   371→                    </p>
+   372→                  </div>
+   373→                  <div className="rounded-lg bg-emerald-500/10 p-3">
+   374→                    <p className="text-xs text-muted-foreground">Current Value</p>
+   375→                    <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+   376→                      {formatCurrency(deprStats.totalCurrentValue)}
+   377→                    </p>
+   378→                  </div>
+   379→                </div>
+   380→                <div>
+   381→                  <div className="flex items-center justify-between text-xs mb-1">
+   382→                    <span className="text-muted-foreground">Value Retained</span>
+   383→                    <span className="font-medium tabular-nums">
+   384→                      {deprStats.totalPurchaseValue > 0
+   385→                        ? Math.round((deprStats.totalCurrentValue / deprStats.totalPurchaseValue) * 100)
+   386→                        : 0}
+   387→                      %
+   388→                    </span>
+   389→                  </div>
+   390→                  <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+   391→                    <div
+   392→                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all"
+   393→                      style={{
+   394→                        width: `${deprStats.totalPurchaseValue > 0
+   395→                          ? Math.round((deprStats.totalCurrentValue / deprStats.totalPurchaseValue) * 100)
+   396→                          : 0}%`,
+   397→                      }}
+   398→                    />
+   399→                  </div>
+   400→                  <p className="mt-2 text-[11px] text-muted-foreground">
+   401→                    Total depreciation: <span className="font-medium text-rose-600">-{formatCurrency(deprStats.totalDepreciation)}</span>
+   402→                    {' · '}
+   403→                    <span className="font-medium text-amber-600">{deprStats.fullyDepreciatedCount} fully depreciated</span>
+   404→                  </p>
+   405→                </div>
+   406→              </div>
+   407→            )}
+   408→          </CardContent>
+   409→        </Card>
+   410→
+   411→        {/* Disposal Summary */}
+   412→        <Card>
+   413→          <CardHeader className="pb-2">
+   414→            <CardTitle className="text-base flex items-center gap-2">
+   415→              <Trash2 className="h-4 w-4 text-rose-600" /> Asset Disposals
+   416→            </CardTitle>
+   417→            <CardDescription>Disposals by method</CardDescription>
+   418→          </CardHeader>
+   419→          <CardContent>
+   420→            {!disposals || disposals.length === 0 ? (
+   421→              <p className="py-12 text-center text-sm text-muted-foreground">No disposal records</p>
+   422→            ) : (
+   423→              <>
+   424→                <ResponsiveContainer width="100%" height={180}>
+   425→                  <BarChart
+   426→                    data={Object.entries(
+   427→                      disposals.reduce<Record<string, number>>((acc, d) => {
+   428→                        acc[d.method] = (acc[d.method] || 0) + 1
+   429→                        return acc
+   430→                      }, {})
+   431→                    ).map(([name, count]) => ({ name, count }))}
+   432→                    margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+   433→                  >
+   434→                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   435→                    <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+   436→                    <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+   437→                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   438→                    <Bar dataKey="count" radius={[6, 6, 0, 0]} fill="#f43f5e" />
+   439→                  </BarChart>
+   440→                </ResponsiveContainer>
+   441→                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+   442→                  <div className="rounded-md bg-emerald-500/10 p-2">
+   443→                    <p className="text-[10px] text-muted-foreground">Recovered</p>
+   444→                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+   445→                      {formatCurrency(disposals.reduce((s, d) => s + (d.method === 'Sold' || d.method === 'Trade-in' || d.method === 'Recycled' ? d.netProceeds : 0), 0))}
+   446→                    </p>
+   447→                  </div>
+   448→                  <div className="rounded-md bg-rose-500/10 p-2">
+   449→                    <p className="text-[10px] text-muted-foreground">Cost</p>
+   450→                    <p className="text-sm font-bold text-rose-700 dark:text-rose-400">
+   451→                      {formatCurrency(disposals.reduce((s, d) => s + d.disposalCost, 0))}
+   452→                    </p>
+   453→                  </div>
+   454→                  <div className="rounded-md bg-sky-500/10 p-2">
+   455→                    <p className="text-[10px] text-muted-foreground">Compliant</p>
+   456→                    <p className="text-sm font-bold text-sky-700 dark:text-sky-400">
+   457→                      {disposals.filter((d) => d.environmentalCompliant).length}/{disposals.length}
+   458→                    </p>
+   459→                  </div>
+   460→                </div>
+   461→              </>
+   462→            )}
+   463→          </CardContent>
+   464→        </Card>
+   465→      </div>
+   466→
+   467→      {/* Bookings & Tags Analytics */}
+   468→      <div className="grid gap-4 lg:grid-cols-2">
+   469→        {/* Booking Status Distribution */}
+   470→        <Card>
+   471→          <CardHeader className="pb-2">
+   472→            <CardTitle className="text-base flex items-center gap-2">
+   473→              <CalendarClock className="h-4 w-4 text-cyan-600" /> Booking Status Distribution
+   474→            </CardTitle>
+   475→            <CardDescription>Active, pending, and historical reservations</CardDescription>
+   476→          </CardHeader>
+   477→          <CardContent>
+   478→            {bookings && bookings.length > 0 ? (
+   479→              <div className="h-64">
+   480→                <ResponsiveContainer width="100%" height="100%">
+   481→                  <BarChart data={BOOKING_STATUSES.map((s) => ({ name: s, count: bookings.filter((b) => b.status === s).length }))}>
+   482→                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+   483→                    <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-15} textAnchor="end" height={50} />
+   484→                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+   485→                    <Tooltip />
+   486→                    <Bar dataKey="count" name="Bookings" radius={[6, 6, 0, 0]}>
+   487→                      {BOOKING_STATUSES.map((s) => {
+   488→                        const cfg = BOOKING_STATUS_CONFIG[s]
+   489→                        // Map text class to a hex color
+   490→                        const colorMap: Record<string, string> = {
+   491→                          amber: '#f59e0b', sky: '#0ea5e9', rose: '#f43f5e',
+   492→                          emerald: '#10b981', zinc: '#71717a', slate: '#64748b',
+   493→                        }
+   494→                        const m = cfg.dot.match(/bg-(\w+)-500/)
+   495→                        const color = m ? colorMap[m[1]] || '#94a3b8' : '#94a3b8'
+   496→                        return <Cell key={s} fill={color} />
+   497→                      })}
+   498→                    </Bar>
+   499→                  </BarChart>
+   500→                </ResponsiveContainer>
+   501→                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+   502→                  <div className="rounded-md border bg-muted/30 p-1.5">
+   503→                    <div className="text-[10px] text-muted-foreground uppercase">Active</div>
+   504→                    <div className="text-sm font-semibold text-emerald-600">{bookings.filter((b) => b.status === 'Active').length}</div>
+   505→                  </div>
+   506→                  <div className="rounded-md border bg-muted/30 p-1.5">
+   507→                    <div className="text-[10px] text-muted-foreground uppercase">Pending</div>
+   508→                    <div className="text-sm font-semibold text-amber-600">{bookings.filter((b) => b.status === 'Pending').length}</div>
+   509→                  </div>
+   510→                  <div className="rounded-md border bg-muted/30 p-1.5">
+   511→                    <div className="text-[10px] text-muted-foreground uppercase">Completed</div>
+   512→                    <div className="text-sm font-semibold text-zinc-600">{bookings.filter((b) => b.status === 'Completed').length}</div>
+   513→                  </div>
+   514→                </div>
+   515→              </div>
+   516→            ) : (
+   517→              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+   518→                No bookings to display
+   519→              </div>
+   520→            )}
+   521→          </CardContent>
+   522→        </Card>
+   523→
+   524→        {/* Tag Distribution */}
+   525→        <Card>
+   526→          <CardHeader className="pb-2">
+   527→            <CardTitle className="text-base flex items-center gap-2">
+   528→              <Tag className="h-4 w-4 text-pink-600" /> Tag Distribution
+   529→            </CardTitle>
+   530→            <CardDescription>Asset count per tag</CardDescription>
+   531→          </CardHeader>
+   532→          <CardContent>
+   533→            {tags && tags.length > 0 ? (
+   534→              <div className="h-64">
+   535→                <ResponsiveContainer width="100%" height="100%">
+   536→                  <BarChart data={tags.map((t) => ({ name: t.name, count: t._count?.assets || 0, color: t.color }))} layout="vertical">
+   537→                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+   538→                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+   539→                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
+   540→                    <Tooltip />
+   541→                    <Bar dataKey="count" name="Assets" radius={[0, 6, 6, 0]}>
+   542→                      {tags.map((t) => {
+   543→                        const cfg = getTagColorConfig(t.color)
+   544→                        const m = cfg.dot.match(/bg-(\w+)-500/)
+   545→                        const colorMap: Record<string, string> = {
+   546→                          slate: '#64748b', emerald: '#10b981', amber: '#f59e0b', rose: '#f43f5e',
+   547→                          violet: '#8b5cf6', sky: '#0ea5e9', orange: '#f97316', pink: '#ec4899',
+   548→                          lime: '#84cc16', cyan: '#06b6d4',
+   549→                        }
+   550→                        const color = m ? colorMap[m[1]] || '#94a3b8' : '#94a3b8'
+   551→                        return <Cell key={t.id} fill={color} />
+   552→                      })}
+   553→                    </Bar>
+   554→                  </BarChart>
+   555→                </ResponsiveContainer>
+   556→                <div className="mt-2 flex flex-wrap gap-1.5">
+   557→                  {tags.slice(0, 6).map((t) => {
+   558→                    const cfg = getTagColorConfig(t.color)
+   559→                    return (
+   560→                      <span key={t.id} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${cfg.bg} ${cfg.text}`}>
+   561→                        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   562→                        {t.name} ({t._count?.assets || 0})
+   563→                      </span>
+   564→                    )
+   565→                  })}
+   566→                </div>
+   567→              </div>
+   568→            ) : (
+   569→              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+   570→                No tags to display
+   571→              </div>
+   572→            )}
+   573→          </CardContent>
+   574→        </Card>
+   575→      </div>
+   576→
+   577→      {/* Detailed tables */}
+   578→      <Card>
+   579→        <CardHeader className="pb-2">
+   580→          <CardTitle className="text-base">Summary by Type</CardTitle>
+   581→        </CardHeader>
+   582→        <CardContent>
+   583→          <div className="overflow-x-auto scrollbar-thin">
+   584→            <table className="w-full text-sm">
+   585→              <thead>
+   586→                <tr className="border-b text-left text-xs text-muted-foreground">
+   587→                  <th className="pb-2 font-medium">Type</th>
+   588→                  <th className="pb-2 font-medium text-right">Count</th>
+   589→                  <th className="pb-2 font-medium text-right">% of Total</th>
+   590→                </tr>
+   591→              </thead>
+   592→              <tbody>
+   593→                {stats.byType.map((t) => (
+   594→                  <tr key={t.name} className="border-b last:border-0">
+   595→                    <td className="py-2 font-medium">{t.name}</td>
+   596→                    <td className="py-2 text-right tabular-nums">{t.count}</td>
+   597→                    <td className="py-2 text-right tabular-nums text-muted-foreground">
+   598→                      {stats.totalAssets > 0 ? Math.round((t.count / stats.totalAssets) * 100) : 0}%
+   599→                    </td>
+   600→                  </tr>
+   601→                ))}
+   602→              </tbody>
+   603→            </table>
+   604→          </div>
+   605→        </CardContent>
+   606→      </Card>
+   607→    </div>
+   608→  )
+   609→}
+   610→
