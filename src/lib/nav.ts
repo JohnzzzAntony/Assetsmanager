@@ -14,6 +14,10 @@ export type ViewName =
   | 'asset-types'
   | 'import'
   | 'reports'
+  | 'maintenance'
+  | 'audit-log'
+  | 'licenses'
+  | 'asset-labels'
 
 interface NavState {
   view: ViewName
@@ -34,6 +38,9 @@ export const useNav = create<NavState>((set, get) => ({
       params,
       history: [...current.history, { view: current.view, params: current.params }].slice(-20),
     })
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   },
   back: () => {
     const h = get().history

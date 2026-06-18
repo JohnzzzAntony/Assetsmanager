@@ -1,6 +1,9 @@
 // Database layer using Node.js built-in SQLite (node:sqlite)
 // This avoids the need for prisma engine binaries
 import { DatabaseSync } from 'node:sqlite'
+import { randomUUID } from 'node:crypto'
+import path from 'node:path'
+import fs from 'node:fs'
 
 const DB_PATH = process.env.DATABASE_FILE || '/home/z/my-project/db/assets.db'
 
@@ -9,8 +12,6 @@ let _db: DatabaseSync | null = null
 function getDb(): DatabaseSync {
   if (_db) return _db
   // Ensure the directory exists
-  const path = require('path')
-  const fs = require('fs')
   const dir = path.dirname(DB_PATH)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
@@ -156,7 +157,55 @@ export function initDb() {
       createdAt TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS idx_asset_status ON Asset(status);
+    CREATE TABLE IF NOT EXISTS MaintenanceSchedule (
+      id TEXT PRIMARY KEY,
+      assetId TEXT NOT NULL REFERENCES Asset(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'Preventive',
+      title TEXT NOT NULL,
+      description TEXT,
+      scheduledFor TEXT NOT NULL,
+      completedAt TEXT,
+      status TEXT NOT NULL DEFAULT 'Scheduled',
+      cost REAL,
+      performedBy TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS SoftwareLicense (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      vendor TEXT,
+      key TEXT,
+      seatsTotal INTEGER NOT NULL DEFAULT 1,
+      seatsUsed INTEGER NOT NULL DEFAULT 0,
+      purchaseDate TEXT,
+      expiryDate TEXT,
+      cost REAL,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      category TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS AssetLicense (
+      id TEXT PRIMARY KEY,
+      assetId TEXT NOT NULL REFERENCES Asset(id) ON DELETE CASCADE,
+      licenseId TEXT NOT NULL REFERENCES SoftwareLicense(id) ON DELETE CASCADE,
+      assignedAt TEXT NOT NULL DEFAULT (datetime('now')),
+      createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_maint_asset ON MaintenanceSchedule(assetId);
+    CREATE INDEX IF NOT EXISTS idx_maint_status ON MaintenanceSchedule(status);
+    CREATE INDEX IF NOT EXISTS idx_maint_sched ON MaintenanceSchedule(scheduledFor);
+    CREATE INDEX IF NOT EXISTS idx_activity_entity ON ActivityLog(entityType, entityId);
+    CREATE INDEX IF NOT EXISTS idx_activity_created ON ActivityLog(createdAt);
+    CREATE INDEX IF NOT EXISTS idx_license_name ON SoftwareLicense(name);
+    CREATE INDEX IF NOT EXISTS idx_assetlicense_asset ON AssetLicense(assetId);
+    CREATE INDEX IF NOT EXISTS idx_assetlicense_lic ON AssetLicense(licenseId);
     CREATE INDEX IF NOT EXISTS idx_asset_type ON Asset(assetTypeId);
     CREATE INDEX IF NOT EXISTS idx_asset_dept ON Asset(departmentId);
     CREATE INDEX IF NOT EXISTS idx_asset_loc ON Asset(locationId);
@@ -169,6 +218,5 @@ export function initDb() {
 
 // Helper to generate IDs
 export function generateId(prefix = ''): string {
-  const { randomUUID } = require('crypto')
   return prefix ? `${prefix}_${randomUUID()}` : randomUUID()
 }

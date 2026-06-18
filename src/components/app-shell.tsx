@@ -68,6 +68,10 @@ function HeaderTitle() {
     'asset-types': 'Asset Types',
     import: 'Import Data',
     reports: 'Reports & Analytics',
+    maintenance: 'Maintenance Schedule',
+    'audit-log': 'Audit Log',
+    licenses: 'Software Licenses',
+    'asset-labels': 'Print Asset Labels',
   }
   const showBack = ['asset-detail', 'asset-edit'].includes(view)
   return (
@@ -107,7 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-2 ml-auto md:ml-0">
             <QuickActions />
-            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-3 py-1.5">
+            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-3 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
               <Bell className="h-4 w-4 text-muted-foreground" />
               {stats && (
                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
@@ -124,17 +128,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="mx-auto w-full max-w-[1600px] p-4 lg:p-6">{children}</div>
         </main>
-        <footer className="mt-auto border-t bg-background/80 px-6 py-3 backdrop-blur-sm">
-          <div className="flex flex-col items-center justify-between gap-2 text-xs text-muted-foreground sm:flex-row">
+        <footer className="mt-auto border-t bg-background/80 px-4 py-3 backdrop-blur-sm lg:px-6">
+          <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-2 text-xs text-muted-foreground sm:flex-row">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-foreground/70">AssetHub</span>
+              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-medium text-foreground/80">AssetHub</span>
               <span>·</span>
               <span>IT Asset Manager v1.0</span>
             </div>
-            <div className="flex items-center gap-4">
-              <span>{stats ? `${stats.totalAssets} assets tracked` : 'Loading...'}</span>
-              <span>·</span>
-              <span>{new Date().getFullYear()} · All systems operational</span>
+            <div className="flex items-center gap-3">
+              <span>{stats ? `${stats.totalAssets} assets · ${stats.totalPersons} persons · ${stats.totalDepartments} depts` : 'Loading...'}</span>
+              <span className="hidden sm:inline">·</span>
+              <span className="hidden sm:inline">{new Date().getFullYear()} · All systems operational</span>
             </div>
           </div>
         </footer>

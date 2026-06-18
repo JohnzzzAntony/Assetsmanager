@@ -9,6 +9,10 @@ import type {
   OcrResult,
   AssetImage,
   AssignmentHistory,
+  MaintenanceSchedule,
+  ActivityLog,
+  SoftwareLicense,
+  AssetLicense,
 } from './types'
 
 class ApiError extends Error {
@@ -139,6 +143,63 @@ export const ocrApi = {
   },
   reRun: (imageId: string) =>
     request<OcrResult>(`/api/ocr/${imageId}`, { method: 'POST' }),
+}
+
+// ---- Maintenance ----
+export const maintenanceApi = {
+  list: (query?: { assetId?: string; status?: string; type?: string; from?: string; to?: string; limit?: number }) => {
+    const params = new URLSearchParams()
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+      })
+    }
+    const qs = params.toString()
+    return request<MaintenanceSchedule[]>(`/api/maintenance${qs ? `?${qs}` : ''}`)
+  },
+  create: (data: Partial<MaintenanceSchedule>) =>
+    request<MaintenanceSchedule>('/api/maintenance', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<MaintenanceSchedule>) =>
+    request<MaintenanceSchedule>(`/api/maintenance/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    request<void>(`/api/maintenance/${id}`, { method: 'DELETE' }),
+  upcoming: () => request<{ stats: { total: number; scheduled: number; inProgress: number; completed: number; overdue: number }; upcoming: MaintenanceSchedule[] }>('/api/dashboard/maintenance'),
+}
+
+// ---- Audit Log ----
+export const auditLogApi = {
+  list: (query?: { limit?: number; entityType?: string; entityId?: string; action?: string }) => {
+    const params = new URLSearchParams()
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+      })
+    }
+    const qs = params.toString()
+    return request<ActivityLog[]>(`/api/audit-log${qs ? `?${qs}` : ''}`)
+  },
+}
+
+// ---- Software Licenses ----
+export const licensesApi = {
+  list: () => request<SoftwareLicense[]>('/api/licenses'),
+  create: (data: Partial<SoftwareLicense>) =>
+    request<SoftwareLicense>('/api/licenses', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<SoftwareLicense>) =>
+    request<SoftwareLicense>(`/api/licenses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/licenses/${id}`, { method: 'DELETE' }),
+  allocate: (licenseId: string, assetId: string) =>
+    request<AssetLicense>(`/api/licenses/${licenseId}/allocate`, { method: 'POST', body: JSON.stringify({ assetId }) }),
+  listForAsset: (assetId: string) => request<AssetLicense[]>(`/api/assets/${assetId}/licenses`),
+  deallocate: (assetId: string, assetLicenseId: string) =>
+    request<void>(`/api/assets/${assetId}/licenses`, { method: 'DELETE', body: JSON.stringify({ assetLicenseId }) }),
+}
+
+// ---- Asset Maintenance & Activity ----
+export const assetActivityApi = {
+  maintenance: (assetId: string) => request<MaintenanceSchedule[]>(`/api/assets/${assetId}/maintenance`),
+  activity: (assetId: string) => request<ActivityLog[]>(`/api/assets/${assetId}/activity`),
+  qrUrl: (assetId: string) => `/api/assets/${assetId}/qr`,
 }
 
 // ---- Import ----

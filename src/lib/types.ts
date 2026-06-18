@@ -198,6 +198,21 @@ export interface DashboardStats {
   totalDepartments: number
   totalLocations: number
   warrantyExpiringSoon: number
+  maintenance?: {
+    total: number
+    scheduled: number
+    inProgress: number
+    completed: number
+    overdue: number
+  }
+  licenses?: {
+    total: number
+    totalSeats: number
+    usedSeats: number
+    expiringSoon: number
+    totalValue: number
+  }
+  auditLog?: ActivityLog[]
 }
 
 export interface OcrResult {
@@ -213,4 +228,113 @@ export interface OcrResult {
     assetType?: string
   }
   imageId?: string
+}
+
+// ============ Maintenance Schedule ============
+export type MaintenanceType = 'Preventive' | 'Corrective' | 'Upgrade' | 'Inspection' | 'Cleaning'
+export type MaintenanceStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Overdue' | 'Cancelled'
+
+export const MAINTENANCE_TYPES: MaintenanceType[] = [
+  'Preventive',
+  'Corrective',
+  'Upgrade',
+  'Inspection',
+  'Cleaning',
+]
+
+export const MAINTENANCE_STATUSES: MaintenanceStatus[] = [
+  'Scheduled',
+  'In Progress',
+  'Completed',
+  'Overdue',
+  'Cancelled',
+]
+
+export const MAINTENANCE_STATUS_CONFIG: Record<
+  MaintenanceStatus,
+  { bg: string; text: string; dot: string }
+> = {
+  Scheduled: {
+    bg: 'bg-sky-500/10',
+    text: 'text-sky-700 dark:text-sky-400',
+    dot: 'bg-sky-500',
+  },
+  'In Progress': {
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-700 dark:text-amber-400',
+    dot: 'bg-amber-500',
+  },
+  Completed: {
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-700 dark:text-emerald-400',
+    dot: 'bg-emerald-500',
+  },
+  Overdue: {
+    bg: 'bg-rose-500/10',
+    text: 'text-rose-700 dark:text-rose-400',
+    dot: 'bg-rose-500',
+  },
+  Cancelled: {
+    bg: 'bg-slate-500/10',
+    text: 'text-slate-700 dark:text-slate-400',
+    dot: 'bg-slate-400',
+  },
+}
+
+export interface MaintenanceSchedule {
+  id: string
+  assetId: string
+  type: MaintenanceType | string
+  title: string
+  description?: string | null
+  scheduledFor: string
+  completedAt?: string | null
+  status: MaintenanceStatus | string
+  cost?: number | null
+  performedBy?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  asset?: Asset
+}
+
+// ============ Audit Log / Activity Log ============
+export interface ActivityLog {
+  id: string
+  action: string
+  entityType: string
+  entityId: string
+  details?: string | null
+  createdAt: string
+  meta?: Record<string, unknown>
+}
+
+// ============ Software License ============
+export interface SoftwareLicense {
+  id: string
+  name: string
+  vendor?: string | null
+  key?: string | null
+  seatsTotal: number
+  seatsUsed: number
+  purchaseDate?: string | null
+  expiryDate?: string | null
+  cost?: number | null
+  currency: string
+  category?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  _count?: { allocations: number }
+  availableSeats?: number
+}
+
+export interface AssetLicense {
+  id: string
+  assetId: string
+  licenseId: string
+  assignedAt: string
+  createdAt: string
+  license?: SoftwareLicense
+  asset?: Asset
 }

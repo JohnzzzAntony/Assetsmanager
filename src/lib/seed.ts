@@ -1,6 +1,5 @@
 // Seed data for IT Asset Manager
 import { db, initDb, generateId } from './db'
-import { randomUUID } from 'crypto'
 
 const ASSET_TYPES = [
   { name: 'Desktop', description: 'Desktop computers and workstations', icon: 'Monitor' },
@@ -11,7 +10,6 @@ const ASSET_TYPES = [
   { name: 'Peripheral', description: 'Keyboards, mice, and other peripherals', icon: 'Mouse' },
   { name: 'Other', description: 'Other IT equipment', icon: 'Package' },
 ]
-
 const DEPARTMENTS = [
   { name: 'IT', code: 'IT' },
   { name: 'Finance', code: 'FIN' },
@@ -157,7 +155,7 @@ export function seedDatabase() {
       keyboardMake, keyboardModel, keyboardSn,
       mouseMake, mouseModel, mouseSn,
       assignedToId, departmentId, locationId, comments, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   let idx = 0
@@ -229,8 +227,95 @@ export function seedDatabase() {
     idx++
   }
 
+  // ---------- Seed Software Licenses ----------
+  const LICENSES = [
+    { name: 'Microsoft Office 365 Business', vendor: 'Microsoft', key: 'O365-BUS-XXXXX-XXXXX-XXXXX', seatsTotal: 25, category: 'Productivity', cost: 150, purchaseDate: '2024-01-15', expiryDate: '2025-12-31' },
+    { name: 'Windows 11 Pro OEM', vendor: 'Microsoft', key: 'W11P-OEM-YYYYY-YYYYY-YYYYY', seatsTotal: 30, category: 'OS', cost: 199, purchaseDate: '2024-03-10' },
+    { name: 'Adobe Creative Cloud All Apps', vendor: 'Adobe', key: 'ACC-TEAM-ZZZZZ-ZZZZZ-ZZZZZ', seatsTotal: 8, category: 'Design', cost: 599, purchaseDate: '2024-02-20', expiryDate: '2025-08-30' },
+    { name: 'JetBrains All Products Pack', vendor: 'JetBrains', key: 'JB-ALL-AAAAA-AAAAA-AAAAA', seatsTotal: 5, category: 'Development', cost: 779, purchaseDate: '2024-04-01', expiryDate: '2025-10-01' },
+    { name: 'Slack Pro', vendor: 'Slack', key: 'SLACK-PRO-BBBBB-BBBBB-BBBBB', seatsTotal: 50, category: 'Communication', cost: 84, purchaseDate: '2024-01-01', expiryDate: '2025-12-31' },
+    { name: 'Zoom Workplace', vendor: 'Zoom', key: 'ZOOM-WP-CCCCC-CCCCC-CCCCC', seatsTotal: 15, category: 'Communication', cost: 149, purchaseDate: '2024-05-01' },
+    { name: 'Norton Antivirus Plus', vendor: 'Norton', key: 'NAV-PLUS-DDDDD-DDDDD-DDDDD', seatsTotal: 20, category: 'Security', cost: 59, purchaseDate: '2024-06-01', expiryDate: '2025-06-30' },
+  ]
+  const insLic = db.prepare(
+    `INSERT INTO SoftwareLicense (id, name, vendor, key, seatsTotal, seatsUsed, purchaseDate, expiryDate, cost, currency, category, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  const licenseIds: string[] = []
+  for (const l of LICENSES) {
+    const id = generateId()
+    licenseIds.push(id)
+    insLic.run(id, l.name, l.vendor, l.key, l.seatsTotal, 0, l.purchaseDate ?? null, l.expiryDate ?? null, l.cost ?? null, 'USD', l.category ?? null, null, now, now)
+  }
+
+  // ---------- Seed Maintenance Schedules ----------
+  const assetRows = db.prepare('SELECT id, assetTag, make, model FROM Asset').all() as { id: string; assetTag: string; make: string; model: string }[]
+  const MAINT_TYPES = ['Preventive', 'Corrective', 'Upgrade', 'Inspection', 'Cleaning']
+  const MAINT_STATUSES = ['Scheduled', 'In Progress', 'Completed', 'Overdue']
+  const insMaint = db.prepare(
+    `INSERT INTO MaintenanceSchedule (id, assetId, type, title, description, scheduledFor, completedAt, status, cost, performedBy, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  let maintCount = 0
+  for (let i = 0; i < assetRows.length; i++) {
+    if (i % 2 !== 0) continue  // schedule for half the assets
+    const a = assetRows[i]
+    const numMaint = (i % 3) + 1
+    for (let j = 0; j < numMaint; j++) {
+      const id = generateId()
+      const type = MAINT_TYPES[(i + j) % MAINT_TYPES.length]
+      const daysOffset = (j * 30) - 60 + (i % 7) * 5
+      const schedDate = new Date()
+      schedDate.setDate(schedDate.getDate() + daysOffset)
+      let status = MAINT_STATUSES[j % MAINT_STATUSES.length]
+      if (daysOffset < 0 && status === 'Scheduled') status = 'Overdue'
+      const completedAt = status === 'Completed' ? schedDate.toISOString() : null
+      const titles: Record<string, string> = {
+        Preventive: 'Quarterly preventive maintenance',
+        Corrective: 'Hardware repair — fan replacement',
+        Upgrade: 'RAM upgrade to 16GB',
+        Inspection: 'Annual safety inspection',
+        Cleaning: 'Internal dust cleaning',
+      }
+      insMaint.run(
+        id, a.id, type, titles[type] || type,
+        `Scheduled for ${a.make} ${a.model} (${a.assetTag})`,
+        schedDate.toISOString(),
+        completedAt,
+        status,
+        Math.round((50 + (i * 17 % 200)) * 100) / 100,
+        status === 'Completed' ? 'Arjun Verma' : null,
+        status === 'Completed' ? 'Service completed successfully. No issues found.' : null,
+        now, now
+      )
+      maintCount++
+    }
+  }
+
+  // ---------- Seed Audit Log entries ----------
+  const AUDIT_ACTIONS = [
+    { action: 'asset.created', entity: 'Asset', details: 'Created asset TC-000018' },
+    { action: 'asset.updated', entity: 'Asset', details: 'Updated asset hardware specs' },
+    { action: 'asset.assigned', entity: 'Asset', details: 'Assigned to Rahul Sharma (IT)' },
+    { action: 'asset.unassigned', entity: 'Asset', details: 'Unassigned from previous owner' },
+    { action: 'maintenance.created', entity: 'Asset', details: 'Scheduled preventive maintenance' },
+    { action: 'maintenance.completed', entity: 'Asset', details: 'Completed RAM upgrade' },
+    { action: 'license.allocated', entity: 'Asset', details: 'Allocated Microsoft Office 365 license' },
+    { action: 'asset.imported', entity: 'Asset', details: 'Bulk imported 20 assets via CSV' },
+  ]
+  const insLog = db.prepare(
+    `INSERT INTO ActivityLog (id, action, entityType, entityId, details, createdAt) VALUES (?, ?, ?, ?, ?, ?)`
+  )
+  let logCount = 0
+  for (let i = 0; i < 30; i++) {
+    const a = AUDIT_ACTIONS[i % AUDIT_ACTIONS.length]
+    const asset = assetRows[i % assetRows.length]
+    const t = new Date()
+    t.setHours(t.getHours() - i * 7)
+    insLog.run(generateId(), a.action, a.entity, asset.id, a.details, t.toISOString())
+    logCount++
+  }
+
   return {
     success: true,
-    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets`,
+    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries`,
   }
 }

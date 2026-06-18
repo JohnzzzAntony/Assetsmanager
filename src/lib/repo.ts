@@ -9,6 +9,10 @@ import type {
   AssignmentHistory,
   AssetImage,
   DashboardStats,
+  MaintenanceSchedule,
+  ActivityLog,
+  SoftwareLicense,
+  AssetLicense,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -449,6 +453,7 @@ export const assetRepo = {
         now
       )
     }
+    logAssetActivity('asset.created', id, `Created asset ${data.assetTag || data.serialNumber || id.slice(0, 8)}`)
     return this.get(id)!
   },
 
@@ -719,4 +724,308 @@ export function getDashboardStats(): DashboardStats {
     totalLocations: locsRow.c,
     warrantyExpiringSoon: warrantyRow.c,
   }
+}
+
+// ============ Activity Log / Audit Log ============
+export const activityLogRepo = {
+  log(action: string, entityType: string, entityId: string, details?: string, meta?: Record<string, unknown>): void {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO ActivityLog (id, action, entityType, entityId, details, createdAt) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, action, entityType, entityId, details ?? null, now)
+  },
+  list(opts: { limit?: number; entityType?: string; entityId?: string; action?: string } = {}): ActivityLog[] {
+    ensure()
+    const limit = Math.min(opts.limit || 100, 500)
+    const where: string[] = []
+    const params: unknown[] = []
+    if (opts.entityType) { where.push('entityType = ?'); params.push(opts.entityType) }
+    if (opts.entityId) { where.push('entityId = ?'); params.push(opts.entityId) }
+    if (opts.action) { where.push('action = ?'); params.push(opts.action) }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const r = db.prepare(
+      `SELECT * FROM ActivityLog ${whereSql} ORDER BY createdAt DESC LIMIT ?`
+    ).all(...params, limit)
+    return rows<ActivityLog>(r)
+  },
+  listForEntity(entityType: string, entityId: string): ActivityLog[] {
+    return this.list({ entityType, entityId, limit: 50 })
+  },
+  recent(limit = 20): ActivityLog[] {
+    return this.list({ limit })
+  },
+  count(): number {
+    ensure()
+    const r = db.prepare('SELECT COUNT(*) as c FROM ActivityLog').get() as { c: number }
+    return r.c
+  },
+}
+
+// ============ Maintenance Schedule ============
+export interface MaintenanceQuery {
+  assetId?: string
+  status?: string
+  type?: string
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export const maintenanceRepo = {
+  list(opts: MaintenanceQuery = {}): MaintenanceSchedule[] {
+    ensure()
+    const limit = Math.min(opts.limit || 100, 500)
+    const where: string[] = []
+    const params: unknown[] = []
+    if (opts.assetId) { where.push('m.assetId = ?'); params.push(opts.assetId) }
+    if (opts.status) { where.push('m.status = ?'); params.push(opts.status) }
+    if (opts.type) { where.push('m.type = ?'); params.push(opts.type) }
+    if (opts.from) { where.push('m.scheduledFor >= ?'); params.push(opts.from) }
+    if (opts.to) { where.push('m.scheduledFor <= ?'); params.push(opts.to) }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const r = db.prepare(
+      `SELECT m.*, a.assetTag, a.make, a.model, a.serialNumber, t.name as typeName
+       FROM MaintenanceSchedule m
+       LEFT JOIN Asset a ON m.assetId = a.id
+       LEFT JOIN AssetType t ON a.assetTypeId = t.id
+       ${whereSql}
+       ORDER BY m.scheduledFor DESC LIMIT ?`
+    ).all(...params, limit)
+    return rows<MaintenanceSchedule & { assetTag?: string; make?: string; model?: string; serialNumber?: string; typeName?: string }>(r).map((m) => ({
+      ...m,
+      asset: {
+        id: m.assetId,
+        assetTag: (m as any).assetTag ?? null,
+        make: (m as any).make ?? null,
+        model: (m as any).model ?? null,
+        serialNumber: (m as any).serialNumber ?? null,
+        assetType: (m as any).typeName ? { id: '', name: (m as any).typeName } : undefined,
+      } as Asset,
+    }))
+  },
+  listForAsset(assetId: string): MaintenanceSchedule[] {
+    return this.list({ assetId, limit: 50 })
+  },
+  get(id: string): MaintenanceSchedule | null {
+    ensure()
+    return row<MaintenanceSchedule>(db.prepare('SELECT * FROM MaintenanceSchedule WHERE id = ?').get(id))
+  },
+  create(data: Partial<MaintenanceSchedule>): MaintenanceSchedule {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO MaintenanceSchedule (id, assetId, type, title, description, scheduledFor, completedAt, status, cost, performedBy, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      data.assetId,
+      data.type ?? 'Preventive',
+      data.title,
+      data.description ?? null,
+      data.scheduledFor,
+      data.completedAt ?? null,
+      data.status ?? 'Scheduled',
+      data.cost != null ? Number(data.cost) : null,
+      data.performedBy ?? null,
+      data.notes ?? null,
+      now,
+      now
+    )
+    activityLogRepo.log('maintenance.created', 'Asset', data.assetId!, `Scheduled maintenance: ${data.title}`)
+    return this.get(id)!
+  },
+  update(id: string, data: Partial<MaintenanceSchedule>): MaintenanceSchedule | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    db.prepare(
+      `UPDATE MaintenanceSchedule SET type = ?, title = ?, description = ?, scheduledFor = ?, completedAt = ?, status = ?, cost = ?, performedBy = ?, notes = ?, updatedAt = ? WHERE id = ?`
+    ).run(
+      data.type ?? cur.type,
+      data.title ?? cur.title,
+      data.description ?? cur.description,
+      data.scheduledFor ?? cur.scheduledFor,
+      data.completedAt ?? cur.completedAt,
+      data.status ?? cur.status,
+      data.cost != null ? Number(data.cost) : cur.cost,
+      data.performedBy ?? cur.performedBy,
+      data.notes ?? cur.notes,
+      now,
+      id
+    )
+    if (data.status && data.status !== cur.status) {
+      activityLogRepo.log('maintenance.updated', 'Asset', cur.assetId, `Maintenance "${cur.title}" status: ${cur.status} → ${data.status}`)
+    }
+    return this.get(id)
+  },
+  delete(id: string): void {
+    ensure()
+    const m = this.get(id)
+    db.prepare('DELETE FROM MaintenanceSchedule WHERE id = ?').run(id)
+    if (m) activityLogRepo.log('maintenance.deleted', 'Asset', m.assetId, `Deleted maintenance: ${m.title}`)
+  },
+  upcoming(days = 30): MaintenanceSchedule[] {
+    ensure()
+    const now = new Date()
+    const future = new Date(); future.setDate(now.getDate() + days)
+    const r = db.prepare(
+      `SELECT m.*, a.assetTag, a.make, a.model
+       FROM MaintenanceSchedule m
+       LEFT JOIN Asset a ON m.assetId = a.id
+       WHERE m.status IN ('Scheduled','In Progress','Overdue')
+       AND m.scheduledFor <= ?
+       ORDER BY m.scheduledFor ASC LIMIT 50`
+    ).all(future.toISOString())
+    return rows<MaintenanceSchedule & { assetTag?: string; make?: string; model?: string }>(r).map((m) => ({
+      ...m,
+      asset: { id: m.assetId, assetTag: (m as any).assetTag, make: (m as any).make, model: (m as any).model } as Asset,
+    }))
+  },
+  stats(): { total: number; scheduled: number; inProgress: number; completed: number; overdue: number } {
+    ensure()
+    const total = (db.prepare('SELECT COUNT(*) as c FROM MaintenanceSchedule').get() as { c: number }).c
+    const scheduled = (db.prepare(`SELECT COUNT(*) as c FROM MaintenanceSchedule WHERE status='Scheduled'`).get() as { c: number }).c
+    const inProgress = (db.prepare(`SELECT COUNT(*) as c FROM MaintenanceSchedule WHERE status='In Progress'`).get() as { c: number }).c
+    const completed = (db.prepare(`SELECT COUNT(*) as c FROM MaintenanceSchedule WHERE status='Completed'`).get() as { c: number }).c
+    const now = new Date().toISOString()
+    const overdue = (db.prepare(`SELECT COUNT(*) as c FROM MaintenanceSchedule WHERE status IN ('Scheduled','In Progress') AND scheduledFor < ?`).get(now) as { c: number }).c
+    return { total, scheduled, inProgress, completed, overdue }
+  },
+}
+
+// ============ Software Licenses ============
+export const licenseRepo = {
+  list(): SoftwareLicense[] {
+    ensure()
+    const r = db.prepare(`
+      SELECT sl.*,
+        (SELECT COUNT(*) FROM AssetLicense al WHERE al.licenseId = sl.id) as _count_alloc
+      FROM SoftwareLicense sl ORDER BY sl.name
+    `).all()
+    return rows<SoftwareLicense & { _count_alloc: number }>(r).map((l) => ({
+      ...l,
+      _count: { allocations: l._count_alloc },
+      availableSeats: Math.max(0, l.seatsTotal - l.seatsUsed),
+    }))
+  },
+  get(id: string): SoftwareLicense | null {
+    ensure()
+    return row<SoftwareLicense>(db.prepare('SELECT * FROM SoftwareLicense WHERE id = ?').get(id))
+  },
+  create(data: Partial<SoftwareLicense>): SoftwareLicense {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO SoftwareLicense (id, name, vendor, key, seatsTotal, seatsUsed, purchaseDate, expiryDate, cost, currency, category, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id, data.name, data.vendor ?? null, data.key ?? null,
+      Number(data.seatsTotal ?? 1), Number(data.seatsUsed ?? 0),
+      data.purchaseDate ?? null, data.expiryDate ?? null,
+      data.cost != null ? Number(data.cost) : null,
+      data.currency ?? 'USD', data.category ?? null, data.notes ?? null,
+      now, now
+    )
+    return this.get(id)!
+  },
+  update(id: string, data: Partial<SoftwareLicense>): SoftwareLicense | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    db.prepare(
+      `UPDATE SoftwareLicense SET name = ?, vendor = ?, key = ?, seatsTotal = ?, seatsUsed = ?, purchaseDate = ?, expiryDate = ?, cost = ?, currency = ?, category = ?, notes = ?, updatedAt = ? WHERE id = ?`
+    ).run(
+      data.name ?? cur.name, data.vendor ?? cur.vendor, data.key ?? cur.key,
+      data.seatsTotal != null ? Number(data.seatsTotal) : cur.seatsTotal,
+      data.seatsUsed != null ? Number(data.seatsUsed) : cur.seatsUsed,
+      data.purchaseDate ?? cur.purchaseDate, data.expiryDate ?? cur.expiryDate,
+      data.cost != null ? Number(data.cost) : cur.cost,
+      data.currency ?? cur.currency, data.category ?? cur.category, data.notes ?? cur.notes,
+      now, id
+    )
+    return this.get(id)
+  },
+  delete(id: string): void {
+    ensure()
+    db.prepare('DELETE FROM SoftwareLicense WHERE id = ?').run(id)
+  },
+  allocate(licenseId: string, assetId: string): AssetLicense {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO AssetLicense (id, assetId, licenseId, assignedAt, createdAt) VALUES (?, ?, ?, ?, ?)`
+    ).run(id, assetId, licenseId, now, now)
+    db.prepare(
+      `UPDATE SoftwareLicense SET seatsUsed = (SELECT COUNT(*) FROM AssetLicense WHERE licenseId = ?), updatedAt = ? WHERE id = ?`
+    ).run(licenseId, now, licenseId)
+    activityLogRepo.log('license.allocated', 'Asset', assetId, `License allocated to asset`)
+    return row<AssetLicense>(db.prepare('SELECT * FROM AssetLicense WHERE id = ?').get(id))!
+  },
+  deallocate(assetLicenseId: string): void {
+    ensure()
+    const al = row<AssetLicense>(db.prepare('SELECT * FROM AssetLicense WHERE id = ?').get(assetLicenseId))
+    if (!al) return
+    db.prepare('DELETE FROM AssetLicense WHERE id = ?').run(assetLicenseId)
+    const now = new Date().toISOString()
+    db.prepare(
+      `UPDATE SoftwareLicense SET seatsUsed = (SELECT COUNT(*) FROM AssetLicense WHERE licenseId = ?), updatedAt = ? WHERE id = ?`
+    ).run(al.licenseId, now, al.licenseId)
+    activityLogRepo.log('license.deallocated', 'Asset', al.assetId, `License removed from asset`)
+  },
+  listForAsset(assetId: string): AssetLicense[] {
+    ensure()
+    const r = db.prepare(
+      `SELECT al.*, sl.name as licName, sl.vendor as licVendor, sl.key as licKey, sl.category as licCategory, sl.expiryDate as licExpiry
+       FROM AssetLicense al
+       LEFT JOIN SoftwareLicense sl ON al.licenseId = sl.id
+       WHERE al.assetId = ? ORDER BY al.assignedAt DESC`
+    ).all(assetId)
+    return rows<AssetLicense & { licName?: string; licVendor?: string; licKey?: string; licCategory?: string; licExpiry?: string }>(r).map((al) => ({
+      ...al,
+      license: al.licName ? {
+        id: al.licenseId,
+        name: al.licName,
+        vendor: al.licVendor,
+        key: al.licKey,
+        category: al.licCategory,
+        expiryDate: al.licExpiry,
+      } as SoftwareLicense : undefined,
+    }))
+  },
+  stats(): { total: number; totalSeats: number; usedSeats: number; expiringSoon: number; totalValue: number } {
+    ensure()
+    const r = db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        COALESCE(SUM(seatsTotal), 0) as totalSeats,
+        COALESCE(SUM(seatsUsed), 0) as usedSeats,
+        COALESCE(SUM(cost), 0) as totalValue
+      FROM SoftwareLicense
+    `).get() as { total: number; totalSeats: number; usedSeats: number; totalValue: number }
+    const in30 = new Date(); in30.setDate(in30.getDate() + 30)
+    const expRow = db.prepare(
+      `SELECT COUNT(*) as c FROM SoftwareLicense WHERE expiryDate IS NOT NULL AND expiryDate <= ? AND expiryDate > ?`
+    ).get(in30.toISOString(), new Date().toISOString()) as { c: number }
+    return {
+      total: r.total,
+      totalSeats: r.totalSeats,
+      usedSeats: r.usedSeats,
+      totalValue: r.totalValue,
+      expiringSoon: expRow.c,
+    }
+  },
+}
+
+// Hook activity logging into key asset operations
+export function logAssetActivity(action: string, assetId: string, details?: string) {
+  try {
+    activityLogRepo.log(action, 'Asset', assetId, details)
+  } catch {}
 }

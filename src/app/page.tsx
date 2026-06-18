@@ -13,6 +13,10 @@ import { PersonsView } from '@/components/views/persons-view'
 import { AssetTypesView } from '@/components/views/asset-types-view'
 import { ImportView } from '@/components/views/import-view'
 import { ReportsView } from '@/components/views/reports-view'
+import { MaintenanceView } from '@/components/views/maintenance-view'
+import { AuditLogView } from '@/components/views/audit-log-view'
+import { LicensesView } from '@/components/views/licenses-view'
+import { AssetLabelsView } from '@/components/views/asset-labels-view'
 import { useQuery } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -88,6 +92,14 @@ function ViewRouter() {
       return <ImportView />
     case 'reports':
       return <ReportsView />
+    case 'maintenance':
+      return <MaintenanceView />
+    case 'audit-log':
+      return <AuditLogView />
+    case 'licenses':
+      return <LicensesView />
+    case 'asset-labels':
+      return <AssetLabelsView />
     default:
       return <DashboardView />
   }

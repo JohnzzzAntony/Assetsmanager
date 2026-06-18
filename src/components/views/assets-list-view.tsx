@@ -177,23 +177,64 @@ export function AssetsListView() {
             variant={showFilters ? 'default' : 'outline'}
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
+            className="shrink-0"
           >
             <Filter className="h-4 w-4 mr-1.5" /> Filters
-            {hasFilters && <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">!</Badge>}
+            {hasFilters && <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">{[search, status !== 'all', assetTypeId !== 'all', departmentId !== 'all', locationId !== 'all'].filter(Boolean).length}</Badge>}
           </Button>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!data}>
-            <Download className="h-4 w-4 mr-1.5" /> Export
+            <Download className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Export</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => navigate('ocr-upload')}>
-            <ScanText className="h-4 w-4 mr-1.5" /> Scan
+            <ScanText className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Scan</span>
           </Button>
           <Button size="sm" onClick={() => navigate('asset-new')}>
-            <Plus className="h-4 w-4 mr-1.5" /> Add Asset
+            <Plus className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Add Asset</span>
           </Button>
         </div>
       </div>
+
+      {/* Active filter chips */}
+      {hasFilters && (
+        <div className="flex flex-wrap items-center gap-1.5 animate-fade-in-up">
+          <span className="text-xs text-muted-foreground">Active filters:</span>
+          {search && (
+            <Badge variant="secondary" className="gap-1">
+              Search: "{search}"
+              <button onClick={() => setSearch('')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+            </Badge>
+          )}
+          {status !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Status: {status}
+              <button onClick={() => setStatus('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+            </Badge>
+          )}
+          {assetTypeId !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Type: {types?.find((t) => t.id === assetTypeId)?.name || 'Unknown'}
+              <button onClick={() => setAssetTypeId('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+            </Badge>
+          )}
+          {departmentId !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Dept: {depts?.find((d) => d.id === departmentId)?.name || 'Unknown'}
+              <button onClick={() => setDepartmentId('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+            </Badge>
+          )}
+          {locationId !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Loc: {locs?.find((l) => l.id === locationId)?.name || 'Unknown'}
+              <button onClick={() => setLocationId('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+            </Badge>
+          )}
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>
+            Clear all
+          </Button>
+        </div>
+      )}
 
       {/* Filters panel */}
       {showFilters && (

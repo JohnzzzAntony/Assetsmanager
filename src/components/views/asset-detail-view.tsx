@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { assetsApi } from '@/lib/api'
+import { assetsApi, assetActivityApi } from '@/lib/api'
 import { useNav } from '@/lib/nav'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDate, formatDateTime, formatCurrency, formatRelative, warrantyStatus, initials } from '@/lib/format'
-import { STATUS_CONFIG } from '@/lib/types'
+import { STATUS_CONFIG, MAINTENANCE_STATUS_CONFIG } from '@/lib/types'
 import {
   Pencil,
   ArrowLeft,
@@ -34,6 +34,14 @@ import {
   Printer,
   FileText,
   CircleDot,
+  Wrench,
+  Activity,
+  QrCode,
+  Archive,
+  AlertTriangle,
+  CheckCircle2,
+  Boxes,
+  KeyRound,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -48,6 +56,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 function InfoRow({ label, value, icon: Icon }: { label: string; value?: React.ReactNode; icon?: typeof Cpu }) {
   return (
@@ -86,6 +102,44 @@ export function AssetDetailView({ id }: { id: string }) {
     enabled: !!id,
   })
 
+  const { data: maintenance } = useQuery({
+    queryKey: ['asset-maintenance', id],
+    queryFn: () => assetActivityApi.maintenance(id),
+    enabled: !!id,
+  })
+
+  const { data: activity } = useQuery({
+    queryKey: ['asset-activity', id],
+    queryFn: () => assetActivityApi.activity(id),
+    enabled: !!id,
+  })
+
+  const { data: licenses } = useQuery({
+    queryKey: ['asset-licenses', id],
+    queryFn: () => assetActivityApi.maintenance(id).then(() => licensesForAsset(id)),
+    enabled: !!id,
+  })
+
+  // Helper to fetch licenses (workaround for missing direct call)
+  async function licensesForAsset(assetId: string) {
+    const res = await fetch(`/api/assets/${assetId}/licenses`)
+    return res.json()
+  }
+
+  async function quickStatus(newStatus: string) {
+    if (!asset) return
+    try {
+      await assetsApi.update(id, { status: newStatus })
+      toast.success(`Marked as ${newStatus}`)
+      qc.invalidateQueries({ queryKey: ['asset', id] })
+      qc.invalidateQueries({ queryKey: ['assets'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['asset-activity', id] })
+    } catch (e) {
+      toast.error('Update failed: ' + String(e))
+    }
+  }
+
   async function handleDelete() {
     try {
       await assetsApi.delete(id)
@@ -113,6 +167,8 @@ export function AssetDetailView({ id }: { id: string }) {
   const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
   const isMobile = ['Mobile', 'Tablet'].includes(asset.assetType?.name || '')
   const warranty = warrantyStatus(asset.warrantyExpiry)
+  const maintCount = maintenance?.length || 0
+  const activityCount = activity?.length || 0
 
   return (
     <div className="space-y-5 animate-fade-in-up">
@@ -143,43 +199,59 @@ export function AssetDetailView({ id }: { id: string }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => window.open(assetActivityApi.qrUrl(id), '_blank')}>
+            <QrCode className="h-4 w-4 mr-1.5" /> Label
+          </Button>
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="h-4 w-4 mr-1.5" /> Print
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Activity className="h-4 w-4 mr-1.5" /> Quick Action
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => quickStatus('In Use')} disabled={asset.status === 'In Use'}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Mark In Use
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickStatus('In Stock')} disabled={asset.status === 'In Stock'}>
+                <Boxes className="h-3.5 w-3.5 mr-2 text-slate-600" /> Move to Stock
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickStatus('Repair')} disabled={asset.status === 'Repair'}>
+                <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" /> Send to Repair
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickStatus('Retired')} disabled={asset.status === 'Retired'}>
+                <Archive className="h-3.5 w-3.5 mr-2 text-rose-600" /> Retire Asset
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickStatus('Lost')} disabled={asset.status === 'Lost'}>
+                <AlertTriangle className="h-3.5 w-3.5 mr-2 text-red-600" /> Mark as Lost
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('asset-edit', { id: asset.id })}>
+                <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Asset
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Asset
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" size="sm" onClick={() => navigate('asset-edit', { id: asset.id })}>
             <Pencil className="h-4 w-4 mr-1.5" /> Edit
           </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-                <Trash2 className="h-4 w-4 mr-1.5" /> Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete this asset?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete {asset.make} {asset.model} ({asset.assetTag}) and all related history.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 h-auto">
           <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
           <TabsTrigger value="hardware" className="text-xs">Hardware</TabsTrigger>
           {isMobile && <TabsTrigger value="mobile" className="text-xs">Mobile</TabsTrigger>}
           <TabsTrigger value="peripherals" className="text-xs">Peripherals</TabsTrigger>
+          <TabsTrigger value="maintenance" className="text-xs">Maintenance ({maintCount})</TabsTrigger>
           <TabsTrigger value="images" className="text-xs">Images ({asset._count?.images || 0})</TabsTrigger>
           <TabsTrigger value="history" className="text-xs">History ({asset._count?.history || 0})</TabsTrigger>
         </TabsList>
@@ -311,6 +383,88 @@ export function AssetDetailView({ id }: { id: string }) {
               <InfoRow label="Serial" value={<span className="font-mono text-xs">{asset.mouseSn}</span>} />
             </SectionCard>
           </div>
+        </TabsContent>
+
+        {/* Maintenance */}
+        <TabsContent value="maintenance" className="mt-4 space-y-4">
+          <SectionCard
+            title="Maintenance History"
+            icon={Wrench}
+            action={
+              <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
+                View All <ArrowLeft className="h-3 w-3 ml-1 rotate-180" />
+              </Button>
+            }
+          >
+            {!maintenance || maintenance.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <Wrench className="h-10 w-10 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">No maintenance records for this asset</p>
+                <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
+                  <Wrench className="h-3.5 w-3.5 mr-1.5" /> Schedule Maintenance
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {maintenance.map((m) => {
+                  const mcfg = MAINTENANCE_STATUS_CONFIG[m.status as keyof typeof MAINTENANCE_STATUS_CONFIG] || MAINTENANCE_STATUS_CONFIG.Scheduled
+                  return (
+                    <div key={m.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${mcfg.bg}`}>
+                            <Wrench className={`h-4 w-4 ${mcfg.text}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{m.title}</span>
+                              <Badge variant="outline" className={`${mcfg.bg} ${mcfg.text} border-0 text-[10px] gap-1`}>
+                                <span className={`h-1 w-1 rounded-full ${mcfg.dot}`} />
+                                {m.status}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px]">{m.type}</Badge>
+                            </div>
+                            {m.description && <p className="text-xs text-muted-foreground mt-1">{m.description}</p>}
+                            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                              <span><Calendar className="h-3 w-3 inline mr-0.5" />{formatDate(m.scheduledFor)}</span>
+                              {m.completedAt && <span><CheckCircle2 className="h-3 w-3 inline mr-0.5" />{formatDate(m.completedAt)}</span>}
+                              {m.performedBy && <span><User className="h-3 w-3 inline mr-0.5" />{m.performedBy}</span>}
+                              {m.cost != null && <span><DollarSign className="h-3 w-3 inline mr-0.5" />{formatCurrency(m.cost)}</span>}
+                            </div>
+                            {m.notes && <p className="text-xs italic text-muted-foreground mt-1">"{m.notes}"</p>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Recent Activity Log" icon={Activity}>
+            {!activity || activity.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <Activity className="h-8 w-8 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">No activity logged for this asset</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
+                {activity.map((log) => (
+                  <div key={log.id} className="flex items-start gap-2 rounded-md border p-2 text-sm hover:bg-accent/30">
+                    <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{log.action}</span>
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatRelative(log.createdAt)}</span>
+                      </div>
+                      {log.details && <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
         </TabsContent>
 
         {/* Images */}

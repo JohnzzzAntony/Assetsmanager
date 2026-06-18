@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { dashboardApi, assetsApi } from '@/lib/api'
+import { dashboardApi, assetsApi, maintenanceApi, auditLogApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +27,9 @@ import {
   Activity,
   DollarSign,
   ShieldAlert,
+  KeyRound,
+  ScrollText,
+  Clock,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -68,24 +71,25 @@ function StatCard({
 }) {
   return (
     <Card
-      className="card-hover cursor-pointer overflow-hidden border-l-4"
+      className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
       style={{ borderLeftColor: color }}
       onClick={onClick}
     >
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
+      <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ backgroundColor: `${color}0a` }} />
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</CardTitle>
         <div
-          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          className="flex h-9 w-9 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110"
           style={{ backgroundColor: `${color}1a` }}
         >
           <Icon className="h-4 w-4" style={{ color }} />
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold tracking-tight">{value}</div>
+      <CardContent className="relative">
+        <div className="text-2xl font-bold tracking-tight tabular-nums">{value}</div>
         {trend && (
           <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-            <TrendingUp className="h-3 w-3" />
+            <TrendingUp className="h-3 w-3" style={{ color }} />
             {trend}
           </p>
         )}
@@ -139,6 +143,10 @@ export function DashboardView() {
     queryKey: ['recent-assets'],
     queryFn: () => assetsApi.list({ pageSize: 5, sortBy: 'createdAt', sortDir: 'desc' }),
   })
+  const { data: maintData } = useQuery({
+    queryKey: ['maintenance-upcoming'],
+    queryFn: () => maintenanceApi.upcoming(),
+  })
 
   if (isLoading || !stats) {
     return (
@@ -168,20 +176,28 @@ export function DashboardView() {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Welcome banner */}
-      <div className="gradient-mesh rounded-xl border bg-card p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <h2 className="text-xl font-bold tracking-tight">
-              Welcome back to AssetHub 👋
+      <div className="relative overflow-hidden rounded-xl border bg-card p-6">
+        <div className="absolute inset-0 gradient-mesh opacity-60" />
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-emerald-500/5 blur-3xl" />
+        <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">All systems operational</span>
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight">
+              Welcome back to AssetHub <span className="inline-block animate-fade-in-up">👋</span>
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground max-w-2xl">
               You have <span className="font-semibold text-foreground">{stats.totalAssets}</span> assets across{' '}
               <span className="font-semibold text-foreground">{stats.totalDepartments}</span> departments and{' '}
               <span className="font-semibold text-foreground">{stats.totalLocations}</span> locations.
+              Total portfolio value: <span className="font-semibold text-foreground">{formatCurrency(stats.totalValue)}</span>.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('ocr-upload')}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => navigate('ocr-upload')} className="bg-background/50 backdrop-blur-sm">
               <ScanText className="h-4 w-4 mr-1.5" /> Scan Image
             </Button>
             <Button size="sm" onClick={() => navigate('asset-new')}>
@@ -249,6 +265,97 @@ export function DashboardView() {
           color="#06b6d4"
           trend="within 30 days"
         />
+      </div>
+
+      {/* Maintenance & License Stats Row */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-xs font-medium text-muted-foreground">Maintenance Overview</CardTitle>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-2xl font-bold">{stats.maintenance?.total ?? 0}</span>
+                <span className="text-xs text-muted-foreground">total records</span>
+              </div>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
+              <Wrench className="h-4 w-4 text-sky-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="grid grid-cols-3 gap-2 pt-2">
+            <div className="rounded-md bg-sky-500/5 p-2 text-center">
+              <p className="text-[10px] text-muted-foreground">Scheduled</p>
+              <p className="text-lg font-bold text-sky-600">{stats.maintenance?.scheduled ?? 0}</p>
+            </div>
+            <div className="rounded-md bg-amber-500/5 p-2 text-center">
+              <p className="text-[10px] text-muted-foreground">In Progress</p>
+              <p className="text-lg font-bold text-amber-600">{stats.maintenance?.inProgress ?? 0}</p>
+            </div>
+            <div className="rounded-md bg-rose-500/5 p-2 text-center">
+              <p className="text-[10px] text-muted-foreground">Overdue</p>
+              <p className="text-lg font-bold text-rose-600">{stats.maintenance?.overdue ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-xs font-medium text-muted-foreground">Software Licenses</CardTitle>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-2xl font-bold">{stats.licenses?.total ?? 0}</span>
+                <span className="text-xs text-muted-foreground">active licenses</span>
+              </div>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+              <KeyRound className="h-4 w-4 text-violet-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="text-muted-foreground">Seats Used</span>
+              <span className="font-medium">
+                {stats.licenses?.usedSeats ?? 0} / {stats.licenses?.totalSeats ?? 0}
+              </span>
+            </div>
+            <Progress value={stats.licenses?.totalSeats ? ((stats.licenses.usedSeats || 0) / stats.licenses.totalSeats) * 100 : 0} className="h-1.5" />
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              Total value: <span className="font-medium text-foreground">{formatCurrency(stats.licenses?.totalValue ?? 0)}</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#10b981' }}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-xs font-medium text-muted-foreground">Upcoming Maintenance</CardTitle>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-2xl font-bold">{maintData?.upcoming.length ?? 0}</span>
+                <span className="text-xs text-muted-foreground">in 30 days</span>
+              </div>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+              <Clock className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2">
+            {maintData?.upcoming.length ? (
+              <div className="space-y-1 max-h-16 overflow-y-auto scrollbar-thin">
+                {maintData.upcoming.slice(0, 2).map((m) => (
+                  <div key={m.id} className="flex items-center justify-between text-[11px]">
+                    <span className="truncate">{m.title}</span>
+                    <span className="text-muted-foreground whitespace-nowrap ml-2">{formatRelative(m.scheduledFor)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">Nothing scheduled</p>
+            )}
+            <Button variant="ghost" size="sm" className="mt-1 h-6 w-full text-xs" onClick={() => navigate('maintenance')}>
+              View all <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Charts row */}
@@ -427,11 +534,13 @@ export function DashboardView() {
       </div>
 
       {/* Recent activity & recent assets */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Recent Activity</CardTitle>
-            <CardDescription>Latest assignment changes</CardDescription>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-base">Recent Activity</CardTitle>
+              <CardDescription>Latest assignment changes</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             {stats.recentActivity.length === 0 ? (
@@ -464,7 +573,7 @@ export function DashboardView() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
               <CardTitle className="text-base">Recently Added Assets</CardTitle>
@@ -504,6 +613,36 @@ export function DashboardView() {
                     </button>
                   )
                 })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-base">Audit Log</CardTitle>
+              <CardDescription>Latest system events</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => navigate('audit-log')}>
+              All <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {!stats.auditLog || stats.auditLog.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">No audit entries yet</p>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
+                {stats.auditLog.slice(0, 8).map((log) => (
+                  <div key={log.id} className="flex items-start gap-2 rounded-md border p-2 text-xs hover:bg-accent/30">
+                    <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{log.action}</p>
+                      <p className="text-muted-foreground truncate">{log.details}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{formatRelative(log.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
