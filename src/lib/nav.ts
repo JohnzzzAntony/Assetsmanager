@@ -28,6 +28,8 @@ export type ViewName =
   | 'bookings'
   | 'expirations'
   | 'utilization'
+  | 'asset-map'
+  | 'asset-timeline'
 
 interface NavState {
   view: ViewName

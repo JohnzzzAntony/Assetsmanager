@@ -26,6 +26,10 @@ import type {
   ExpirationReport,
   UtilizationReport,
   MaintenanceCostReport,
+  AssetTimeline,
+  POReceiveResult,
+  AssetLocationMapReport,
+  CostForecastReport,
 } from './types'
 
 class ApiError extends Error {
@@ -533,6 +537,8 @@ export const reportsApi = {
   vendorPerformance: () => request<VendorPerformanceReport>('/api/reports/vendor-performance'),
   lifecycleYoY: (years = 2) => request<LifecycleYoYReport>(`/api/reports/lifecycle-yoy?years=${years}`),
   maintenanceCost: (months = 12) => request<MaintenanceCostReport>(`/api/reports/maintenance-cost?months=${months}`),
+  costForecast: (history = 12, forecast = 6) =>
+    request<CostForecastReport>(`/api/reports/cost-forecast?history=${history}&forecast=${forecast}`),
 }
 
 // ---- Round 6: Expirations & Utilization ----
@@ -542,4 +548,21 @@ export const expirationsApi = {
 
 export const utilizationApi = {
   report: () => request<UtilizationReport>('/api/utilization'),
+}
+
+// ---- Round 7: Timeline, Asset Map, PO Receiving ----
+export const timelineApi = {
+  getForAsset: (assetId: string) => request<AssetTimeline>(`/api/assets/${assetId}/timeline`),
+}
+
+export const assetMapApi = {
+  report: () => request<AssetLocationMapReport>('/api/asset-map'),
+}
+
+export const poReceivingApi = {
+  receive: (poId: string, items: { itemId: string; receivedQty: number }[]) =>
+    request<POReceiveResult>(`/api/purchase-orders/${poId}/receive`, {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
 }

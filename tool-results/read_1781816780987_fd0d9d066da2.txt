@@ -1,0 +1,202 @@
+  1870→7. **Command Palette search is asset-only** — Could extend to persons, vendors, locations, POs.
+  1871→8. **No multi-currency support** — POs have a `currency` field but all display assumes USD. Exposed value in Expiry Center sums costs across currencies without conversion.
+  1872→9. **No saved/subscription reports with email delivery** — Saved Reports persist config but don't schedule email delivery. Could add a `schedule` field (weekly/monthly) + cron job.
+  1873→10. **Two accessibility warnings in dev.log** — `DialogContent` requires `DialogTitle` for screen reader users, and `DialogContent` missing `Description` or `aria-describedby={undefined}`. These come from existing dialogs (Round 4-era, likely OCR upload or asset form) — not blocking but should be fixed for WCAG compliance.
+  1874→
+  1875→**Priority recommendations for next phase (Round 7)**:
+  1876→
+  1877→**High priority** (production blockers):
+  1878→1. Add NextAuth.js authentication with role-based access control (Admin / IT Manager / IT Staff / Read-only) — wire `createdBy` field on Saved Reports to the session user
+  1879→2. Add email notification integration for critical alerts (SendGrid/Resend/Mailgun) — booking pending > 2 days, warranty expired (from Expiry Center), license expired (from Expiry Center), PO approved, booking conflict detected, maintenance overdue
+  1880→3. Add file attachments to POs, Disposals, and Bookings (invoices, certificates, receipts) — extend the existing AssetImage pattern
+  1881→4. Add inline "Extend Warranty" / "Renew License" quick-action buttons to the Expiry Center items
+  1882→5. Fix the two accessibility warnings in existing DialogContent components (add DialogTitle/DialogDescription or wrap with VisuallyHidden)
+  1883→
+  1884→**Medium priority** (UX improvements):
+  1885→6. Extend Command Palette search to include persons, vendors, locations, POs, licenses (not just assets)
+  1886→7. Add saved/subscription reports with scheduled email delivery (weekly/monthly cron)
+  1887→8. Add maintenance scheduling conflict detection (similar to bookings) — warn when scheduling maintenance during an active booking
+  1888→9. Add Expiry Center "Renew" workflow that creates a Purchase Order draft for the renewal
+  1889→10. Add utilization rate trends over time (compare quarterly utilization per department)
+  1890→11. Add idle asset "Reassign" or "Dispose" quick-action buttons in the Utilization Dashboard
+  1891→
+  1892→**Low priority** (polish):
+  1893→12. Add multi-currency display with exchange rates (POs + assets have currency field but UI assumes USD)
+  1894→13. Add Expiry Center CSV export
+  1895→14. Add Utilization Dashboard configurable idle threshold (30/60/90 days)
+  1896→15. Add Maintenance Cost Analytics forecast (extrapolate from trend)
+  1897→16. Add API documentation (OpenAPI/Swagger) for the 75+ endpoints
+  1898→17. Add mobile app (React Native) for field technicians with QR/barcode scanning
+  1899→18. Add predictive maintenance scheduling (based on asset type + usage patterns + historical maintenance)
+  1900→
+  1901→**Files modified in Round 6**:
+  1902→- `/home/z/my-project/src/lib/types.ts` — Added 10 new types (~110 lines)
+  1903→- `/home/z/my-project/src/lib/repo.ts` — Added `expirationRepo`, `utilizationRepo`, `maintenanceCostRepo` (~370 lines)
+  1904→- `/home/z/my-project/src/lib/api.ts` — Added 3 new API client methods + 3 type imports
+  1905→- `/home/z/my-project/src/lib/nav.ts` — Added 2 new ViewName entries
+  1906→- `/home/z/my-project/src/app/api/expirations/route.ts` — NEW
+  1907→- `/home/z/my-project/src/app/api/utilization/route.ts` — NEW
+  1908→- `/home/z/my-project/src/app/api/reports/maintenance-cost/route.ts` — NEW
+  1909→- `/home/z/my-project/src/app/page.tsx` — Wired 2 new view imports + 2 switch cases
+  1910→- `/home/z/my-project/src/components/sidebar.tsx` — Added 2 nav items + SidebarFooter + CmdkHint + touch-friendly min-h + brand gradient
+  1911→- `/home/z/my-project/src/components/app-shell.tsx` — Added 2 header titles + bumped version + mounted CommandPalette + kbd-pill hint in search
+  1912→- `/home/z/my-project/src/components/command-palette.tsx` — NEW (322 lines)
+  1913→- `/home/z/my-project/src/components/views/expirations-view.tsx` — NEW (354 lines)
+  1914→- `/home/z/my-project/src/components/views/utilization-view.tsx` — NEW (~370 lines)
+  1915→- `/home/z/my-project/src/components/views/reports-view.tsx` — Added Maintenance Cost Analytics section + gradient-text-shine + live-dot
+  1916→- `/home/z/my-project/src/components/views/dashboard-view.tsx` — Added stat-tile-gradient + animate-count-pop + live-dot + dot-pattern-bg
+  1917→- `/home/z/my-project/src/components/views/assets-list-view.tsx` — Added btn-press + transition-colors
+  1918→- `/home/z/my-project/src/components/views/vendors-view.tsx` — Added stat-tile-gradient + animate-count-pop to KPI tiles
+  1919→- `/home/z/my-project/src/app/globals.css` — Added ~180 lines of new CSS utilities (Round 6 section)
+  1920→
+  1921→---
+  1922→Task ID: R7-A
+  1923→Agent: fullstack-developer (R7-A)
+  1924→Task: Build two new view files for the IT Asset Manager — overwrite the existing stubs:
+  1925→  1. `src/components/views/asset-timeline-view.tsx` — full lifecycle timeline of a single asset (uses `timelineApi.getForAsset(assetId)`)
+  1926→  2. `src/components/views/asset-map-view.tsx` — assets grouped by location in a "map-like" visual layout (uses `assetMapApi.report()`)
+  1927→
+  1928→Work Log:
+  1929→- Read `/home/z/my-project/worklog.md` (Round 6 handover + Round 7 prep recommendations) to understand project state (v2.3, 27 views, 75+ API routes, ESLint clean, node:sqlite, SPA view router on `/`, established styling conventions: `stat-tile-gradient`, `live-dot`, `section-accent-bar`, `dot-pattern-bg`, `card-hover-lift`, `btn-press`, `animate-count-pop`, `progress-fill-anim`, `util-bar-fill`, `scrollbar-thin`, `animate-fade-in-up`).
+  1930→- Reviewed prior agent-ctx work records (`R6-A-expirations-utilization-views.md`) for the established component patterns (StatTile/KPITile pattern, rate-color thresholds, Recharts vertical BarChart + Cell coloring).
+  1931→- Verified the existing API endpoints return real data before writing views:
+  1932→  - `curl /api/assets/4f17c247-7cf5-4021-becc-b147dcfedfbe/timeline` → 200, returns `{assetId, assetTag, assetName, events:[{type:'created', icon:'Plus'}, {type:'booking.created', icon:'CalendarClock'}, {type:'assigned', icon:'UserPlus'}], stats:{totalEvents:3, assignmentCount:1, maintenanceCount:0, bookingCount:1, firstEventAt, lastEventAt}}`
+  1933→  - `curl /api/asset-map` → 200, returns `{locations:[{locationId, locationName, address, totalAssets, inUse, inStock, repair, retired, lost, utilizationRate, totalValue, byType:[{assetType,count}], topAssets:[{id,assetTag,name,status,assetType}]}], totals:{totalLocations:5, totalAssets:20, totalValue:14584, avgUtilization:0.625}, unassigned:{count:10, value:4759}}`
+  1934→- Confirmed the existing CSS utilities in `src/app/globals.css` (Round 7 section, lines 1022-1178): `timeline-rail`, `timeline-dot` (+ 9 `event-*` variants: `event-created`, `event-assigned`, `event-unassigned`, `event-maintenance`, `event-maintenance-completed`, `event-booking`, `event-license`, `event-disposal`, `event-image`), `timeline-item` (with `animate-fade-in-up` keyframe `timeline-fade-in`), `map-tile` (with stylized map-grid background via `::before`), `location-pin` (with `location-pulse` keyframe).
+  1935→- Confirmed `ViewName` union in `src/lib/nav.ts` already includes `'asset-map'` and `'asset-timeline'`, and `src/app/page.tsx` already wires both views (lines 30-31 imports + lines 135-138 switch cases). No other files needed modification.
+  1936→- Built **`asset-timeline-view.tsx` (462 lines)**:
+  1937→  - `'use client'` directive; signature `export function AssetTimelineView({ assetId }: { assetId: string })`.
+  1938→  - Imports: `useMemo` from React, `useQuery` from `@tanstack/react-query`, `timelineApi` from `@/lib/api`, types `TimelineEvent`/`AssetTimeline` from `@/lib/types`, shadcn `Card`/`CardContent`/`CardDescription`/`CardHeader`/`CardTitle` + `Badge` + `Button` + `Skeleton` + `Alert`, lucide `LucideIcon` type + 16 icons (ArrowLeft, Plus, UserPlus, UserMinus, Wrench, CalendarClock, KeyRound, Image as ImageIcon, Trash2, Activity, Clock, History, Package, GitBranch, CheckCircle2, XCircle), `formatDate`/`formatRelative` from `@/lib/format`, `useNav` from `@/lib/nav`.
+  1939→  - `iconMap: Record<string, LucideIcon>` maps the 8 icon names → Lucide components (Plus, UserPlus, UserMinus, Wrench, CalendarClock, KeyRound, Image→ImageIcon, Trash2). Inline lookup `(event.icon && iconMap[event.icon]) || Activity` in `TimelineItemRow` (avoids the `react-hooks/static-components` lint error from function-call component lookup).
+  1940→  - `dotVariant(type)` switch maps each `TimelineEventType` to the correct `event-*` CSS class (e.g. `'maintenance.completed'` → `event-maintenance-completed`, `'license.allocated'`/`'license.deallocated'` → `event-license`, `'disposal'` → `event-disposal`, `'image.added'` → `event-image`, `'checkout'` → `event-assigned`, `'checkin'` → `event-unassigned`, default → `event-created`).
+  1941→  - `accentColor(type)` returns the matching hex color (used for the icon's circular container background `+ color` tinting).
+  1942→  - **Header**: Back button (`btn-press`, navigates to `asset-detail`) + h2 "Asset Timeline" + `<span className="live-dot" />` + "Live history" label + asset name + assetTag Badge (font-mono).
+  1943→  - **4 stat tiles** (`stat-tile-gradient card-hover-lift border-l-4`, count uses `animate-count-pop`): Total Events (GitBranch, sky #0ea5e9), Assignments (UserPlus, violet #8b5cf6), Maintenance Events (Wrench, amber #f59e0b), Bookings (CalendarClock, emerald #10b981).
+  1944→  - **First/Last event footer**: bordered summary row showing `formatDate(firstEventAt)` + `formatRelative(lastEventAt)`.
+  1945→  - **Timeline rail** inside a `Card` with `CardHeader` (title "Lifecycle Events" + count Badge + description) + `CardContent` containing `<div className="max-h-[640px] overflow-y-auto scrollbar-thin">` scroll area wrapping `<div className="timeline-rail pt-1">`.
+  1946→  - **Date groupings**: `groupByDate(events)` groups by `new Date(timestamp).toDateString()`. Each group has a sticky top date header (`sticky top-0 z-10 bg-background/95 backdrop-blur`) showing `dateLabel()` (Today/Yesterday/full date).
+  1947→  - **Timeline items** (`timeline-item relative pl-10 pb-4`): staggered `animationDelay` (capped at 600ms). Absolute-positioned `<span className="timeline-dot {variant}" />` on the rail. Inside: bordered card with icon (h-4 w-4 in colored circular container) + title (font-medium) + description (text-xs muted) + actor name (text-xs italic) + timestamp (`formatRelative` + Clock icon, `title` attr shows full `formatDate(ts, 'MMM d, yyyy h:mm a')` tooltip). Meta entries rendered as outline Badges (up to 4).
+  1948→  - **Empty state**: centered card with `History` icon + "No timeline events yet".
+  1949→  - **Error state**: centered card with `XCircle` icon + "Couldn't load timeline" + Back button.
+  1950→  - **Loading state**: 4 stat-tile skeletons + 1 card with 3 timeline-item skeletons.
+  1951→  - Wrapped in `<div className="space-y-5 animate-fade-in-up">`.
+  1952→- Built **`asset-map-view.tsx` (500 lines)**:
+  1953→  - `'use client'` directive; signature `export function AssetMapView()`.
+  1954→  - Imports: `useMemo`, `useQuery`, `assetMapApi`, types `AssetLocationMapReport`/`LocationAssetSummary`, shadcn `Card`/`CardContent`/`CardDescription`/`CardHeader`/`CardTitle` + `Badge` + `Button` + `Skeleton` + `Alert`/`AlertDescription`/`AlertTitle`, lucide icons (Map as MapIcon, MapPin, Package, Building2, TrendingUp, DollarSign, Gauge, AlertCircle, Navigation, ArrowRight, Layers), `formatCurrency`, `useNav`, Recharts (`ResponsiveContainer`, `BarChart`, `Bar`, `XAxis`, `YAxis`, `Tooltip`, `CartesianGrid`, `Cell`).
+  1955→  - `rateColor(rate)` helper: emerald ≥75%, sky ≥50%, amber ≥25%, rose <25% (matches existing utilization-view thresholds).
+  1956→  - `rateTextClass(rate)` helper returns Tailwind color class for the utilization % label.
+  1957→  - **Header**: h2 "Asset Location Map" + subtitle "Visualize asset distribution across your locations" + `<span className="live-dot" />` + "Live data" label + "Manage Locations" outline button (`btn-press`).
+  1958→  - **3 KPI tiles** (`stat-tile-gradient card-hover-lift border-l-4`, count uses `animate-count-pop`): Total Locations (Building2, slate #64748b), Total Assets (Package, sky #0ea5e9), Avg Utilization (Gauge, emerald #10b981, displayed as `Math.round(rate * 100)%`).
+  1959→  - **Unassigned banner**: only rendered if `unassigned.count > 0`. Amber-tinted `<Alert>` with `AlertCircle` icon + AlertTitle "{count} assets have no location assigned" + AlertDescription showing `{formatCurrency(value)} in asset value is currently unmapped" + "View Assets" outline button (`btn-press`, amber border, navigates to `assets`).
+  1960→  - **Locations section header**: `section-accent-bar dot-pattern-bg` with `Layers` (violet) icon + "Locations" title + count Badge + description.
+  1961→  - **Locations grid** (`grid gap-4 md:grid-cols-2 lg:grid-cols-3`): each `LocationCard` is a `<Card className="map-tile card-hover-lift overflow-hidden">`. Layout:
+  1962→    - Top: `<div className="location-pin ...">` with `MapPin` icon (violet bg-tinted circular container, pulsing animation) + location name (font-semibold, truncate) + address (text-xs muted, truncate).
+  1963→    - 2x2 grid of `MiniStat` cards: Total / In Use (emerald) / In Stock (sky) / Repair (amber).
+  1964→    - Utilization bar: `<div className="util-bar-fill progress-fill-anim h-full rounded-full">` with `width = max(pct, 2)%` and `background = rateColor(rate)`. Label shows `Math.round(rate * 100)%` with `rateTextClass` coloring.
+  1965→    - Total Value row: bordered tile with `DollarSign` (emerald) icon + `formatCurrency(totalValue)`.
+  1966→    - Asset Types: row of outline Badges showing top 3 `byType` entries ("Mobile: 3", "Laptop: 2").
+  1967→    - Top Assets: list of up to 3 `topAssets` as clickable buttons → `navigate('asset-detail', { id: asset.id })` showing name (truncate) + assetTag + assetType + status Badge + `ArrowRight` icon (hover translate).
+  1968→    - "View Location" outline button (`btn-press`, navigates to `locations`) with `Navigation` icon.
+  1969→  - **Bottom bar chart**: full-width Recharts `<BarChart layout="vertical">` showing all locations sorted by totalAssets desc. `XAxis` type=number (allowDecimals=false), `YAxis` type=category with `dataKey="name"` (width 130), `<CartesianGrid>` horizontal=false, custom `<ChartTooltip>` showing location name + total assets + utilization % (colored) + total value, `<Bar dataKey="totalAssets" radius={[0,4,4,0]}>` with per-cell `<Cell fill={rateColor(utilizationRate)} />`. Chart height scales with location count (min 220, `count * 48`).
+  1970→  - **Empty state** (`locations.length === 0`): centered card with `MapPin` icon + "No locations yet" + "Add a location" button (navigates to `locations`).
+  1971→  - **Error state**: centered card with `AlertCircle` (rose) icon + "Couldn't load asset map".
+  1972→  - **Loading state**: 3 KPI skeletons + 6 location card skeletons (each with pin + name + 2x2 mini-stat grid + bar + button placeholders).
+  1973→  - Wrapped in `<div className="space-y-5 animate-fade-in-up">`.
+  1974→- **React Compiler compatibility fixes** (caught by `bun run lint`):
+  1975→  - `react-hooks/static-components` error in `TimelineItemRow`: original `const Icon = getEventIcon(event.icon)` triggered "Cannot create components during render" because the compiler can't statically verify a function-call returns an existing component. Refactored to inline lookup `const Icon = (event.icon && iconMap[event.icon]) || Activity` which references pre-existing component references. Removed the now-unused `getEventIcon` function (would have triggered `no-unused-vars`).
+  1976→  - `react-hooks/preserve-manual-memoization` errors in both views: `useMemo(..., [data?.events])` and `useMemo(..., [data?.locations])` failed because the compiler inferred `data.events` / `data.locations` as the actual dependency (the optional-chain `?.` masks it). Refactored both to extract the derived value first (`const events = data?.events` / `const locations = data?.locations`) then use that plain identifier in the deps array — matches the pattern used in the existing `utilization-view.tsx`.
+  1977→- **No other files touched**. No `any` types used. All Shadcn components sourced from `@/components/ui/*`.
+  1978→
+  1979→Stage Summary:
+  1980→- Both view files written and ESLint-clean.
+  1981→- Files modified (only these 2):
+  1982→  - `/home/z/my-project/src/components/views/asset-timeline-view.tsx` (12-line stub → 462 lines)
+  1983→  - `/home/z/my-project/src/components/views/asset-map-view.tsx` (12-line stub → 500 lines)
+  1984→- Verification:
+  1985→  - `cd /home/z/my-project && bun run lint` → **exit code 0, 0 errors, 0 warnings** ✓
+  1986→  - `curl -s "http://localhost:3000/api/assets/4f17c247-7cf5-4021-becc-b147dcfedfbe/timeline" | head -c 200` → returns valid JSON `{assetId:"4f17c247-...", assetTag:"TC-000027", assetName:"Samsung Galaxy A32", events:[{id:"created-...", type:"created", timestamp:"2026-06-18T18:49:46.853Z", ...}]}` ✓
+  1987→  - `curl -s http://localhost:3000/api/asset-map | head -c 200` → returns valid JSON `{locations:[{locationId:"bf04b3ea-...", locationName:"Branch - Bangalore", address:"Bangalore Tech Park", totalAssets:1, inUse:1, ...}], totals:..., unassigned:...}` ✓
+  1988→  - `dev.log` tail shows `✓ Compiled in 167ms` + clean `GET / 200` responses after the final edits — no compilation errors remain (an earlier transient "getEventIcon defined multiple times" error in the log was from an intermediate edit state and was resolved before the final lint pass).
+  1989→  - Both views are already wired into `src/app/page.tsx` (lines 30-31 imports + lines 135-138 switch cases for `'asset-map'` and `'asset-timeline'`), so they will render when the SPA navigates to those views.
+  1990→
+  1991→---
+  1992→Task ID: R7-B
+  1993→Agent: fullstack-developer (R7-B)
+  1994→Task: Add PO Receiving Workflow UI to existing Purchase Orders view (Receive Items button + Receiving column + POReceiveDialog) and add a Cost Forecast Analytics section to the existing Reports view (3 KPI tiles + ComposedChart with Bar/Line/Area + 3 category cards with sparklines).
+  1995→
+  1996→Work Log:
+  1997→- Read `/home/z/my-project/worklog.md` (R6-Orchestrator handover + R7-A timeline/map views) to confirm project state (v2.3, 27 views, 75+ API routes, ESLint clean) and styling conventions (`stat-tile-gradient`, `section-accent-bar`, `btn-press`, `receive-progress`/`receive-progress-fill`, `trend-chip-up/down/flat`, `scrollbar-thin`, `animate-fade-in-up`).
+  1998→- Inspected existing pattern references: `purchase-orders-view.tsx` (StatTile / StatusBadge / PODetailDialog patterns + useMemo-with-setState initializer pattern), `reports-view.tsx` (section-accent-bar header + KPI tile + Recharts inline Tooltip `content` render prop pattern + fmtMonth / fmtCompactCurrency helpers).
+  1999→- Verified the pre-existing API contracts via curl before writing the views:
+  2000→  - `curl /api/reports/cost-forecast?history=12&forecast=6` → 200, returns `{categories:[{category:'purchase',history:[...12],forecast:[...6],totalHistorical,totalForecast,projectedAnnual,trendDirection,trendSlope}],combined:[...18 points],totals:{historicalTotal,forecastTotal,projectedAnnual,trendDirection,trendPct}}`.
+  2001→  - `curl /api/purchase-orders` → 200, list of 8 POs each with `items[]` containing `{id,description,quantity,receivedQuantity,assetType}`. Confirmed seed has POs in Draft / Approved / Ordered / Partially Received / Received statuses — the "Approved" (PO-2024-1007), "Ordered" (PO-2024-1005), and "Partially Received" (PO-2024-1004) POs are the receivable ones.
+  2002→  - Confirmed `poReceivingApi.receive(poId, items)` exists in `src/lib/api.ts` (line 562) and `reportsApi.costForecast` exists (line 540). Confirmed the receive route at `src/app/api/purchase-orders/[id]/receive/route.ts` returns 400 with the message "PO must be in Approved, Ordered, or Partially Received state" when status is invalid.
+  2003→- Confirmed the pre-defined CSS utilities in `src/app/globals.css`: `receive-progress` (4px bar) + `receive-progress-fill` (amber→emerald gradient, `.full` variant for fully-received) at lines 1132–1148; `trend-chip-up/down/flat` at lines 1115–1129.
+  2004→
+  2005→**Task 1 — `purchase-orders-view.tsx` (1239 → 1587 lines)**:
+  2006→- Added imports: `PackageCheck`, `Loader2` from lucide-react; `poReceivingApi` from `@/lib/api`. (Dialog / Input / Label / toast / useQueryClient / useQuery / Badge / Skeleton / formatCurrency / PurchaseOrder / PurchaseOrderItem / PurchaseOrderStatus were already imported.)
+  2007→- Added module-level helpers:
+  2008→  - `RECEIVABLE_STATUSES = ['Approved', 'Ordered', 'Partially Received']` (matches API's allowed states).
+  2009→  - `isReceivable(status)` predicate.
+  2010→  - `computeReceivingTotals(po)` returns `{ ordered, received }` summed across all items.
+  2011→  - `ReceivingStatusBadge({ po })` — renders `{received}/{ordered} ({pct}%)` + a `receive-progress` mini-bar with `.full` class when fully received. Reused on every PO row.
+  2012→- Added `receivingId` state to `PurchaseOrdersView` + a `POReceiveDialog` rendered below the existing dialogs.
+  2013→- Added a new "Receiving" table column between "Total" and "Requester". Updated loading-row cell count from 9 → 10 and empty-state `colSpan` from 9 → 10.
+  2014→- Added a "Receive" button to each row's Actions column, visible only when `isReceivable(po.status)`. Uses `PackageCheck` icon + `btn-press` class + emerald-tinted outline (`text-emerald-600 border-emerald-500/40 hover:bg-emerald-500/10`).
+  2015→- New `POReceiveDialog` component (appended after `PODetailDialog`):
+  2016→  - Fetches the PO fresh via `purchaseOrdersApi.get(id)` (matches `PODetailDialog` pattern).
+  2017→  - State: `receiveMap: Record<string, string>` (itemId → receive-now string), `submitting: boolean`.
+  2018→  - Pre-fills each "Receive Now" input with `Math.max(0, quantity - receivedQuantity)` (remaining) using a `useMemo` initializer that respects existing user input on re-renders (matches the existing `POFormDialog` pattern).
+  2019→  - For each item: description (font-medium) + assetType Badge + Ordered/Already Received/Unit Price stats + `{remaining} remaining` Badge (amber if >0, emerald if 0) + `receive-progress` mini-bar (with `.full` class when fully received) + number `<Input>` labeled "Receive Now" (min 0, max remaining, disabled while submitting or when remaining === 0).
+  2020→  - Audit-friendly header note (emerald-tinted banner): "All receipts are logged in the audit trail." with `PackageCheck` icon.
+  2021→  - Footer summary: total Ordered / Already Received / Receiving Now + count of items pending receipt.
+  2022→  - "Confirm Receipt" button (`btn-press bg-emerald-600 hover:bg-emerald-700`): calls `poReceivingApi.receive(po.id, items)` where items is filtered to `enteredValue > 0`. On success: toast `Received {N} items` + `PO {poNumber} fully received` (if `allItemsReceived`) or `PO {poNumber} partially received` (otherwise). Invalidates `['purchase-orders']` + `['purchase-order', po.id]` queries. Closes dialog.
+  2023→  - On error: toast `Receiving failed: {msg}` (extracts message from Error or stringified value — handles the API's 400 "PO must be in Approved, Ordered, or Partially Received state" error).
+  2024→  - While submitting: button disabled + shows `Loader2` with `animate-spin` + "Receiving…" text. Dialog close is blocked during submission via the `onOpenChange` guard.
+  2025→
+  2026→**Task 2 — `reports-view.tsx` (1717 → 2030 lines)**:
+  2027→- Added imports: `ComposedChart` from recharts; `type CostForecastCategory` + `type CostForecastPoint` from `@/lib/types`. (TrendingUp, TrendingDown, Package, Wrench, LineChart, Line, AreaChart, Area, formatCurrency, formatDate were already imported.)
+  2028→- Registered `useQuery({ queryKey: ['cost-forecast'], queryFn: () => reportsApi.costForecast(12, 6) })` BEFORE the early `if (!stats)` return — immediately after the `maintenanceCost` query — so hook order stays stable.
+  2029→- New section inserted after the Maintenance Cost Analytics section's closing `</>` (line 1622), BEFORE the "Detailed tables" Card.
+  2030→- Section header: `<div className="section-accent-bar mt-2">` with `<TrendingUp className="h-5 w-5 text-violet-600" />` + h3 "Cost Forecast Analytics" + subtitle "12-month historical spend + 6-month forecast based on linear regression per category".
+  2031→- Empty state: if `!costForecast` OR `(historicalTotal === 0 && forecastTotal === 0)`, shows centered Card with "No cost data available for forecasting".
+  2032→- 3 KPI tiles (`md:grid-cols-3`, each `stat-tile-gradient border-l-4`):
+  2033→  - Historical Total (12mo) — sky `#0ea5e9` border + DollarSign icon (sky tint).
+  2034→  - Forecast Total (6mo) — violet `#8b5cf6` border + TrendingUp icon (violet tint).
+  2035→  - Projected Annual Run-Rate — emerald `#10b981` border + TrendingUp icon (emerald tint). Includes a trend chip using `trend-chip-up`/`-down`/`-flat` with `↑ up` / `↓ down` / `→ flat` text. If `trendPct !== null`, also shows `(±{Math.round(trendPct * 100)}%)` next to the chip.
+  2036→- Combined Forecast Chart (full-width Card, height 320): Recharts `ComposedChart` with `data={costForecast.combined}` (18 points: 12 historical + 6 forecast).
+  2037→  - `CartesianGrid` (horizontal only, soft oklch stroke).
+  2038→  - `XAxis` dataKey="month" with `tickFormatter={(m) => fmtMonth(m)}` (re-uses existing `fmtMonth` helper at line 47 — formats YYYY-MM as "MMM yy").
+  2039→  - `YAxis` with `tickFormatter={(v) => fmtCompactCurrency(v)}` (re-uses existing `fmtCompactCurrency` helper at line 57 — formats as `$1.5k`).
+  2040→  - Custom `Tooltip` `content` render prop: shows `fmtMonth(month)` + Historical (sky) + Forecast (violet) + Lower Bound + Upper Bound. Uses `payload[0].payload as CostForecastPoint` cast for type safety.
+  2041→  - `Legend` with `wrapperStyle={{ fontSize: 11 }}`.
+  2042→  - `Area` for `upperBound` — violet `#8b5cf6` stroke 0.4 opacity + 0.15 fill opacity, `connectNulls` (renders the upper bound of the confidence band).
+  2043→  - `Bar` for `historical` — sky `#0ea5e9`, radius `[3,3,0,0]`, barSize 16 (nulls skipped by Recharts so only shows for history months).
+  2044→  - `Line` for `forecast` — violet `#8b5cf6`, strokeWidth 2.5, `strokeDasharray="5 5"` (dashed), dot radius 3, `connectNulls`.
+  2045→- 3 Category Cards (`lg:grid-cols-3`): one `CategoryForecastCard` per category (purchase / maintenance / depreciation). New top-level component appended after `ReportsView`:
+  2046→  - Module-level lookup tables: `CATEGORY_COLORS` (purchase→sky `#0ea5e9`, maintenance→amber `#f59e0b`, depreciation→rose `#f43f5e`) and `CATEGORY_TITLES` (Purchase / Maintenance / Depreciation).
+  2047→  - Title with inline icon (no function-call component lookup to satisfy `react-hooks/static-components`): `Package` for purchase, `Wrench` for maintenance, `TrendingDown` for depreciation, all rendered in a colored circular container.
+  2048→  - Trend chip in the top-right corner using `trend-chip-up/down/flat` with arrow + direction text.
+  2049→  - 3 mini rows: Total Historical (12mo), Total Forecast (6mo), Projected Annual (bolded, colored).
+  2050→  - Sparkline chart (Recharts `LineChart` height 60) combining history + forecast into a single series. Uses `useMemo` with extracted `history` and `forecast` arrays in the deps (extracted first to satisfy `react-hooks/preserve-manual-memoization`).
+  2051→  - Footer shows `{n}mo history` / `{n}mo forecast` point counts.
+  2052→
+  2053→**React Compiler compatibility**:
+  2054→- The `useMemo` initializer pattern in `POReceiveDialog` (calling `setReceiveMap` inside `useMemo`) matches the existing `POFormDialog` pattern in the same file (lines 577–607). Compiler accepts this because the deps array is `[open, po]` — both direct values.
+  2055→- For `CategoryForecastCard`, extracted `const history = cat.history` and `const forecast = cat.forecast` before using them in `useMemo` deps `[history, forecast]` — avoids the `react-hooks/preserve-manual-memoization` error that would have fired on `[cat.history, cat.forecast]`.
+  2056→- Inline JSX conditional rendering for the category icon (`{cat.category === 'purchase' && <Package .../>}`) avoids the `react-hooks/static-components` error that would have fired on a function-call component lookup.
+  2057→
+  2058→Stage Summary:
+  2059→- Files modified (only these 2):
+  2060→  - `/home/z/my-project/src/components/views/purchase-orders-view.tsx` (1239 → 1587 lines)
+  2061→  - `/home/z/my-project/src/components/views/reports-view.tsx` (1717 → 2030 lines)
+  2062→- Work record also written to `/home/z/my-project/agent-ctx/R7-B-po-receiving-cost-forecast.md`.
+  2063→- No `any` types used. All Shadcn components sourced from `@/components/ui/*`.
+  2064→- Verification:
+  2065→  - `cd /home/z/my-project && bun run lint` → **exit code 0, 0 errors, 0 warnings** ✓
+  2066→  - `curl -s "http://localhost:3000/api/reports/cost-forecast?history=12&forecast=6" | head -c 300` → returns valid JSON `{categories:[{category:'purchase',history:[...12],forecast:[...6]}],combined:[...18],totals:{...}}` ✓
+  2067→  - `curl -s http://localhost:3000/api/purchase-orders | head -c 200` → returns valid PO list JSON ✓
+  2068→  - `dev.log` tail shows `✓ Compiled in 197ms` and clean `200` responses for `/`, `/api/dashboard`, `/api/reports/cost-forecast`, `/api/purchase-orders` — no compilation errors.
+  2069→- The new "Cost Forecast Analytics" section appears in the Reports view after the Maintenance Cost Analytics section. The new "Receive" button + "Receiving" column appear in the Purchase Orders table for POs in Approved / Ordered / Partially Received states. Both features render in the existing SPA view router on `/`.
+
+[showing lines 1870-2069 of 2070; use offset=2070 with limit to continue reading]

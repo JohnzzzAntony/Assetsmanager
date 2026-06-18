@@ -27,6 +27,8 @@ import { TagsView } from '@/components/views/tags-view'
 import { BookingsView } from '@/components/views/bookings-view'
 import { ExpirationsView } from '@/components/views/expirations-view'
 import { UtilizationView } from '@/components/views/utilization-view'
+import { AssetMapView } from '@/components/views/asset-map-view'
+import { AssetTimelineView } from '@/components/views/asset-timeline-view'
 import { useQuery } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -130,6 +132,10 @@ function ViewRouter() {
       return <ExpirationsView />
     case 'utilization':
       return <UtilizationView />
+    case 'asset-map':
+      return <AssetMapView />
+    case 'asset-timeline':
+      return <AssetTimelineView assetId={params.id} />
     default:
       return <DashboardView />
   }

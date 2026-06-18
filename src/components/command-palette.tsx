@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNav, type ViewName } from '@/lib/nav'
-import { assetsApi } from '@/lib/api'
+import {
+  assetsApi,
+  personsApi,
+  vendorsApi,
+  locationsApi,
+  purchaseOrdersApi,
+} from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import {
   Search,
@@ -84,7 +90,9 @@ const QUICK_ACTIONS: QuickActionDef[] = [
   { label: 'Print Asset Labels', view: 'asset-labels', icon: QrCode, hint: 'Generate QR / barcode labels' },
 ]
 
-type CmdCategory = 'Quick Actions' | 'Quick Navigation' | 'Search'
+// Category is a string so we can include live counts in the section headers
+// (e.g. "Assets (5)" / "Persons (2)") when surfacing search results.
+type CmdCategory = string
 
 interface CmdItem {
   id: string
@@ -145,10 +153,21 @@ export function CommandPalette() {
     return () => clearTimeout(t)
   }, [open])
 
-  // Live asset search — only runs once the debounced query is non-empty.
+  // Combined multi-entity search — fires a single debounced request that fans out to
+  // 5 endpoints in parallel. Non-asset entities are filtered client-side because their
+  // list endpoints don't support server-side `?search=`. Limit to top 3 matches per type.
   const { data: searchResults } = useQuery({
     queryKey: ['command-palette-search', debouncedQuery],
-    queryFn: () => assetsApi.list({ search: debouncedQuery, pageSize: 8 }),
+    queryFn: async () => {
+      const [assets, persons, vendors, locations, pos] = await Promise.all([
+        assetsApi.list({ search: debouncedQuery, pageSize: 5 }),
+        personsApi.list(),
+        vendorsApi.list(),
+        locationsApi.list(),
+        purchaseOrdersApi.list(),
+      ])
+      return { assets, persons, vendors, locations, pos }
+    },
     enabled: debouncedQuery.trim().length > 0,
   })
 
@@ -183,18 +202,101 @@ export function CommandPalette() {
       }
     }
 
-    if (q && searchResults?.data) {
-      for (const a of searchResults.data) {
-        const label = [a.make, a.model].filter(Boolean).join(' ').trim() || a.assetTag || a.serialNumber || 'Untitled asset'
-        const hint = [a.assetTag, a.assetType?.name, a.serialNumber].filter(Boolean).join(' · ')
-        list.push({
-          id: `search-${a.id}`,
-          label,
-          hint: hint || 'Asset',
-          icon: Package,
-          category: 'Search',
-          action: () => navigate('asset-detail', { id: a.id }),
-        })
+    if (q && searchResults) {
+      // --- Assets (server-side search via /api/assets?search=) ---
+      const assetHits = searchResults.assets?.data ?? []
+      if (assetHits.length > 0) {
+        const catName = `Assets (${assetHits.length})`
+        for (const a of assetHits) {
+          const label =
+            [a.make, a.model].filter(Boolean).join(' ').trim() ||
+            a.assetTag ||
+            a.serialNumber ||
+            'Untitled asset'
+          const hint = [a.assetTag, a.assetType?.name, a.serialNumber]
+            .filter(Boolean)
+            .join(' · ')
+          list.push({
+            id: `search-asset-${a.id}`,
+            label,
+            hint: hint || 'Asset',
+            icon: Package,
+            category: catName,
+            action: () => navigate('asset-detail', { id: a.id }),
+          })
+        }
+      }
+
+      // --- Persons (filter client-side by fullName / email / role) ---
+      const personHits = (searchResults.persons ?? [])
+        .filter((p) => matches(q, p.fullName, p.email ?? '', p.role ?? ''))
+        .slice(0, 3)
+      if (personHits.length > 0) {
+        const catName = `Persons (${personHits.length})`
+        for (const p of personHits) {
+          list.push({
+            id: `search-person-${p.id}`,
+            label: p.fullName,
+            hint: p.email || p.role || 'Person',
+            icon: Users,
+            category: catName,
+            action: () => navigate('persons'),
+          })
+        }
+      }
+
+      // --- Vendors (filter by name / category / contactPerson) ---
+      const vendorHits = (searchResults.vendors ?? [])
+        .filter((v) => matches(q, v.name, v.category ?? '', v.contactPerson ?? ''))
+        .slice(0, 3)
+      if (vendorHits.length > 0) {
+        const catName = `Vendors (${vendorHits.length})`
+        for (const v of vendorHits) {
+          list.push({
+            id: `search-vendor-${v.id}`,
+            label: v.name,
+            hint: v.category || 'Vendor',
+            icon: Store,
+            category: catName,
+            action: () => navigate('vendors'),
+          })
+        }
+      }
+
+      // --- Locations (filter by name / address) ---
+      const locationHits = (searchResults.locations ?? [])
+        .filter((l) => matches(q, l.name, l.address ?? ''))
+        .slice(0, 3)
+      if (locationHits.length > 0) {
+        const catName = `Locations (${locationHits.length})`
+        for (const l of locationHits) {
+          list.push({
+            id: `search-location-${l.id}`,
+            label: l.name,
+            hint: l.address || 'No address',
+            icon: MapPin,
+            category: catName,
+            action: () => navigate('locations'),
+          })
+        }
+      }
+
+      // --- Purchase Orders (filter by poNumber / vendor.name / status) ---
+      const poHits = (searchResults.pos ?? [])
+        .filter((po) => matches(q, po.poNumber, po.vendor?.name ?? '', po.status))
+        .slice(0, 3)
+      if (poHits.length > 0) {
+        const catName = `Purchase Orders (${poHits.length})`
+        for (const po of poHits) {
+          list.push({
+            id: `search-po-${po.id}`,
+            label: po.poNumber,
+            hint: `${po.poNumber} · ${po.status}`,
+            icon: ShoppingCart,
+            category: catName,
+            action: () => navigate('purchase-orders'),
+          })
+        }
       }
     }
 

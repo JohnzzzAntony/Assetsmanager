@@ -34,6 +34,8 @@ import {
   CalendarClock,
   CalendarX2,
   Gauge,
+  Map as MapIcon,
+  GitBranch,
 } from 'lucide-react'
 import type { ViewName } from '@/lib/nav'
 
@@ -59,7 +61,7 @@ function SidebarFooter() {
         </div>
         <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <CircleDot className="h-3 w-3 text-emerald-500 animate-pulse" />
-          <span>v2.3 · Round 6</span>
+          <span>v2.4 · Round 7</span>
         </div>
       </div>
     </div>
@@ -89,6 +91,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Assets', view: 'assets', icon: Package, group: 'Overview' },
   { label: 'Utilization', view: 'utilization', icon: Gauge, group: 'Overview', badge: 'new' },
   { label: 'Expiry Center', view: 'expirations', icon: CalendarX2, group: 'Overview', badge: 'new' },
+  { label: 'Location Map', view: 'asset-map', icon: MapIcon, group: 'Overview', badge: 'new' },
   { label: 'Reports', view: 'reports', icon: BarChart3, group: 'Overview' },
   { label: 'Audit Log', view: 'audit-log', icon: ScrollText, group: 'Overview', badge: 'new' },
   { label: 'Notifications', view: 'notifications', icon: Bell, group: 'Overview', badge: 'new' },

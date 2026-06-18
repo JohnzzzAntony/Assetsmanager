@@ -50,6 +50,7 @@ import {
   CalendarClock,
   Plus,
   X,
+  GitBranch,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -306,6 +307,9 @@ export function AssetDetailView({ id }: { id: string }) {
           </DropdownMenu>
           <Button variant="outline" size="sm" onClick={() => navigate('asset-edit', { id: asset.id })}>
             <Pencil className="h-4 w-4 mr-1.5" /> Edit
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('asset-timeline', { id: asset.id })}>
+            <GitBranch className="h-4 w-4 mr-1.5" /> Timeline
           </Button>
           <Button variant="outline" size="sm" onClick={() => navigate('checkouts')}>
             <ArrowLeftRight className="h-4 w-4 mr-1.5" /> Check-out

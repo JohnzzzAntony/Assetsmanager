@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog'
@@ -154,6 +155,9 @@ export function DepartmentsView() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Department' : 'Add Department'}</DialogTitle>
+            <DialogDescription>
+              {editing ? 'Update the department details below.' : 'Create a new department to organize your assets and people.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">

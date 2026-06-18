@@ -8,6 +8,7 @@ import {
   personsApi,
   assetTypesApi,
   exportApi,
+  poReceivingApi,
 } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -78,6 +79,8 @@ import {
   Calendar,
   User,
   Package,
+  PackageCheck,
+  Loader2,
   X,
   Filter,
   Download,
@@ -95,6 +98,25 @@ const OPEN_STATUSES: PurchaseOrderStatus[] = [
 
 // Statutes that should NOT contribute to "Total Spent" (drafts not yet committed, cancelled).
 const EXCLUDED_FROM_SPENT: string[] = ['Draft', 'Cancelled']
+
+// PO statuses where receiving items is allowed (the API rejects other states with 400).
+const RECEIVABLE_STATUSES: PurchaseOrderStatus[] = ['Approved', 'Ordered', 'Partially Received']
+
+function isReceivable(status: string): boolean {
+  return (RECEIVABLE_STATUSES as string[]).includes(status)
+}
+
+// Compute total ordered / received quantities across all PO line items.
+function computeReceivingTotals(po: PurchaseOrder): { ordered: number; received: number } {
+  const items = po.items ?? []
+  let ordered = 0
+  let received = 0
+  for (const it of items) {
+    ordered += it.quantity || 0
+    received += it.receivedQuantity || 0
+  }
+  return { ordered, received }
+}
 
 function StatTile({
   label,
@@ -144,6 +166,35 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+// Inline receiving-progress badge shown on each PO row.
+// Renders "{received}/{ordered}" + a 4px progress bar (amber tint while partial, emerald when fully received).
+function ReceivingStatusBadge({ po }: { po: PurchaseOrder }) {
+  const { ordered, received } = computeReceivingTotals(po)
+  if (ordered === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>
+  }
+  const pct = Math.min(100, Math.round((received / ordered) * 100))
+  const fullyReceived = received >= ordered
+  return (
+    <div className="flex flex-col gap-1 min-w-[88px]">
+      <span
+        className={`text-xs tabular-nums font-medium ${
+          fullyReceived ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+        }`}
+      >
+        {received}/{ordered}
+        <span className="ml-1 text-[10px] text-muted-foreground">({pct}%)</span>
+      </span>
+      <div className="receive-progress">
+        <div
+          className={`receive-progress-fill ${fullyReceived ? 'full' : ''}`}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function PurchaseOrdersView() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
@@ -153,6 +204,7 @@ export function PurchaseOrdersView() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [receivingId, setReceivingId] = useState<string | null>(null)
 
   const { data: vendors } = useQuery({ queryKey: ['vendors'], queryFn: () => vendorsApi.list() })
 
@@ -357,6 +409,7 @@ export function PurchaseOrdersView() {
                 <TableHead>Status</TableHead>
                 <TableHead className="text-center">Items</TableHead>
                 <TableHead>Total</TableHead>
+                <TableHead>Receiving</TableHead>
                 <TableHead>Requester</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -365,7 +418,7 @@ export function PurchaseOrdersView() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
+                    {Array.from({ length: 10 }).map((_, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-5 w-full" />
                       </TableCell>
@@ -374,7 +427,7 @@ export function PurchaseOrdersView() {
                 ))
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center">
+                  <TableCell colSpan={10} className="h-32 text-center">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <ShoppingCart className="h-8 w-8" />
                       <p>No purchase orders found</p>
@@ -426,6 +479,9 @@ export function PurchaseOrdersView() {
                         {formatCurrency(po.totalAmount, po.currency)}
                       </TableCell>
                       <TableCell>
+                        <ReceivingStatusBadge po={po} />
+                      </TableCell>
+                      <TableCell>
                         <div className="text-sm">{po.requestedBy?.fullName || '—'}</div>
                         {po.requestedBy?.role && (
                           <div className="text-[10px] text-muted-foreground">{po.requestedBy.role}</div>
@@ -451,6 +507,17 @@ export function PurchaseOrdersView() {
                               onClick={() => handleQuickStatusChange(po, 'Ordered', 'marked as ordered')}
                             >
                               <Truck className="h-3 w-3 mr-0.5" /> Mark Ordered
+                            </Button>
+                          )}
+                          {isReceivable(po.status) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="btn-press h-7 text-xs text-emerald-600 hover:text-emerald-700 border-emerald-500/40 hover:bg-emerald-500/10"
+                              onClick={() => setReceivingId(po.id)}
+                              title="Receive items against this PO"
+                            >
+                              <PackageCheck className="h-3 w-3 mr-0.5" /> Receive
                             </Button>
                           )}
                           <Button
@@ -500,6 +567,15 @@ export function PurchaseOrdersView() {
       {/* Detail dialog */}
       {viewingId && (
         <PODetailDialog id={viewingId} open={!!viewingId} onOpenChange={(v) => !v && setViewingId(null)} />
+      )}
+
+      {/* Receiving dialog */}
+      {receivingId && (
+        <POReceiveDialog
+          id={receivingId}
+          open={!!receivingId}
+          onOpenChange={(v) => !v && setReceivingId(null)}
+        />
       )}
 
       {/* Delete confirmation */}
@@ -1230,6 +1306,278 @@ function PODetailDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ==================== Receive Items Dialog ====================
+
+function POReceiveDialog({
+  id,
+  open,
+  onOpenChange,
+}: {
+  id: string
+  open: boolean
+  onOpenChange: (v: boolean) => void
+}) {
+  const qc = useQueryClient()
+  const { data: po, isLoading } = useQuery({
+    queryKey: ['purchase-order', id],
+    queryFn: () => purchaseOrdersApi.get(id),
+    enabled: open && !!id,
+  })
+
+  // Local map of { itemId -> "receive now" string } entered by the user.
+  // Initialized from the PO's items when the dialog opens / data loads.
+  const [receiveMap, setReceiveMap] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
+
+  // Pre-fill the receive-now inputs with the remaining quantity for each item
+  // the first time we get the PO data.
+  useMemo(() => {
+    if (!open || !po) return
+    setReceiveMap((prev) => {
+      // Only initialize items that aren't already set (so we don't blow away user input on re-renders).
+      const next: Record<string, string> = { ...prev }
+      let touched = false
+      for (const it of po.items ?? []) {
+        if (next[it.id] === undefined) {
+          const remaining = Math.max(0, (it.quantity || 0) - (it.receivedQuantity || 0))
+          next[it.id] = String(remaining)
+          touched = true
+        }
+      }
+      return touched ? next : prev
+    })
+  }, [open, po])
+
+  function setReceiveValue(itemId: string, value: string) {
+    setReceiveMap((m) => ({ ...m, [itemId]: value }))
+  }
+
+  // Items with a parsed "receive now" quantity greater than zero.
+  const itemsToReceive = useMemo(() => {
+    if (!po) return []
+    const out: { itemId: string; receivedQty: number; description: string }[] = []
+    for (const it of po.items ?? []) {
+      const raw = receiveMap[it.id]
+      const parsed = raw === undefined || raw === '' ? 0 : Math.max(0, Math.floor(Number(raw) || 0))
+      if (parsed > 0) {
+        out.push({ itemId: it.id, receivedQty: parsed, description: it.description })
+      }
+    }
+    return out
+  }, [po, receiveMap])
+
+  // Totals shown in the dialog footer summary.
+  const totals = useMemo(() => {
+    if (!po) return { ordered: 0, alreadyReceived: 0, receivingNow: 0 }
+    let ordered = 0
+    let alreadyReceived = 0
+    let receivingNow = 0
+    for (const it of po.items ?? []) {
+      ordered += it.quantity || 0
+      alreadyReceived += it.receivedQuantity || 0
+      const raw = receiveMap[it.id]
+      const parsed = raw === undefined || raw === '' ? 0 : Math.max(0, Math.floor(Number(raw) || 0))
+      receivingNow += parsed
+    }
+    return { ordered, alreadyReceived, receivingNow }
+  }, [po, receiveMap])
+
+  async function confirmReceipt() {
+    if (!po) return
+    if (itemsToReceive.length === 0) {
+      toast.error('Enter a quantity greater than 0 for at least one item.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const result = await poReceivingApi.receive(po.id, itemsToReceive.map((it) => ({
+        itemId: it.itemId,
+        receivedQty: it.receivedQty,
+      })))
+      toast.success(`Received ${result.receivedItems.length} item${result.receivedItems.length === 1 ? '' : 's'}`)
+      if (result.allItemsReceived) {
+        toast.success(`PO ${po.poNumber} fully received`)
+      } else {
+        toast.message(`PO ${po.poNumber} partially received`)
+      }
+      await qc.invalidateQueries({ queryKey: ['purchase-orders'] })
+      await qc.invalidateQueries({ queryKey: ['purchase-order', po.id] })
+      onOpenChange(false)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error(`Receiving failed: ${msg}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (!po) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl">
+          <div className="flex items-center justify-center h-40">
+            {isLoading ? (
+              <div className="space-y-2 w-full max-w-md">
+                <Skeleton className="h-6 w-1/3" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ) : (
+              <p className="text-muted-foreground">Purchase order not found.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  const currency = po.currency || 'USD'
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && !submitting && onOpenChange(false)}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 font-mono">
+            <PackageCheck className="h-4 w-4 text-emerald-600" />
+            Receive Items — {po.poNumber}
+          </DialogTitle>
+          <DialogDescription>
+            Record quantities received against this purchase order. Partial receipts are supported.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Audit header note */}
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+          <PackageCheck className="h-3.5 w-3.5 shrink-0" />
+          <span>All receipts are logged in the audit trail.</span>
+        </div>
+
+        <div className="max-h-[60vh] overflow-y-auto scrollbar-thin pr-1 space-y-2">
+          {(po.items || []).length === 0 ? (
+            <div className="rounded-md border bg-muted/30 py-10 text-center text-sm text-muted-foreground">
+              This purchase order has no line items to receive.
+            </div>
+          ) : (
+            (po.items || []).map((it) => {
+              const qty = it.quantity || 0
+              const recv = it.receivedQuantity || 0
+              const remaining = Math.max(0, qty - recv)
+              const pct = qty > 0 ? Math.min(100, (recv / qty) * 100) : 0
+              const fullyReceived = recv >= qty && qty > 0
+              const rawValue = receiveMap[it.id] ?? String(remaining)
+              return (
+                <div
+                  key={it.id}
+                  className="rounded-lg border bg-card p-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm">{it.description}</div>
+                      {it.assetType && (
+                        <Badge variant="outline" className="mt-0.5 text-[10px]">
+                          {it.assetType.name}
+                        </Badge>
+                      )}
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        remaining === 0
+                          ? 'text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                          : 'text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                      }
+                    >
+                      {remaining} remaining
+                    </Badge>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span>Ordered: <span className="tabular-nums font-medium text-foreground">{qty}</span></span>
+                    <span>Already Received: <span className="tabular-nums font-medium text-foreground">{recv}</span></span>
+                    <span>Unit Price: <span className="tabular-nums font-medium text-foreground">{formatCurrency(it.unitPrice, currency)}</span></span>
+                  </div>
+
+                  {/* Mini receive-progress bar */}
+                  <div className="receive-progress mt-2">
+                    <div
+                      className={`receive-progress-fill ${fullyReceived ? 'full' : ''}`}
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+
+                  {/* Receive Now input */}
+                  <div className="mt-2 flex items-end justify-end gap-2">
+                    <div className="w-32 space-y-1">
+                      <Label htmlFor={`recv-${it.id}`} className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Receive Now
+                      </Label>
+                      <Input
+                        id={`recv-${it.id}`}
+                        type="number"
+                        min={0}
+                        max={remaining}
+                        value={rawValue}
+                        onChange={(e) => setReceiveValue(it.id, e.target.value)}
+                        disabled={submitting || remaining === 0}
+                        className="h-8 text-sm tabular-nums"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* Footer summary */}
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <span className="text-muted-foreground">
+                Ordered: <span className="tabular-nums font-medium text-foreground">{totals.ordered}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Already Received: <span className="tabular-nums font-medium text-foreground">{totals.alreadyReceived}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Receiving Now: <span className="tabular-nums font-medium text-emerald-700 dark:text-emerald-400">{totals.receivingNow}</span>
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {itemsToReceive.length} item{itemsToReceive.length === 1 ? '' : 's'} pending receipt
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="btn-press bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={() => void confirmReceipt()}
+            disabled={submitting || itemsToReceive.length === 0}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Receiving…
+              </>
+            ) : (
+              <>
+                <PackageCheck className="h-4 w-4 mr-1.5" /> Confirm Receipt
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

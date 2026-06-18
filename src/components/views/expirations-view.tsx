@@ -233,7 +233,7 @@ export function ExpirationsView() {
         </div>
         <div className="flex items-center gap-2 self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
           <span className="live-dot" />
-          Live data
+          <span className="gradient-text-shine text-xs font-medium">Live data</span>
         </div>
       </div>
 
@@ -277,6 +277,9 @@ export function ExpirationsView() {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Divider between stat tiles and tabs */}
+          <div className="gradient-divider-strong" aria-hidden />
 
           {/* Tabs + search */}
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'all' | 'warranty' | 'license')}>

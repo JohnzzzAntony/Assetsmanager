@@ -34,6 +34,15 @@ import type {
   UtilizationReport,
   IdleAsset,
   MaintenanceCostReport,
+  AssetTimeline,
+  TimelineEvent,
+  POReceiveItemPayload,
+  POReceiveResult,
+  AssetLocationMapReport,
+  LocationAssetSummary,
+  CostForecastReport,
+  CostForecastCategory,
+  CostForecastPoint,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -2807,3 +2816,505 @@ export const maintenanceCostRepo = {
   },
 }
 
+
+// ============ Round 7: Asset Timeline ============
+export const assetTimelineRepo = {
+  getForAsset(assetId: string): AssetTimeline | null {
+    ensure()
+    const asset = row<{ id: string; assetTag: string | null; make: string | null; model: string | null; serialNumber: string | null; createdAt: string; status: string }>(
+      db.prepare('SELECT id, assetTag, make, model, serialNumber, createdAt, status FROM Asset WHERE id = ?').get(assetId)
+    )
+    if (!asset) return null
+
+    const events: TimelineEvent[] = []
+    const assetName = `${asset.make || ''} ${asset.model || ''}`.trim() || asset.assetTag || asset.serialNumber || 'Asset'
+
+    // 1. Creation event
+    events.push({
+      id: `created-${asset.id}`,
+      type: 'created',
+      timestamp: asset.createdAt,
+      title: 'Asset added to inventory',
+      description: `Initial registration${asset.status ? ` · status: ${asset.status}` : ''}`,
+      icon: 'Plus',
+    })
+
+    // 2. Assignment history
+    const history = rows<AssignmentHistory & { assignedToName: string | null; assignedToDept: string | null }>(
+      db.prepare(`
+        SELECT h.*, p.fullName as assignedToName, d.name as assignedToDept
+        FROM AssignmentHistory h
+        LEFT JOIN Person p ON h.personId = p.id
+        LEFT JOIN Department d ON h.departmentId = d.id
+        WHERE h.assetId = ?
+        ORDER BY h.assignedOn DESC
+      `).all(assetId)
+    )
+    for (const h of history) {
+      const isAssign = !!(h.personId || h.departmentId)
+      events.push({
+        id: `hist-${h.id}`,
+        type: isAssign ? 'assigned' : 'unassigned',
+        timestamp: h.assignedOn,
+        title: isAssign ? `Assigned to ${h.assignedToName || h.assignedToDept || 'recipient'}` : 'Unassigned',
+        description: h.notes || h.reason || (isAssign ? 'Asset allocated' : 'Asset returned to inventory'),
+        icon: isAssign ? 'UserPlus' : 'UserMinus',
+        actorName: h.assignedToName || h.assignedToDept,
+        meta: { department: h.assignedToDept },
+      })
+    }
+
+    // 3. Maintenance events
+    const maint = rows<{ id: string; type: string; title: string; status: string; scheduledFor: string; completedAt: string | null; cost: number | null; performedBy: string | null; notes: string | null }>(
+      db.prepare(`
+        SELECT id, type, title, status, scheduledFor, completedAt, cost, performedBy, notes
+        FROM MaintenanceSchedule
+        WHERE assetId = ?
+        ORDER BY scheduledFor DESC
+      `).all(assetId)
+    )
+    for (const m of maint) {
+      let type: TimelineEvent['type'] = 'maintenance.scheduled'
+      let title = `Maintenance scheduled: ${m.title}`
+      if (m.status === 'Completed') {
+        type = 'maintenance.completed'
+        title = `Maintenance completed: ${m.title}`
+      } else if (m.status === 'Cancelled') {
+        type = 'maintenance.cancelled'
+        title = `Maintenance cancelled: ${m.title}`
+      }
+      events.push({
+        id: `maint-${m.id}`,
+        type,
+        timestamp: m.completedAt || m.scheduledFor,
+        title,
+        description: m.notes || `${m.type} maintenance · ${m.status}${m.cost ? ` · $${Number(m.cost).toFixed(2)}` : ''}`,
+        icon: 'Wrench',
+        actorName: m.performedBy,
+        meta: { cost: m.cost, type: m.type, status: m.status },
+      })
+    }
+
+    // 4. Bookings
+    const bookings = rows<{ id: string; title: string; status: string; startDate: string; endDate: string; bookedByName: string | null }>(
+      db.prepare(`
+        SELECT b.id, b.title, b.status, b.startDate, b.endDate, p.fullName as bookedByName
+        FROM AssetBooking b
+        LEFT JOIN Person p ON b.bookedById = p.id
+        WHERE b.assetId = ?
+        ORDER BY b.startDate DESC
+      `).all(assetId)
+    )
+    for (const b of bookings) {
+      const isCompleted = b.status === 'Completed' || b.status === 'Cancelled'
+      events.push({
+        id: `book-${b.id}`,
+        type: isCompleted ? 'booking.completed' : 'booking.created',
+        timestamp: isCompleted ? b.endDate : b.startDate,
+        title: `${isCompleted ? 'Booking ended' : 'Booking created'}: ${b.title}`,
+        description: `${b.startDate.slice(0, 10)} → ${b.endDate.slice(0, 10)} · ${b.status}`,
+        icon: 'CalendarClock',
+        actorName: b.bookedByName,
+      })
+    }
+
+    // 5. License allocations
+    const allocs = rows<{ id: string; licenseId: string; licenseName: string; allocatedAt: string }>(
+      db.prepare(`
+        SELECT al.id, al.licenseId, sl.name as licenseName, al.createdAt as allocatedAt
+        FROM AssetLicense al
+        JOIN SoftwareLicense sl ON al.licenseId = sl.id
+        WHERE al.assetId = ?
+        ORDER BY al.createdAt DESC
+      `).all(assetId)
+    )
+    for (const a of allocs) {
+      events.push({
+        id: `lic-${a.id}`,
+        type: 'license.allocated',
+        timestamp: a.allocatedAt,
+        title: `License allocated: ${a.licenseName}`,
+        description: 'Software license assigned to this asset',
+        icon: 'KeyRound',
+      })
+    }
+
+    // 6. Images
+    const images = rows<{ id: string; createdAt: string }>(
+      db.prepare('SELECT id, createdAt FROM AssetImage WHERE assetId = ? ORDER BY createdAt DESC').all(assetId)
+    )
+    for (const i of images) {
+      events.push({
+        id: `img-${i.id}`,
+        type: 'image.added',
+        timestamp: i.createdAt,
+        title: 'Image uploaded',
+        description: 'Asset photo added to gallery',
+        icon: 'Image',
+      })
+    }
+
+    // 7. Disposal (if any)
+    const disposal = row<{ id: string; method: string; disposalDate: string; reason: string | null }>(
+      db.prepare('SELECT id, method, disposalDate, reason FROM AssetDisposal WHERE assetId = ?').get(assetId)
+    )
+    if (disposal) {
+      events.push({
+        id: `disp-${disposal.id}`,
+        type: 'disposal',
+        timestamp: disposal.disposalDate,
+        title: `Asset disposed via ${disposal.method}`,
+        description: disposal.reason || 'Asset removed from active inventory',
+        icon: 'Trash2',
+      })
+    }
+
+    // Sort all events by timestamp desc
+    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+    const stats = {
+      totalEvents: events.length,
+      assignmentCount: events.filter((e) => e.type === 'assigned' || e.type === 'unassigned').length,
+      maintenanceCount: events.filter((e) => String(e.type).startsWith('maintenance')).length,
+      bookingCount: events.filter((e) => String(e.type).startsWith('booking')).length,
+      firstEventAt: events.length ? events[events.length - 1].timestamp : null,
+      lastEventAt: events.length ? events[0].timestamp : null,
+    }
+
+    return {
+      assetId: asset.id,
+      assetTag: asset.assetTag,
+      assetName,
+      events,
+      stats,
+    }
+  },
+}
+
+// ============ Round 7: PO Receiving Workflow ============
+export const poReceivingRepo = {
+  receiveItems(poId: string, items: POReceiveItemPayload[]): POReceiveResult | null {
+    ensure()
+    const po = purchaseOrderRepo.get(poId)
+    if (!po) return null
+    if (!po.items || po.items.length === 0) return null
+    if (!['Approved', 'Ordered', 'Partially Received'].includes(po.status)) {
+      throw new Error(`PO must be in Approved, Ordered, or Partially Received state to receive items (current: ${po.status})`)
+    }
+
+    const now = new Date().toISOString()
+    const receivedItems: POReceiveResult['receivedItems'] = []
+    let allReceived = true
+
+    for (const payload of items) {
+      const item = po.items.find((i) => i.id === payload.itemId)
+      if (!item) continue
+      const receivedNow = Math.max(0, Math.floor(Number(payload.receivedQty) || 0))
+      if (receivedNow === 0) continue
+      const newTotal = Math.min(item.quantity, item.receivedQuantity + receivedNow)
+      const actuallyReceived = newTotal - item.receivedQuantity
+      db.prepare('UPDATE PurchaseOrderItem SET receivedQuantity = ? WHERE id = ?').run(newTotal, item.id)
+      const fullyReceived = newTotal >= item.quantity
+      if (!fullyReceived) allReceived = false
+      receivedItems.push({
+        itemId: item.id,
+        description: item.description,
+        receivedNow: actuallyReceived,
+        totalReceived: newTotal,
+        quantity: item.quantity,
+        fullyReceived,
+      })
+      activityLogRepo.log(
+        'po.item.received',
+        'PurchaseOrderItem',
+        item.id,
+        `Received ${actuallyReceived} of "${item.description}" (total ${newTotal}/${item.quantity}) for PO ${po.poNumber}`
+      )
+    }
+
+    // Update PO status + receivedDate
+    const newStatus = allReceived ? 'Received' : 'Partially Received'
+    db.prepare('UPDATE PurchaseOrder SET status = ?, receivedDate = ?, updatedAt = ? WHERE id = ?').run(
+      newStatus,
+      allReceived ? now : null,
+      now,
+      poId
+    )
+    activityLogRepo.log(
+      'po.received',
+      'PurchaseOrder',
+      poId,
+      allReceived
+        ? `PO ${po.poNumber} fully received (${receivedItems.length} items)`
+        : `PO ${po.poNumber} partially received (${receivedItems.length} items updated)`
+    )
+
+    const updatedPo = purchaseOrderRepo.get(poId)!
+    return { po: updatedPo, receivedItems, allItemsReceived: allReceived }
+  },
+}
+
+// ============ Round 7: Asset Location Map ============
+export const assetLocationMapRepo = {
+  report(): AssetLocationMapReport {
+    ensure()
+    const locations = rows<{ id: string; name: string; address: string | null }>(
+      db.prepare('SELECT id, name, address FROM Location ORDER BY name').all()
+    )
+    const allAssets = rows<{
+      id: string; assetTag: string | null; make: string | null; model: string | null; status: string;
+      cost: number | null; locationId: string | null; assetTypeName: string;
+    }>(
+      db.prepare(`
+        SELECT a.id, a.assetTag, a.make, a.model, a.status, a.cost, a.locationId, t.name as assetTypeName
+        FROM Asset a
+        LEFT JOIN AssetType t ON a.assetTypeId = t.id
+      `).all()
+    )
+
+    const locationSummaries: LocationAssetSummary[] = locations.map((loc) => {
+      const assets = allAssets.filter((a) => a.locationId === loc.id)
+      const total = assets.length
+      const inUse = assets.filter((a) => a.status === 'In Use').length
+      const inStock = assets.filter((a) => a.status === 'In Stock').length
+      const repair = assets.filter((a) => a.status === 'Repair').length
+      const retired = assets.filter((a) => a.status === 'Retired').length
+      const lost = assets.filter((a) => a.status === 'Lost').length
+      const eligible = total - retired - lost
+      const totalValue = assets.reduce((s, a) => s + (Number(a.cost) || 0), 0)
+      // By type
+      const typeMap = new Map<string, number>()
+      for (const a of assets) {
+        const t = a.assetTypeName || 'Unknown'
+        typeMap.set(t, (typeMap.get(t) || 0) + 1)
+      }
+      const byType = Array.from(typeMap.entries())
+        .map(([assetType, count]) => ({ assetType, count }))
+        .sort((a, b) => b.count - a.count)
+      // Top assets (active first)
+      const topAssets = assets
+        .slice()
+        .sort((a, b) => (a.status === 'In Use' ? -1 : 1) - (b.status === 'In Use' ? -1 : 1))
+        .slice(0, 5)
+        .map((a) => ({
+          id: a.id,
+          assetTag: a.assetTag,
+          name: `${a.make || ''} ${a.model || ''}`.trim() || a.assetTag || a.id,
+          status: a.status,
+          assetType: a.assetTypeName || 'Unknown',
+        }))
+      return {
+        locationId: loc.id,
+        locationName: loc.name,
+        address: loc.address,
+        totalAssets: total,
+        inUse,
+        inStock,
+        repair,
+        retired,
+        lost,
+        utilizationRate: eligible > 0 ? inUse / eligible : 0,
+        totalValue,
+        byType,
+        topAssets,
+      }
+    })
+
+    // Unassigned assets (no locationId)
+    const unassignedAssets = allAssets.filter((a) => !a.locationId)
+    const unassignedValue = unassignedAssets.reduce((s, a) => s + (Number(a.cost) || 0), 0)
+
+    const totalAssets = allAssets.length
+    const totalValue = allAssets.reduce((s, a) => s + (Number(a.cost) || 0), 0)
+    const totalEligible = totalAssets - allAssets.filter((a) => a.status === 'Retired' || a.status === 'Lost').length
+    const totalInUse = allAssets.filter((a) => a.status === 'In Use').length
+    const avgUtilization = totalEligible > 0 ? totalInUse / totalEligible : 0
+
+    return {
+      locations: locationSummaries,
+      totals: {
+        totalLocations: locations.length,
+        totalAssets,
+        totalValue,
+        avgUtilization,
+      },
+      unassigned: {
+        count: unassignedAssets.length,
+        value: unassignedValue,
+      },
+    }
+  },
+}
+
+// ============ Round 7: Cost Forecast Analytics ============
+function linearRegression(ys: number[]): { slope: number; intercept: number } {
+  const n = ys.length
+  if (n === 0) return { slope: 0, intercept: 0 }
+  if (n === 1) return { slope: 0, intercept: ys[0] }
+  const xs = ys.map((_, i) => i)
+  const meanX = xs.reduce((s, x) => s + x, 0) / n
+  const meanY = ys.reduce((s, y) => s + y, 0) / n
+  let num = 0, den = 0
+  for (let i = 0; i < n; i++) {
+    num += (xs[i] - meanX) * (ys[i] - meanY)
+    den += (xs[i] - meanX) ** 2
+  }
+  const slope = den === 0 ? 0 : num / den
+  const intercept = meanY - slope * meanX
+  return { slope, intercept }
+}
+
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function addMonths(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth() + n, 1)
+}
+
+export const costForecastRepo = {
+  report(historyMonths = 12, forecastMonths = 6): CostForecastReport {
+    ensure()
+    const now = new Date()
+    // Build month buckets for history + forecast
+    const historyStart = addMonths(now, -(historyMonths - 1))
+    const allMonths: string[] = []
+    for (let i = 0; i < historyMonths + forecastMonths; i++) {
+      allMonths.push(monthKey(addMonths(historyStart, i)))
+    }
+    const historyKeys = new Set(allMonths.slice(0, historyMonths))
+    const forecastKeys = new Set(allMonths.slice(historyMonths))
+
+    // Purchase cost history (from Asset.purchaseDate)
+    const purchaseRows = rows<{ month: string; total: number }>(
+      db.prepare(`
+        SELECT substr(purchaseDate, 1, 7) as month, COALESCE(SUM(cost), 0) as total
+        FROM Asset
+        WHERE purchaseDate IS NOT NULL AND cost IS NOT NULL
+          AND substr(purchaseDate, 1, 7) IN (${allMonths.map(() => '?').join(',')})
+        GROUP BY month
+      `).all(...allMonths)
+    )
+    const purchaseMap = new Map(purchaseRows.map((r) => [r.month, Number(r.total) || 0]))
+
+    // Maintenance cost history (from MaintenanceSchedule)
+    const maintRows = rows<{ month: string; total: number }>(
+      db.prepare(`
+        SELECT substr(scheduledFor, 1, 7) as month, COALESCE(SUM(cost), 0) as total
+        FROM MaintenanceSchedule
+        WHERE cost IS NOT NULL AND cost > 0 AND scheduledFor IS NOT NULL
+          AND substr(scheduledFor, 1, 7) IN (${allMonths.map(() => '?').join(',')})
+        GROUP BY month
+      `).all(...allMonths)
+    )
+    const maintMap = new Map(maintRows.map((r) => [r.month, Number(r.total) || 0]))
+
+    // Depreciation cost (sum of depreciation per month — approximate using straight-line over 3 years)
+    // Use DepreciationRule or just compute simple depreciation: cost / 36 per month for each active asset
+    const activeAssets = rows<{ cost: number | null; purchaseDate: string | null; status: string }>(
+      db.prepare(`SELECT cost, purchaseDate, status FROM Asset WHERE cost IS NOT NULL AND cost > 0 AND status NOT IN ('Retired', 'Lost')`).all()
+    )
+    const deprMap = new Map<string, number>()
+    for (const a of activeAssets) {
+      if (!a.purchaseDate) continue
+      const pd = new Date(a.purchaseDate)
+      const monthlyDepr = (Number(a.cost) || 0) / 36 // 3-year straight-line
+      // Apply depreciation for 36 months from purchase
+      for (let i = 0; i < 36; i++) {
+        const k = monthKey(addMonths(pd, i))
+        if (historyKeys.has(k) || forecastKeys.has(k)) {
+          deprMap.set(k, (deprMap.get(k) || 0) + monthlyDepr)
+        }
+      }
+    }
+
+    const buildCategory = (
+      category: CostForecastCategory['category'],
+      dataMap: Map<string, number>
+    ): CostForecastCategory => {
+      const history: { month: string; value: number }[] = []
+      for (let i = 0; i < historyMonths; i++) {
+        const k = allMonths[i]
+        history.push({ month: k, value: dataMap.get(k) || 0 })
+      }
+      const ys = history.map((h) => h.value)
+      const { slope, intercept } = linearRegression(ys)
+      const trendDirection: CostForecastCategory['trendDirection'] = slope > 1 ? 'up' : slope < -1 ? 'down' : 'flat'
+      const forecast: { month: string; value: number; lowerBound: number; upperBound: number }[] = []
+      // Compute residual standard deviation for confidence interval
+      const residuals = ys.map((y, i) => y - (slope * i + intercept))
+      const residStd = Math.sqrt(residuals.reduce((s, r) => s + r * r, 0) / Math.max(1, residuals.length))
+      for (let i = 0; i < forecastMonths; i++) {
+        const idx = historyMonths + i
+        const k = allMonths[idx]
+        const v = Math.max(0, slope * idx + intercept)
+        forecast.push({
+          month: k,
+          value: Math.round(v * 100) / 100,
+          lowerBound: Math.max(0, Math.round((v - residStd * 1.5) * 100) / 100),
+          upperBound: Math.round((v + residStd * 1.5) * 100) / 100,
+        })
+      }
+      const totalHistorical = ys.reduce((s, y) => s + y, 0)
+      const totalForecast = forecast.reduce((s, f) => s + f.value, 0)
+      const projectedAnnual = totalForecast * (12 / forecastMonths)
+      return {
+        category,
+        history,
+        forecast,
+        trendSlope: Math.round(slope * 100) / 100,
+        trendDirection,
+        totalHistorical: Math.round(totalHistorical * 100) / 100,
+        totalForecast: Math.round(totalForecast * 100) / 100,
+        projectedAnnual: Math.round(projectedAnnual * 100) / 100,
+      }
+    }
+
+    const purchaseCat = buildCategory('purchase', purchaseMap)
+    const maintCat = buildCategory('maintenance', maintMap)
+    const deprCat = buildCategory('depreciation', deprMap)
+    const categories = [purchaseCat, maintCat, deprCat]
+
+    // Combined forecast points
+    const combined: CostForecastPoint[] = allMonths.map((k, i) => {
+      const isHist = i < historyMonths
+      if (isHist) {
+        const hist = (purchaseMap.get(k) || 0) + (maintMap.get(k) || 0) + (deprMap.get(k) || 0)
+        return { month: k, historical: Math.round(hist * 100) / 100, forecast: null, lowerBound: null, upperBound: null }
+      }
+      const fcPurchase = purchaseCat.forecast.find((f) => f.month === k)
+      const fcMaint = maintCat.forecast.find((f) => f.month === k)
+      const fcDepr = deprCat.forecast.find((f) => f.month === k)
+      const value = (fcPurchase?.value || 0) + (fcMaint?.value || 0) + (fcDepr?.value || 0)
+      const lower = (fcPurchase?.lowerBound || 0) + (fcMaint?.lowerBound || 0) + (fcDepr?.lowerBound || 0)
+      const upper = (fcPurchase?.upperBound || 0) + (fcMaint?.upperBound || 0) + (fcDepr?.upperBound || 0)
+      return {
+        month: k,
+        historical: null,
+        forecast: Math.round(value * 100) / 100,
+        lowerBound: Math.round(lower * 100) / 100,
+        upperBound: Math.round(upper * 100) / 100,
+      }
+    })
+
+    const historicalTotal = categories.reduce((s, c) => s + c.totalHistorical, 0)
+    const forecastTotal = categories.reduce((s, c) => s + c.totalForecast, 0)
+    const projectedAnnual = categories.reduce((s, c) => s + c.projectedAnnual, 0)
+    const slopes = categories.map((c) => c.trendSlope)
+    const avgSlope = slopes.reduce((s, x) => s + x, 0) / Math.max(1, slopes.length)
+    const trendDirection: CostForecastReport['totals']['trendDirection'] = avgSlope > 1 ? 'up' : avgSlope < -1 ? 'down' : 'flat'
+    const trendPct = historicalTotal > 0 ? (forecastTotal - historicalTotal) / historicalTotal : null
+
+    return {
+      categories,
+      combined,
+      totals: {
+        historicalTotal: Math.round(historicalTotal * 100) / 100,
+        forecastTotal: Math.round(forecastTotal * 100) / 100,
+        projectedAnnual: Math.round(projectedAnnual * 100) / 100,
+        trendDirection,
+        trendPct: trendPct != null ? Math.round(trendPct * 1000) / 1000 : null,
+      },
+    }
+  },
+}

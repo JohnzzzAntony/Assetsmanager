@@ -45,7 +45,7 @@ import { useNav } from '@/lib/nav'
 // ---- KPI tile ----
 interface KPITileProps {
   label: string
-  value: string | number
+  value: React.ReactNode
   icon: React.ComponentType<{ className?: string }>
   color: string
   hint?: string
@@ -347,7 +347,11 @@ export function UtilizationView() {
           <div className="grid gap-3 sm:grid-cols-3">
             <KPITile
               label="Overall Utilization Rate"
-              value={`${Math.round(overall.utilizationRate * 100)}%`}
+              value={
+                <span className="gradient-text-shine">
+                  {Math.round(overall.utilizationRate * 100)}%
+                </span>
+              }
               icon={Gauge}
               color="#10b981"
               hint="In-use / available assets"
@@ -368,6 +372,9 @@ export function UtilizationView() {
             />
           </div>
 
+          {/* Divider between KPI tiles and bucket sections */}
+          <div className="gradient-divider-strong" aria-hidden />
+
           {/* By Department */}
           <BucketSection
             title="Utilization by Department"
@@ -387,6 +394,9 @@ export function UtilizationView() {
             buckets={data.byAssetType}
             chartHeight={Math.max(220, data.byAssetType.length * 36)}
           />
+
+          {/* Divider between asset-type section and idle assets */}
+          <div className="gradient-divider-strong" aria-hidden />
 
           {/* Idle Assets */}
           <div className="space-y-3">

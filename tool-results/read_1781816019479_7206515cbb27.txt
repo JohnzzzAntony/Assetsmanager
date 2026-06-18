@@ -1,0 +1,1239 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useMemo } from 'react'
+     4→     4→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     5→     5→import {
+     6→     6→  purchaseOrdersApi,
+     7→     7→  vendorsApi,
+     8→     8→  personsApi,
+     9→     9→  assetTypesApi,
+    10→    10→  exportApi,
+    11→    11→} from '@/lib/api'
+    12→    12→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    13→    13→import { Button } from '@/components/ui/button'
+    14→    14→import { Input } from '@/components/ui/input'
+    15→    15→import { Label } from '@/components/ui/label'
+    16→    16→import { Badge } from '@/components/ui/badge'
+    17→    17→import { Textarea } from '@/components/ui/textarea'
+    18→    18→import { Progress } from '@/components/ui/progress'
+    19→    19→import { Separator } from '@/components/ui/separator'
+    20→    20→import {
+    21→    21→  Select,
+    22→    22→  SelectContent,
+    23→    23→  SelectItem,
+    24→    24→  SelectTrigger,
+    25→    25→  SelectValue,
+    26→    26→} from '@/components/ui/select'
+    27→    27→import {
+    28→    28→  Dialog,
+    29→    29→  DialogContent,
+    30→    30→  DialogDescription,
+    31→    31→  DialogFooter,
+    32→    32→  DialogHeader,
+    33→    33→  DialogTitle,
+    34→    34→} from '@/components/ui/dialog'
+    35→    35→import {
+    36→    36→  AlertDialog,
+    37→    37→  AlertDialogAction,
+    38→    38→  AlertDialogCancel,
+    39→    39→  AlertDialogContent,
+    40→    40→  AlertDialogDescription,
+    41→    41→  AlertDialogFooter,
+    42→    42→  AlertDialogHeader,
+    43→    43→  AlertDialogTitle,
+    44→    44→} from '@/components/ui/alert-dialog'
+    45→    45→import {
+    46→    46→  Table,
+    47→    47→  TableBody,
+    48→    48→  TableCell,
+    49→    49→  TableHead,
+    50→    50→  TableHeader,
+    51→    51→  TableRow,
+    52→    52→} from '@/components/ui/table'
+    53→    53→import { Skeleton } from '@/components/ui/skeleton'
+    54→    54→import {
+    55→    55→  PO_STATUSES,
+    56→    56→  PO_STATUS_CONFIG,
+    57→    57→  type PurchaseOrder,
+    58→    58→  type PurchaseOrderItem,
+    59→    59→  type PurchaseOrderStatus,
+    60→    60→} from '@/lib/types'
+    61→    61→import { formatCurrency, formatDate, formatDateTime, formatRelative } from '@/lib/format'
+    62→    62→import {
+    63→    63→  ShoppingCart,
+    64→    64→  Clock,
+    65→    65→  Loader,
+    66→    66→  DollarSign,
+    67→    67→  Plus,
+    68→    68→  Pencil,
+    69→    69→  Trash2,
+    70→    70→  Eye,
+    71→    71→  Search,
+    72→    72→  Printer,
+    73→    73→  Check,
+    74→    74→  Truck,
+    75→    75→  Building2,
+    76→    76→  Mail,
+    77→    77→  Phone,
+    78→    78→  Calendar,
+    79→    79→  User,
+    80→    80→  Package,
+    81→    81→  X,
+    82→    82→  Filter,
+    83→    83→  Download,
+    84→    84→} from 'lucide-react'
+    85→    85→import { toast } from 'sonner'
+    86→    86→
+    87→    87→// Statuses considered "open" (in-flight) for the Open POs stat tile.
+    88→    88→const OPEN_STATUSES: PurchaseOrderStatus[] = [
+    89→    89→  'Draft',
+    90→    90→  'Pending Approval',
+    91→    91→  'Approved',
+    92→    92→  'Ordered',
+    93→    93→  'Partially Received',
+    94→    94→]
+    95→    95→
+    96→    96→// Statutes that should NOT contribute to "Total Spent" (drafts not yet committed, cancelled).
+    97→    97→const EXCLUDED_FROM_SPENT: string[] = ['Draft', 'Cancelled']
+    98→    98→
+    99→    99→function StatTile({
+   100→   100→  label,
+   101→   101→  value,
+   102→   102→  icon: Icon,
+   103→   103→  color,
+   104→   104→  hint,
+   105→   105→}: {
+   106→   106→  label: string
+   107→   107→  value: string | number
+   108→   108→  icon: typeof ShoppingCart
+   109→   109→  color: string
+   110→   110→  hint?: string
+   111→   111→}) {
+   112→   112→  return (
+   113→   113→    <Card className="overflow-hidden border-l-4 shadow-soft card-hover" style={{ borderLeftColor: color }}>
+   114→   114→      <CardContent className="p-4">
+   115→   115→        <div className="flex items-center justify-between">
+   116→   116→          <div className="min-w-0">
+   117→   117→            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+   118→   118→            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums truncate">{value}</p>
+   119→   119→            {hint && <p className="text-[10px] text-muted-foreground mt-0.5">{hint}</p>}
+   120→   120→          </div>
+   121→   121→          <div
+   122→   122→            className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
+   123→   123→            style={{ backgroundColor: `${color}1a` }}
+   124→   124→          >
+   125→   125→            <Icon className="h-4 w-4" style={{ color }} />
+   126→   126→          </div>
+   127→   127→        </div>
+   128→   128→      </CardContent>
+   129→   129→    </Card>
+   130→   130→  )
+   131→   131→}
+   132→   132→
+   133→   133→function StatusBadge({ status }: { status: string }) {
+   134→   134→  const cfg = (PO_STATUS_CONFIG as Record<string, { bg: string; text: string; dot: string }>)[status] || {
+   135→   135→    bg: 'bg-slate-500/10',
+   136→   136→    text: 'text-slate-700 dark:text-slate-400',
+   137→   137→    dot: 'bg-slate-400',
+   138→   138→  }
+   139→   139→  return (
+   140→   140→    <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1.5 whitespace-nowrap`}>
+   141→   141→      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   142→   142→      {status}
+   143→   143→    </Badge>
+   144→   144→  )
+   145→   145→}
+   146→   146→
+   147→   147→export function PurchaseOrdersView() {
+   148→   148→  const qc = useQueryClient()
+   149→   149→  const [search, setSearch] = useState('')
+   150→   150→  const [statusFilter, setStatusFilter] = useState<string>('all')
+   151→   151→  const [vendorFilter, setVendorFilter] = useState<string>('all')
+   152→   152→  const [showForm, setShowForm] = useState(false)
+   153→   153→  const [editingId, setEditingId] = useState<string | null>(null)
+   154→   154→  const [viewingId, setViewingId] = useState<string | null>(null)
+   155→   155→  const [deletingId, setDeletingId] = useState<string | null>(null)
+   156→   156→
+   157→   157→  const { data: vendors } = useQuery({ queryKey: ['vendors'], queryFn: () => vendorsApi.list() })
+   158→   158→
+   159→   159→  const { data: purchaseOrders, isLoading } = useQuery({
+   160→   160→    queryKey: ['purchase-orders'],
+   161→   161→    queryFn: () => purchaseOrdersApi.list(),
+   162→   162→  })
+   163→   163→
+   164→   164→  const filtered = useMemo(() => {
+   165→   165→    if (!purchaseOrders) return []
+   166→   166→    return purchaseOrders.filter((po) => {
+   167→   167→      if (statusFilter !== 'all' && po.status !== statusFilter) return false
+   168→   168→      if (vendorFilter !== 'all' && po.vendorId !== vendorFilter) return false
+   169→   169→      if (search) {
+   170→   170→        const s = search.toLowerCase()
+   171→   171→        const matchesPo = po.poNumber.toLowerCase().includes(s)
+   172→   172→        const matchesVendor = (po.vendor?.name || '').toLowerCase().includes(s)
+   173→   173→        const matchesNotes = (po.notes || '').toLowerCase().includes(s)
+   174→   174→        if (!matchesPo && !matchesVendor && !matchesNotes) return false
+   175→   175→      }
+   176→   176→      return true
+   177→   177→    })
+   178→   178→  }, [purchaseOrders, search, statusFilter, vendorFilter])
+   179→   179→
+   180→   180→  const stats = useMemo(() => {
+   181→   181→    if (!purchaseOrders) return { total: 0, pending: 0, open: 0, totalSpent: 0 }
+   182→   182→    return {
+   183→   183→      total: purchaseOrders.length,
+   184→   184→      pending: purchaseOrders.filter((p) => p.status === 'Pending Approval').length,
+   185→   185→      open: purchaseOrders.filter((p) => OPEN_STATUSES.includes(p.status as PurchaseOrderStatus)).length,
+   186→   186→      totalSpent: purchaseOrders
+   187→   187→        .filter((p) => !EXCLUDED_FROM_SPENT.includes(p.status))
+   188→   188→        .reduce((sum, p) => sum + (p.totalAmount || 0), 0),
+   189→   189→    }
+   190→   190→  }, [purchaseOrders])
+   191→   191→
+   192→   192→  async function handleDelete(id: string) {
+   193→   193→    try {
+   194→   194→      await purchaseOrdersApi.delete(id)
+   195→   195→      toast.success('Purchase order deleted')
+   196→   196→      qc.invalidateQueries({ queryKey: ['purchase-orders'] })
+   197→   197→      setDeletingId(null)
+   198→   198→    } catch (e) {
+   199→   199→      toast.error('Delete failed: ' + String(e))
+   200→   200→    }
+   201→   201→  }
+   202→   202→
+   203→   203→  async function handleQuickStatusChange(po: PurchaseOrder, newStatus: PurchaseOrderStatus, label: string) {
+   204→   204→    try {
+   205→   205→      const patch: Partial<PurchaseOrder> = { status: newStatus }
+   206→   206→      if (newStatus === 'Approved') {
+   207→   207→        // Find an approver — prefer IT Manager role, fall back to first person.
+   208→   208→        const approvers = await personsApi.list()
+   209→   209→        const approver =
+   210→   210→          approvers.find((p) => (p.role || '').toLowerCase().includes('manager')) || approvers[0]
+   211→   211→        if (approver) {
+   212→   212→          patch.approvedById = approver.id
+   213→   213→          patch.approvedAt = new Date().toISOString()
+   214→   214→        }
+   215→   215→      }
+   216→   216→      await purchaseOrdersApi.update(po.id, patch)
+   217→   217→      toast.success(`Purchase order ${label}`)
+   218→   218→      qc.invalidateQueries({ queryKey: ['purchase-orders'] })
+   219→   219→    } catch (e) {
+   220→   220→      toast.error(`Update failed: ${String(e)}`)
+   221→   221→    }
+   222→   222→  }
+   223→   223→
+   224→   224→  return (
+   225→   225→    <div className="space-y-5 animate-fade-in-up">
+   226→   226→      {/* Header */}
+   227→   227→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   228→   228→        <div>
+   229→   229→          <h2 className="text-xl font-bold tracking-tight">Purchase Orders</h2>
+   230→   230→          <p className="text-sm text-muted-foreground">
+   231→   231→            Create, track, and manage purchase orders with vendor line items and approval workflow.
+   232→   232→          </p>
+   233→   233→        </div>
+   234→   234→        <div className="flex gap-2">
+   235→   235→          <Button variant="outline" onClick={() => exportApi.download(exportApi.purchaseOrders())}>
+   236→   236→            <Download className="h-4 w-4 mr-1.5" /> Export CSV
+   237→   237→          </Button>
+   238→   238→          <Button
+   239→   239→            className="btn-press"
+   240→   240→            onClick={() => {
+   241→   241→              setEditingId(null)
+   242→   242→              setShowForm(true)
+   243→   243→            }}
+   244→   244→          >
+   245→   245→            <Plus className="h-4 w-4 mr-1.5" /> New Purchase Order
+   246→   246→          </Button>
+   247→   247→        </div>
+   248→   248→      </div>
+   249→   249→
+   250→   250→      {/* Stat tiles */}
+   251→   251→      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+   252→   252→        <StatTile label="Total POs" value={stats.total} icon={ShoppingCart} color="#0f172a" />
+   253→   253→        <StatTile
+   254→   254→          label="Pending Approval"
+   255→   255→          value={stats.pending}
+   256→   256→          icon={Clock}
+   257→   257→          color="#f59e0b"
+   258→   258→          hint="awaiting review"
+   259→   259→        />
+   260→   260→        <StatTile label="Open POs" value={stats.open} icon={Loader} color="#0ea5e9" hint="in-flight" />
+   261→   261→        <StatTile
+   262→   262→          label="Total Spent"
+   263→   263→          value={formatCurrency(stats.totalSpent)}
+   264→   264→          icon={DollarSign}
+   265→   265→          color="#10b981"
+   266→   266→          hint="excl. drafts & cancelled"
+   267→   267→        />
+   268→   268→      </div>
+   269→   269→
+   270→   270→      {/* Filter bar */}
+   271→   271→      <Card className="card-hover">
+   272→   272→        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+   273→   273→          <div className="flex-1 space-y-1.5">
+   274→   274→            <Label className="text-xs">Search</Label>
+   275→   275→            <div className="relative">
+   276→   276→              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+   277→   277→              <Input
+   278→   278→                placeholder="Search PO #, vendor, notes..."
+   279→   279→                value={search}
+   280→   280→                onChange={(e) => setSearch(e.target.value)}
+   281→   281→                className="pl-8 h-9"
+   282→   282→              />
+   283→   283→            </div>
+   284→   284→          </div>
+   285→   285→          <div className="flex-1 space-y-1.5">
+   286→   286→            <Label className="text-xs">Status</Label>
+   287→   287→            <Select value={statusFilter} onValueChange={setStatusFilter}>
+   288→   288→              <SelectTrigger className="h-9">
+   289→   289→                <SelectValue />
+   290→   290→              </SelectTrigger>
+   291→   291→              <SelectContent>
+   292→   292→                <SelectItem value="all">All Statuses</SelectItem>
+   293→   293→                {PO_STATUSES.map((s) => (
+   294→   294→                  <SelectItem key={s} value={s}>
+   295→   295→                    {s}
+   296→   296→                  </SelectItem>
+   297→   297→                ))}
+   298→   298→              </SelectContent>
+   299→   299→            </Select>
+   300→   300→          </div>
+   301→   301→          <div className="flex-1 space-y-1.5">
+   302→   302→            <Label className="text-xs">Vendor</Label>
+   303→   303→            <Select value={vendorFilter} onValueChange={setVendorFilter}>
+   304→   304→              <SelectTrigger className="h-9">
+   305→   305→                <SelectValue />
+   306→   306→              </SelectTrigger>
+   307→   307→              <SelectContent>
+   308→   308→                <SelectItem value="all">All Vendors</SelectItem>
+   309→   309→                {(vendors || []).map((v) => (
+   310→   310→                  <SelectItem key={v.id} value={v.id}>
+   311→   311→                    {v.name}
+   312→   312→                  </SelectItem>
+   313→   313→                ))}
+   314→   314→              </SelectContent>
+   315→   315→            </Select>
+   316→   316→          </div>
+   317→   317→          {(search || statusFilter !== 'all' || vendorFilter !== 'all') && (
+   318→   318→            <Button
+   319→   319→              variant="outline"
+   320→   320→              size="sm"
+   321→   321→              className="h-9"
+   322→   322→              onClick={() => {
+   323→   323→                setSearch('')
+   324→   324→                setStatusFilter('all')
+   325→   325→                setVendorFilter('all')
+   326→   326→              }}
+   327→   327→            >
+   328→   328→              <X className="h-3.5 w-3.5 mr-1" /> Clear
+   329→   329→            </Button>
+   330→   330→          )}
+   331→   331→        </CardContent>
+   332→   332→      </Card>
+   333→   333→
+   334→   334→      {/* Table */}
+   335→   335→      <Card>
+   336→   336→        <CardHeader className="pb-2">
+   337→   337→          <div className="flex items-center justify-between">
+   338→   338→            <div>
+   339→   339→              <CardTitle className="text-base">All Purchase Orders</CardTitle>
+   340→   340→              <CardDescription>
+   341→   341→                {filtered.length} of {purchaseOrders?.length ?? 0} purchase orders
+   342→   342→              </CardDescription>
+   343→   343→            </div>
+   344→   344→            <Badge variant="secondary" className="gap-1">
+   345→   345→              <Filter className="h-3 w-3" /> {statusFilter === 'all' ? 'All' : statusFilter}
+   346→   346→            </Badge>
+   347→   347→          </div>
+   348→   348→        </CardHeader>
+   349→   349→        <div className="overflow-x-auto scrollbar-thin">
+   350→   350→          <Table>
+   351→   351→            <TableHeader>
+   352→   352→              <TableRow>
+   353→   353→                <TableHead>PO Number</TableHead>
+   354→   354→                <TableHead>Vendor</TableHead>
+   355→   355→                <TableHead>Order Date</TableHead>
+   356→   356→                <TableHead>Expected</TableHead>
+   357→   357→                <TableHead>Status</TableHead>
+   358→   358→                <TableHead className="text-center">Items</TableHead>
+   359→   359→                <TableHead>Total</TableHead>
+   360→   360→                <TableHead>Requester</TableHead>
+   361→   361→                <TableHead className="text-right">Actions</TableHead>
+   362→   362→              </TableRow>
+   363→   363→            </TableHeader>
+   364→   364→            <TableBody>
+   365→   365→              {isLoading ? (
+   366→   366→                Array.from({ length: 5 }).map((_, i) => (
+   367→   367→                  <TableRow key={i}>
+   368→   368→                    {Array.from({ length: 9 }).map((_, j) => (
+   369→   369→                      <TableCell key={j}>
+   370→   370→                        <Skeleton className="h-5 w-full" />
+   371→   371→                      </TableCell>
+   372→   372→                    ))}
+   373→   373→                  </TableRow>
+   374→   374→                ))
+   375→   375→              ) : filtered.length === 0 ? (
+   376→   376→                <TableRow>
+   377→   377→                  <TableCell colSpan={9} className="h-32 text-center">
+   378→   378→                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+   379→   379→                      <ShoppingCart className="h-8 w-8" />
+   380→   380→                      <p>No purchase orders found</p>
+   381→   381→                      <Button
+   382→   382→                        size="sm"
+   383→   383→                        onClick={() => {
+   384→   384→                          setEditingId(null)
+   385→   385→                          setShowForm(true)
+   386→   386→                        }}
+   387→   387→                      >
+   388→   388→                        <Plus className="h-4 w-4 mr-1.5" /> Create your first PO
+   389→   389→                      </Button>
+   390→   390→                    </div>
+   391→   391→                  </TableCell>
+   392→   392→                </TableRow>
+   393→   393→              ) : (
+   394→   394→                filtered.map((po) => {
+   395→   395→                  const itemCount = po._count?.items ?? po.items?.length ?? 0
+   396→   396→                  return (
+   397→   397→                    <TableRow key={po.id} className="hover:bg-muted/40">
+   398→   398→                      <TableCell>
+   399→   399→                        <button
+   400→   400→                          onClick={() => setViewingId(po.id)}
+   401→   401→                          className="font-mono font-bold text-primary hover:underline"
+   402→   402→                        >
+   403→   403→                          {po.poNumber}
+   404→   404→                        </button>
+   405→   405→                      </TableCell>
+   406→   406→                      <TableCell>
+   407→   407→                        <div className="font-medium">{po.vendor?.name || '—'}</div>
+   408→   408→                        {po.vendor?.category && (
+   409→   409→                          <Badge variant="outline" className="mt-0.5 text-[10px]">
+   410→   410→                            {po.vendor.category}
+   411→   411→                          </Badge>
+   412→   412→                        )}
+   413→   413→                      </TableCell>
+   414→   414→                      <TableCell>
+   415→   415→                        <div className="text-sm">{formatDate(po.orderDate)}</div>
+   416→   416→                        <div className="text-[10px] text-muted-foreground">{formatRelative(po.orderDate)}</div>
+   417→   417→                      </TableCell>
+   418→   418→                      <TableCell className="text-sm">
+   419→   419→                        {po.expectedDate ? formatDate(po.expectedDate) : '—'}
+   420→   420→                      </TableCell>
+   421→   421→                      <TableCell>
+   422→   422→                        <StatusBadge status={po.status} />
+   423→   423→                      </TableCell>
+   424→   424→                      <TableCell className="text-center tabular-nums">{itemCount}</TableCell>
+   425→   425→                      <TableCell className="tabular-nums font-medium">
+   426→   426→                        {formatCurrency(po.totalAmount, po.currency)}
+   427→   427→                      </TableCell>
+   428→   428→                      <TableCell>
+   429→   429→                        <div className="text-sm">{po.requestedBy?.fullName || '—'}</div>
+   430→   430→                        {po.requestedBy?.role && (
+   431→   431→                          <div className="text-[10px] text-muted-foreground">{po.requestedBy.role}</div>
+   432→   432→                        )}
+   433→   433→                      </TableCell>
+   434→   434→                      <TableCell className="text-right">
+   435→   435→                        <div className="flex items-center justify-end gap-1">
+   436→   436→                          {po.status === 'Pending Approval' && (
+   437→   437→                            <Button
+   438→   438→                              size="sm"
+   439→   439→                              variant="outline"
+   440→   440→                              className="h-7 text-xs text-emerald-600 hover:text-emerald-700"
+   441→   441→                              onClick={() => handleQuickStatusChange(po, 'Approved', 'approved')}
+   442→   442→                            >
+   443→   443→                              <Check className="h-3 w-3 mr-0.5" /> Approve
+   444→   444→                            </Button>
+   445→   445→                          )}
+   446→   446→                          {po.status === 'Approved' && (
+   447→   447→                            <Button
+   448→   448→                              size="sm"
+   449→   449→                              variant="outline"
+   450→   450→                              className="h-7 text-xs text-violet-600 hover:text-violet-700"
+   451→   451→                              onClick={() => handleQuickStatusChange(po, 'Ordered', 'marked as ordered')}
+   452→   452→                            >
+   453→   453→                              <Truck className="h-3 w-3 mr-0.5" /> Mark Ordered
+   454→   454→                            </Button>
+   455→   455→                          )}
+   456→   456→                          <Button
+   457→   457→                            size="icon"
+   458→   458→                            variant="ghost"
+   459→   459→                            className="h-7 w-7"
+   460→   460→                            onClick={() => setViewingId(po.id)}
+   461→   461→                            title="View"
+   462→   462→                          >
+   463→   463→                            <Eye className="h-3.5 w-3.5" />
+   464→   464→                          </Button>
+   465→   465→                          <Button
+   466→   466→                            size="icon"
+   467→   467→                            variant="ghost"
+   468→   468→                            className="h-7 w-7"
+   469→   469→                            onClick={() => {
+   470→   470→                              setEditingId(po.id)
+   471→   471→                              setShowForm(true)
+   472→   472→                            }}
+   473→   473→                            title="Edit"
+   474→   474→                          >
+   475→   475→                            <Pencil className="h-3.5 w-3.5" />
+   476→   476→                          </Button>
+   477→   477→                          <Button
+   478→   478→                            size="icon"
+   479→   479→                            variant="ghost"
+   480→   480→                            className="h-7 w-7 text-destructive"
+   481→   481→                            onClick={() => setDeletingId(po.id)}
+   482→   482→                            title="Delete"
+   483→   483→                          >
+   484→   484→                            <Trash2 className="h-3.5 w-3.5" />
+   485→   485→                          </Button>
+   486→   486→                        </div>
+   487→   487→                      </TableCell>
+   488→   488→                    </TableRow>
+   489→   489→                  )
+   490→   490→                })
+   491→   491→              )}
+   492→   492→            </TableBody>
+   493→   493→          </Table>
+   494→   494→        </div>
+   495→   495→      </Card>
+   496→   496→
+   497→   497→      {/* Form dialog (create/edit) */}
+   498→   498→      <POFormDialog open={showForm} onOpenChange={setShowForm} editingId={editingId} />
+   499→   499→
+   500→   500→      {/* Detail dialog */}
+   501→   501→      {viewingId && (
+   502→   502→        <PODetailDialog id={viewingId} open={!!viewingId} onOpenChange={(v) => !v && setViewingId(null)} />
+   503→   503→      )}
+   504→   504→
+   505→   505→      {/* Delete confirmation */}
+   506→   506→      <AlertDialog open={!!deletingId} onOpenChange={(v) => !v && setDeletingId(null)}>
+   507→   507→        <AlertDialogContent>
+   508→   508→          <AlertDialogHeader>
+   509→   509→            <AlertDialogTitle>Delete purchase order?</AlertDialogTitle>
+   510→   510→            <AlertDialogDescription>
+   511→   511→              This will permanently delete the purchase order and all of its line items. This action cannot be undone.
+   512→   512→            </AlertDialogDescription>
+   513→   513→          </AlertDialogHeader>
+   514→   514→          <AlertDialogFooter>
+   515→   515→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+   516→   516→            <AlertDialogAction
+   517→   517→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   518→   518→              onClick={() => deletingId && handleDelete(deletingId)}
+   519→   519→            >
+   520→   520→              <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+   521→   521→            </AlertDialogAction>
+   522→   522→          </AlertDialogFooter>
+   523→   523→        </AlertDialogContent>
+   524→   524→      </AlertDialog>
+   525→   525→    </div>
+   526→   526→  )
+   527→   527→}
+   528→   528→
+   529→   529→// ==================== Form Dialog ====================
+   530→   530→
+   531→   531→interface ItemDraft {
+   532→   532→  _key: string
+   533→   533→  id?: string
+   534→   534→  assetTypeId: string
+   535→   535→  description: string
+   536→   536→  quantity: string
+   537→   537→  unitPrice: string
+   538→   538→  notes: string
+   539→   539→}
+   540→   540→
+   541→   541→let _itemKeyCounter = 0
+   542→   542→function makeItemKey() {
+   543→   543→  _itemKeyCounter += 1
+   544→   544→  return `item-${Date.now()}-${_itemKeyCounter}`
+   545→   545→}
+   546→   546→
+   547→   547→function generatePoNumberPlaceholder() {
+   548→   548→  const year = new Date().getFullYear()
+   549→   549→  const rand = Math.floor(Math.random() * 9000) + 1000
+   550→   550→  return `PO-${year}-${rand}`
+   551→   551→}
+   552→   552→
+   553→   553→function POFormDialog({
+   554→   554→  open,
+   555→   555→  onOpenChange,
+   556→   556→  editingId,
+   557→   557→}: {
+   558→   558→  open: boolean
+   559→   559→  onOpenChange: (v: boolean) => void
+   560→   560→  editingId: string | null
+   561→   561→}) {
+   562→   562→  const qc = useQueryClient()
+   563→   563→  const { data: vendors } = useQuery({ queryKey: ['vendors'], queryFn: () => vendorsApi.list() })
+   564→   564→  const { data: persons } = useQuery({ queryKey: ['persons'], queryFn: () => personsApi.list() })
+   565→   565→  const { data: assetTypes } = useQuery({ queryKey: ['asset-types'], queryFn: () => assetTypesApi.list() })
+   566→   566→  const { data: allPOs } = useQuery({ queryKey: ['purchase-orders'], queryFn: () => purchaseOrdersApi.list() })
+   567→   567→
+   568→   568→  const editing = useMemo(
+   569→   569→    () => (editingId ? allPOs?.find((p) => p.id === editingId) : undefined),
+   570→   570→    [editingId, allPOs]
+   571→   571→  )
+   572→   572→
+   573→   573→  const [form, setForm] = useState<Record<string, unknown>>({})
+   574→   574→  const [items, setItems] = useState<ItemDraft[]>([])
+   575→   575→  const [saving, setSaving] = useState(false)
+   576→   576→
+   577→   577→  useMemo(() => {
+   578→   578→    if (!open) return
+   579→   579→    if (editingId && !editing) return // wait for data
+   580→   580→    setForm({
+   581→   581→      poNumber: editing?.poNumber || generatePoNumberPlaceholder(),
+   582→   582→      vendorId: editing?.vendorId || '',
+   583→   583→      status: editing?.status || 'Draft',
+   584→   584→      orderDate: editing?.orderDate ? editing.orderDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+   585→   585→      expectedDate: editing?.expectedDate ? editing.expectedDate.slice(0, 10) : '',
+   586→   586→      requestedById: editing?.requestedById || '',
+   587→   587→      taxRate: editing?.taxRate ?? 0,
+   588→   588→      shippingCost: editing?.shippingCost ?? 0,
+   589→   589→      currency: editing?.currency || 'USD',
+   590→   590→      notes: editing?.notes || '',
+   591→   591→    })
+   592→   592→    if (editing?.items && editing.items.length > 0) {
+   593→   593→      setItems(
+   594→   594→        editing.items.map((it) => ({
+   595→   595→          _key: makeItemKey(),
+   596→   596→          id: it.id,
+   597→   597→          assetTypeId: it.assetTypeId || '',
+   598→   598→          description: it.description || '',
+   599→   599→          quantity: String(it.quantity ?? 1),
+   600→   600→          unitPrice: String(it.unitPrice ?? 0),
+   601→   601→          notes: it.notes || '',
+   602→   602→        }))
+   603→   603→      )
+   604→   604→    } else {
+   605→   605→      setItems([{ _key: makeItemKey(), assetTypeId: '', description: '', quantity: '1', unitPrice: '0', notes: '' }])
+   606→   606→    }
+   607→   607→  }, [open, editingId, editing])
+   608→   608→
+   609→   609→  // ---- Auto-calculated totals ----
+   610→   610→  const subtotal = useMemo(
+   611→   611→    () =>
+   612→   612→      items.reduce((s, it) => {
+   613→   613→        const qty = Number(it.quantity) || 0
+   614→   614→        const unit = Number(it.unitPrice) || 0
+   615→   615→        return s + qty * unit
+   616→   616→      }, 0),
+   617→   617→    [items]
+   618→   618→  )
+   619→   619→  const taxRateNum = Number(form.taxRate) || 0
+   620→   620→  const taxAmount = (subtotal * taxRateNum) / 100
+   621→   621→  const shippingNum = Number(form.shippingCost) || 0
+   622→   622→  const totalAmount = subtotal + taxAmount + shippingNum
+   623→   623→
+   624→   624→  function setField(key: string, value: unknown) {
+   625→   625→    setForm((f) => ({ ...f, [key]: value }))
+   626→   626→  }
+   627→   627→
+   628→   628→  function setItemField(key: string, field: keyof ItemDraft, value: string) {
+   629→   629→    setItems((arr) => arr.map((it) => (it._key === key ? { ...it, [field]: value } : it)))
+   630→   630→  }
+   631→   631→
+   632→   632→  function addItem() {
+   633→   633→    setItems((arr) => [
+   634→   634→      ...arr,
+   635→   635→      { _key: makeItemKey(), assetTypeId: '', description: '', quantity: '1', unitPrice: '0', notes: '' },
+   636→   636→    ])
+   637→   637→  }
+   638→   638→
+   639→   639→  function removeItem(key: string) {
+   640→   640→    setItems((arr) => (arr.length <= 1 ? arr : arr.filter((it) => it._key !== key)))
+   641→   641→  }
+   642→   642→
+   643→   643→  async function save() {
+   644→   644→    if (!form.vendorId) {
+   645→   645→      toast.error('Vendor is required')
+   646→   646→      return
+   647→   647→    }
+   648→   648→    const cleanItems = items.filter((it) => it.description.trim() !== '')
+   649→   649→    if (cleanItems.length === 0) {
+   650→   650→      toast.error('At least one line item with a description is required')
+   651→   651→      return
+   652→   652→    }
+   653→   653→    for (const it of cleanItems) {
+   654→   654→      if (!it.description.trim()) {
+   655→   655→        toast.error('All line items must have a description')
+   656→   656→        return
+   657→   657→      }
+   658→   658→    }
+   659→   659→    setSaving(true)
+   660→   660→    try {
+   661→   661→      const payload: Partial<PurchaseOrder> & { items?: Partial<PurchaseOrderItem>[] } = {
+   662→   662→        poNumber: String(form.poNumber || generatePoNumberPlaceholder()),
+   663→   663→        vendorId: String(form.vendorId),
+   664→   664→        status: String(form.status || 'Draft'),
+   665→   665→        orderDate: form.orderDate
+   666→   666→          ? new Date(String(form.orderDate)).toISOString()
+   667→   667→          : new Date().toISOString(),
+   668→   668→        expectedDate: form.expectedDate ? new Date(String(form.expectedDate)).toISOString() : null,
+   669→   669→        requestedById: form.requestedById ? String(form.requestedById) : null,
+   670→   670→        taxRate: Number(form.taxRate) || 0,
+   671→   671→        shippingCost: Number(form.shippingCost) || 0,
+   672→   672→        currency: String(form.currency || 'USD'),
+   673→   673→        notes: form.notes ? String(form.notes) : null,
+   674→   674→        items: cleanItems.map((it) => ({
+   675→   675→          id: it.id,
+   676→   676→          assetTypeId: it.assetTypeId || null,
+   677→   677→          description: it.description.trim(),
+   678→   678→          quantity: Number(it.quantity) || 1,
+   679→   679→          unitPrice: Number(it.unitPrice) || 0,
+   680→   680→          totalPrice: (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+   681→   681→          notes: it.notes || null,
+   682→   682→        })),
+   683→   683→      }
+   684→   684→      if (editingId) {
+   685→   685→        await purchaseOrdersApi.update(editingId, payload)
+   686→   686→        toast.success('Purchase order updated')
+   687→   687→      } else {
+   688→   688→        await purchaseOrdersApi.create(payload)
+   689→   689→        toast.success('Purchase order created')
+   690→   690→      }
+   691→   691→      qc.invalidateQueries({ queryKey: ['purchase-orders'] })
+   692→   692→      onOpenChange(false)
+   693→   693→    } catch (e) {
+   694→   694→      toast.error('Save failed: ' + String(e))
+   695→   695→    } finally {
+   696→   696→      setSaving(false)
+   697→   697→    }
+   698→   698→  }
+   699→   699→
+   700→   700→  return (
+   701→   701→    <Dialog open={open} onOpenChange={onOpenChange}>
+   702→   702→      <DialogContent className="max-w-4xl">
+   703→   703→        <DialogHeader>
+   704→   704→          <DialogTitle>{editingId ? 'Edit Purchase Order' : 'New Purchase Order'}</DialogTitle>
+   705→   705→          <DialogDescription>
+   706→   706→            {editingId
+   707→   707→              ? 'Update purchase order details and line items.'
+   708→   708→              : 'Create a new purchase order with vendor and line items.'}
+   709→   709→          </DialogDescription>
+   710→   710→        </DialogHeader>
+   711→   711→
+   712→   712→        <div className="grid gap-4 max-h-[68vh] overflow-y-auto scrollbar-thin pr-1">
+   713→   713→          {/* Top row: PO number, vendor, status */}
+   714→   714→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   715→   715→            <div className="space-y-1.5">
+   716→   716→              <Label className="text-xs">PO Number</Label>
+   717→   717→              <Input
+   718→   718→                value={String(form.poNumber || '')}
+   719→   719→                onChange={(e) => setField('poNumber', e.target.value)}
+   720→   720→                className="font-mono"
+   721→   721→                placeholder={generatePoNumberPlaceholder()}
+   722→   722→              />
+   723→   723→            </div>
+   724→   724→            <div className="space-y-1.5">
+   725→   725→              <Label className="text-xs">Vendor *</Label>
+   726→   726→              <Select value={String(form.vendorId || '')} onValueChange={(v) => setField('vendorId', v)}>
+   727→   727→                <SelectTrigger>
+   728→   728→                  <SelectValue placeholder="Select vendor" />
+   729→   729→                </SelectTrigger>
+   730→   730→                <SelectContent>
+   731→   731→                  {(vendors || []).map((v) => (
+   732→   732→                    <SelectItem key={v.id} value={v.id}>
+   733→   733→                      {v.name}
+   734→   734→                    </SelectItem>
+   735→   735→                  ))}
+   736→   736→                </SelectContent>
+   737→   737→              </Select>
+   738→   738→            </div>
+   739→   739→            <div className="space-y-1.5">
+   740→   740→              <Label className="text-xs">Status</Label>
+   741→   741→              <Select value={String(form.status || 'Draft')} onValueChange={(v) => setField('status', v)}>
+   742→   742→                <SelectTrigger>
+   743→   743→                  <SelectValue />
+   744→   744→                </SelectTrigger>
+   745→   745→                <SelectContent>
+   746→   746→                  {PO_STATUSES.map((s) => (
+   747→   747→                    <SelectItem key={s} value={s}>
+   748→   748→                      {s}
+   749→   749→                    </SelectItem>
+   750→   750→                  ))}
+   751→   751→                </SelectContent>
+   752→   752→              </Select>
+   753→   753→            </div>
+   754→   754→          </div>
+   755→   755→
+   756→   756→          {/* Dates + requester */}
+   757→   757→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   758→   758→            <div className="space-y-1.5">
+   759→   759→              <Label className="text-xs">Order Date</Label>
+   760→   760→              <Input
+   761→   761→                type="date"
+   762→   762→                value={String(form.orderDate || '')}
+   763→   763→                onChange={(e) => setField('orderDate', e.target.value)}
+   764→   764→              />
+   765→   765→            </div>
+   766→   766→            <div className="space-y-1.5">
+   767→   767→              <Label className="text-xs">Expected Date</Label>
+   768→   768→              <Input
+   769→   769→                type="date"
+   770→   770→                value={String(form.expectedDate || '')}
+   771→   771→                onChange={(e) => setField('expectedDate', e.target.value)}
+   772→   772→              />
+   773→   773→            </div>
+   774→   774→            <div className="space-y-1.5">
+   775→   775→              <Label className="text-xs">Requested By</Label>
+   776→   776→              <Select
+   777→   777→                value={String(form.requestedById || '__none__')}
+   778→   778→                onValueChange={(v) => setField('requestedById', v === '__none__' ? '' : v)}
+   779→   779→              >
+   780→   780→                <SelectTrigger>
+   781→   781→                  <SelectValue placeholder="Select requester" />
+   782→   782→                </SelectTrigger>
+   783→   783→                <SelectContent>
+   784→   784→                  <SelectItem value="__none__">— None —</SelectItem>
+   785→   785→                  {(persons || []).map((p) => (
+   786→   786→                    <SelectItem key={p.id} value={p.id}>
+   787→   787→                      {p.fullName} {p.role ? `(${p.role})` : ''}
+   788→   788→                    </SelectItem>
+   789→   789→                  ))}
+   790→   790→                </SelectContent>
+   791→   791→              </Select>
+   792→   792→            </div>
+   793→   793→          </div>
+   794→   794→
+   795→   795→          {/* Tax / shipping / currency */}
+   796→   796→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   797→   797→            <div className="space-y-1.5">
+   798→   798→              <Label className="text-xs">Tax Rate (%)</Label>
+   799→   799→              <Input
+   800→   800→                type="number"
+   801→   801→                min={0}
+   802→   802→                step="0.01"
+   803→   803→                value={String(form.taxRate ?? '')}
+   804→   804→                onChange={(e) => setField('taxRate', e.target.value)}
+   805→   805→              />
+   806→   806→            </div>
+   807→   807→            <div className="space-y-1.5">
+   808→   808→              <Label className="text-xs">Shipping Cost</Label>
+   809→   809→              <Input
+   810→   810→                type="number"
+   811→   811→                min={0}
+   812→   812→                step="0.01"
+   813→   813→                value={String(form.shippingCost ?? '')}
+   814→   814→                onChange={(e) => setField('shippingCost', e.target.value)}
+   815→   815→              />
+   816→   816→            </div>
+   817→   817→            <div className="space-y-1.5">
+   818→   818→              <Label className="text-xs">Currency</Label>
+   819→   819→              <Select value={String(form.currency || 'USD')} onValueChange={(v) => setField('currency', v)}>
+   820→   820→                <SelectTrigger>
+   821→   821→                  <SelectValue />
+   822→   822→                </SelectTrigger>
+   823→   823→                <SelectContent>
+   824→   824→                  {['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY'].map((c) => (
+   825→   825→                    <SelectItem key={c} value={c}>
+   826→   826→                      {c}
+   827→   827→                    </SelectItem>
+   828→   828→                  ))}
+   829→   829→                </SelectContent>
+   830→   830→              </Select>
+   831→   831→            </div>
+   832→   832→          </div>
+   833→   833→
+   834→   834→          {/* Line items */}
+   835→   835→          <div className="space-y-2">
+   836→   836→            <div className="flex items-center justify-between">
+   837→   837→              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Line Items</Label>
+   838→   838→              <Button size="sm" variant="outline" className="h-7" onClick={addItem}>
+   839→   839→                <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
+   840→   840→              </Button>
+   841→   841→            </div>
+   842→   842→            <div className="rounded-lg border overflow-hidden">
+   843→   843→              <Table>
+   844→   844→                <TableHeader>
+   845→   845→                  <TableRow className="bg-muted/40">
+   846→   846→                    <TableHead className="w-[180px]">Asset Type</TableHead>
+   847→   847→                    <TableHead>Description *</TableHead>
+   848→   848→                    <TableHead className="w-[80px]">Qty</TableHead>
+   849→   849→                    <TableHead className="w-[110px]">Unit Price</TableHead>
+   850→   850→                    <TableHead className="w-[110px] text-right">Total</TableHead>
+   851→   851→                    <TableHead className="w-[40px]" />
+   852→   852→                  </TableRow>
+   853→   853→                </TableHeader>
+   854→   854→                <TableBody>
+   855→   855→                  {items.map((it) => {
+   856→   856→                    const qty = Number(it.quantity) || 0
+   857→   857→                    const unit = Number(it.unitPrice) || 0
+   858→   858→                    const lineTotal = qty * unit
+   859→   859→                    return (
+   860→   860→                      <TableRow key={it._key}>
+   861→   861→                        <TableCell>
+   862→   862→                          <Select
+   863→   863→                            value={it.assetTypeId || '__none__'}
+   864→   864→                            onValueChange={(v) => setItemField(it._key, 'assetTypeId', v === '__none__' ? '' : v)}
+   865→   865→                          >
+   866→   866→                            <SelectTrigger className="h-8 text-xs">
+   867→   867→                              <SelectValue placeholder="—" />
+   868→   868→                            </SelectTrigger>
+   869→   869→                            <SelectContent>
+   870→   870→                              <SelectItem value="__none__">— None —</SelectItem>
+   871→   871→                              {(assetTypes || []).map((t) => (
+   872→   872→                                <SelectItem key={t.id} value={t.id}>
+   873→   873→                                  {t.name}
+   874→   874→                                </SelectItem>
+   875→   875→                              ))}
+   876→   876→                            </SelectContent>
+   877→   877→                          </Select>
+   878→   878→                        </TableCell>
+   879→   879→                        <TableCell>
+   880→   880→                          <Input
+   881→   881→                            className="h-8 text-xs"
+   882→   882→                            value={it.description}
+   883→   883→                            onChange={(e) => setItemField(it._key, 'description', e.target.value)}
+   884→   884→                            placeholder="Item description"
+   885→   885→                          />
+   886→   886→                        </TableCell>
+   887→   887→                        <TableCell>
+   888→   888→                          <Input
+   889→   889→                            type="number"
+   890→   890→                            min={1}
+   891→   891→                            className="h-8 text-xs tabular-nums"
+   892→   892→                            value={it.quantity}
+   893→   893→                            onChange={(e) => setItemField(it._key, 'quantity', e.target.value)}
+   894→   894→                          />
+   895→   895→                        </TableCell>
+   896→   896→                        <TableCell>
+   897→   897→                          <Input
+   898→   898→                            type="number"
+   899→   899→                            min={0}
+   900→   900→                            step="0.01"
+   901→   901→                            className="h-8 text-xs tabular-nums"
+   902→   902→                            value={it.unitPrice}
+   903→   903→                            onChange={(e) => setItemField(it._key, 'unitPrice', e.target.value)}
+   904→   904→                          />
+   905→   905→                        </TableCell>
+   906→   906→                        <TableCell className="text-right tabular-nums font-medium">
+   907→   907→                          {formatCurrency(lineTotal, String(form.currency || 'USD'))}
+   908→   908→                        </TableCell>
+   909→   909→                        <TableCell>
+   910→   910→                          <Button
+   911→   911→                            size="icon"
+   912→   912→                            variant="ghost"
+   913→   913→                            className="h-7 w-7 text-destructive"
+   914→   914→                            disabled={items.length <= 1}
+   915→   915→                            onClick={() => removeItem(it._key)}
+   916→   916→                          >
+   917→   917→                            <Trash2 className="h-3.5 w-3.5" />
+   918→   918→                          </Button>
+   919→   919→                        </TableCell>
+   920→   920→                      </TableRow>
+   921→   921→                    )
+   922→   922→                  })}
+   923→   923→                </TableBody>
+   924→   924→              </Table>
+   925→   925→            </div>
+   926→   926→          </div>
+   927→   927→
+   928→   928→          {/* Notes */}
+   929→   929→          <div className="space-y-1.5">
+   930→   930→            <Label className="text-xs">Notes</Label>
+   931→   931→            <Textarea
+   932→   932→              rows={2}
+   933→   933→              value={String(form.notes || '')}
+   934→   934→              onChange={(e) => setField('notes', e.target.value)}
+   935→   935→              placeholder="Internal notes, payment terms reminders, etc."
+   936→   936→            />
+   937→   937→          </div>
+   938→   938→
+   939→   939→          {/* Summary footer */}
+   940→   940→          <div className="rounded-lg border bg-muted/30 p-3">
+   941→   941→            <div className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+   942→   942→              <div className="flex justify-between">
+   943→   943→                <span className="text-muted-foreground">Subtotal</span>
+   944→   944→                <span className="tabular-nums font-medium">
+   945→   945→                  {formatCurrency(subtotal, String(form.currency || 'USD'))}
+   946→   946→                </span>
+   947→   947→              </div>
+   948→   948→              <div className="flex justify-between">
+   949→   949→                <span className="text-muted-foreground">Tax ({taxRateNum.toFixed(2)}%)</span>
+   950→   950→                <span className="tabular-nums font-medium">
+   951→   951→                  {formatCurrency(taxAmount, String(form.currency || 'USD'))}
+   952→   952→                </span>
+   953→   953→              </div>
+   954→   954→              <div className="flex justify-between">
+   955→   955→                <span className="text-muted-foreground">Shipping</span>
+   956→   956→                <span className="tabular-nums font-medium">
+   957→   957→                  {formatCurrency(shippingNum, String(form.currency || 'USD'))}
+   958→   958→                </span>
+   959→   959→              </div>
+   960→   960→              <Separator className="my-1" />
+   961→   961→              <div className="flex justify-between text-base font-bold">
+   962→   962→                <span>Total</span>
+   963→   963→                <span className="tabular-nums">{formatCurrency(totalAmount, String(form.currency || 'USD'))}</span>
+   964→   964→              </div>
+   965→   965→            </div>
+   966→   966→          </div>
+   967→   967→        </div>
+   968→   968→
+   969→   969→        <DialogFooter>
+   970→   970→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   971→   971→            Cancel
+   972→   972→          </Button>
+   973→   973→          <Button onClick={save} disabled={saving}>
+   974→   974→            {saving ? 'Saving...' : editingId ? 'Update PO' : 'Create PO'}
+   975→   975→          </Button>
+   976→   976→        </DialogFooter>
+   977→   977→      </DialogContent>
+   978→   978→    </Dialog>
+   979→   979→  )
+   980→   980→}
+   981→   981→
+   982→   982→// ==================== Detail Dialog ====================
+   983→   983→
+   984→   984→function PODetailDialog({
+   985→   985→  id,
+   986→   986→  open,
+   987→   987→  onOpenChange,
+   988→   988→}: {
+   989→   989→  id: string
+   990→   990→  open: boolean
+   991→   991→  onOpenChange: (v: boolean) => void
+   992→   992→}) {
+   993→   993→  const { data: po, isLoading } = useQuery({
+   994→   994→    queryKey: ['purchase-order', id],
+   995→   995→    queryFn: () => purchaseOrdersApi.get(id),
+   996→   996→    enabled: open && !!id,
+   997→   997→  })
+   998→   998→
+   999→   999→  if (!po) {
+  1000→  1000→    return (
+  1001→  1001→      <Dialog open={open} onOpenChange={onOpenChange}>
+  1002→  1002→        <DialogContent className="max-w-4xl">
+  1003→  1003→          <div className="flex items-center justify-center h-40">
+  1004→  1004→            {isLoading ? (
+  1005→  1005→              <div className="space-y-2 w-full max-w-md">
+  1006→  1006→                <Skeleton className="h-6 w-1/3" />
+  1007→  1007→                <Skeleton className="h-4 w-full" />
+  1008→  1008→                <Skeleton className="h-4 w-2/3" />
+  1009→  1009→              </div>
+  1010→  1010→            ) : (
+  1011→  1011→              <p className="text-muted-foreground">Purchase order not found.</p>
+  1012→  1012→            )}
+  1013→  1013→          </div>
+  1014→  1014→        </DialogContent>
+  1015→  1015→      </Dialog>
+  1016→  1016→    )
+  1017→  1017→  }
+  1018→  1018→
+  1019→  1019→  const currency = po.currency || 'USD'
+  1020→  1020→
+  1021→  1021→  return (
+  1022→  1022→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1023→  1023→      <DialogContent className="max-w-4xl">
+  1024→  1024→        <DialogHeader>
+  1025→  1025→          <div className="flex flex-wrap items-start justify-between gap-3">
+  1026→  1026→            <div>
+  1027→  1027→              <DialogTitle className="font-mono text-lg">{po.poNumber}</DialogTitle>
+  1028→  1028→              <DialogDescription>Purchase order details</DialogDescription>
+  1029→  1029→            </div>
+  1030→  1030→            <div className="flex items-center gap-2">
+  1031→  1031→              <StatusBadge status={po.status} />
+  1032→  1032→              <Button size="sm" variant="outline" onClick={() => window.print()}>
+  1033→  1033→                <Printer className="h-3.5 w-3.5 mr-1" /> Print
+  1034→  1034→              </Button>
+  1035→  1035→            </div>
+  1036→  1036→          </div>
+  1037→  1037→        </DialogHeader>
+  1038→  1038→
+  1039→  1039→        <div className="grid gap-4 max-h-[72vh] overflow-y-auto scrollbar-thin pr-1">
+  1040→  1040→          {/* Vendor + dates row */}
+  1041→  1041→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  1042→  1042→            {/* Vendor card */}
+  1043→  1043→            <Card className="card-hover">
+  1044→  1044→              <CardHeader className="pb-2">
+  1045→  1045→                <CardTitle className="text-sm flex items-center gap-1.5">
+  1046→  1046→                  <Building2 className="h-4 w-4" /> Vendor
+  1047→  1047→                </CardTitle>
+  1048→  1048→              </CardHeader>
+  1049→  1049→              <CardContent className="space-y-1 text-sm">
+  1050→  1050→                <div className="font-medium text-base">{po.vendor?.name || '—'}</div>
+  1051→  1051→                {po.vendor?.category && (
+  1052→  1052→                  <Badge variant="outline" className="text-[10px]">
+  1053→  1053→                    {po.vendor.category}
+  1054→  1054→                  </Badge>
+  1055→  1055→                )}
+  1056→  1056→                {po.vendor?.contactPerson && (
+  1057→  1057→                  <div className="flex items-center gap-1.5 text-muted-foreground">
+  1058→  1058→                    <User className="h-3 w-3" /> {po.vendor.contactPerson}
+  1059→  1059→                  </div>
+  1060→  1060→                )}
+  1061→  1061→                {po.vendor?.email && (
+  1062→  1062→                  <div className="flex items-center gap-1.5 text-muted-foreground">
+  1063→  1063→                    <Mail className="h-3 w-3" /> {po.vendor.email}
+  1064→  1064→                  </div>
+  1065→  1065→                )}
+  1066→  1066→                {po.vendor?.phone && (
+  1067→  1067→                  <div className="flex items-center gap-1.5 text-muted-foreground">
+  1068→  1068→                    <Phone className="h-3 w-3" /> {po.vendor.phone}
+  1069→  1069→                  </div>
+  1070→  1070→                )}
+  1071→  1071→                {po.vendor?.paymentTerms && (
+  1072→  1072→                  <div className="text-xs text-muted-foreground pt-1">Terms: {po.vendor.paymentTerms}</div>
+  1073→  1073→                )}
+  1074→  1074→              </CardContent>
+  1075→  1075→            </Card>
+  1076→  1076→
+  1077→  1077→            {/* Dates & people */}
+  1078→  1078→            <Card className="card-hover">
+  1079→  1079→              <CardHeader className="pb-2">
+  1080→  1080→                <CardTitle className="text-sm flex items-center gap-1.5">
+  1081→  1081→                  <Calendar className="h-4 w-4" /> Dates &amp; Approval
+  1082→  1082→                </CardTitle>
+  1083→  1083→              </CardHeader>
+  1084→  1084→              <CardContent className="space-y-1.5 text-sm">
+  1085→  1085→                <div className="flex justify-between">
+  1086→  1086→                  <span className="text-muted-foreground">Order Date</span>
+  1087→  1087→                  <span className="font-medium">{formatDate(po.orderDate)}</span>
+  1088→  1088→                </div>
+  1089→  1089→                <div className="flex justify-between">
+  1090→  1090→                  <span className="text-muted-foreground">Expected Date</span>
+  1091→  1091→                  <span className="font-medium">{po.expectedDate ? formatDate(po.expectedDate) : '—'}</span>
+  1092→  1092→                </div>
+  1093→  1093→                <div className="flex justify-between">
+  1094→  1094→                  <span className="text-muted-foreground">Received Date</span>
+  1095→  1095→                  <span className="font-medium">{po.receivedDate ? formatDate(po.receivedDate) : '—'}</span>
+  1096→  1096→                </div>
+  1097→  1097→                <Separator className="my-1" />
+  1098→  1098→                <div className="flex justify-between">
+  1099→  1099→                  <span className="text-muted-foreground">Requested By</span>
+  1100→  1100→                  <span className="font-medium">{po.requestedBy?.fullName || '—'}</span>
+  1101→  1101→                </div>
+  1102→  1102→                <div className="flex justify-between">
+  1103→  1103→                  <span className="text-muted-foreground">Approved By</span>
+  1104→  1104→                  <span className="font-medium">{po.approvedBy?.fullName || '—'}</span>
+  1105→  1105→                </div>
+  1106→  1106→                {po.approvedAt && (
+  1107→  1107→                  <div className="flex justify-between">
+  1108→  1108→                    <span className="text-muted-foreground">Approved At</span>
+  1109→  1109→                    <span className="font-medium">{formatDateTime(po.approvedAt)}</span>
+  1110→  1110→                  </div>
+  1111→  1111→                )}
+  1112→  1112→              </CardContent>
+  1113→  1113→            </Card>
+  1114→  1114→          </div>
+  1115→  1115→
+  1116→  1116→          {/* Items table */}
+  1117→  1117→          <Card>
+  1118→  1118→            <CardHeader className="pb-2">
+  1119→  1119→              <CardTitle className="text-sm flex items-center gap-1.5">
+  1120→  1120→                <Package className="h-4 w-4" /> Line Items ({po.items?.length ?? 0})
+  1121→  1121→              </CardTitle>
+  1122→  1122→            </CardHeader>
+  1123→  1123→            <div className="overflow-x-auto scrollbar-thin">
+  1124→  1124→              <Table>
+  1125→  1125→                <TableHeader>
+  1126→  1126→                  <TableRow className="bg-muted/40">
+  1127→  1127→                    <TableHead>Description</TableHead>
+  1128→  1128→                    <TableHead>Asset Type</TableHead>
+  1129→  1129→                    <TableHead className="text-center">Ordered</TableHead>
+  1130→  1130→                    <TableHead className="text-center">Received</TableHead>
+  1131→  1131→                    <TableHead>Progress</TableHead>
+  1132→  1132→                    <TableHead className="text-right">Unit Price</TableHead>
+  1133→  1133→                    <TableHead className="text-right">Total</TableHead>
+  1134→  1134→                  </TableRow>
+  1135→  1135→                </TableHeader>
+  1136→  1136→                <TableBody>
+  1137→  1137→                  {(po.items || []).length === 0 ? (
+  1138→  1138→                    <TableRow>
+  1139→  1139→                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+  1140→  1140→                        No line items on this PO.
+  1141→  1141→                      </TableCell>
+  1142→  1142→                    </TableRow>
+  1143→  1143→                  ) : (
+  1144→  1144→                    (po.items || []).map((it) => {
+  1145→  1145→                      const qty = it.quantity || 0
+  1146→  1146→                      const recv = it.receivedQuantity || 0
+  1147→  1147→                      const pct = qty > 0 ? Math.min(100, (recv / qty) * 100) : 0
+  1148→  1148→                      return (
+  1149→  1149→                        <TableRow key={it.id}>
+  1150→  1150→                          <TableCell>
+  1151→  1151→                            <div className="font-medium">{it.description}</div>
+  1152→  1152→                            {it.notes && <div className="text-[10px] text-muted-foreground">{it.notes}</div>}
+  1153→  1153→                          </TableCell>
+  1154→  1154→                          <TableCell>
+  1155→  1155→                            {it.assetType ? (
+  1156→  1156→                              <Badge variant="outline" className="text-[10px]">
+  1157→  1157→                                {it.assetType.name}
+  1158→  1158→                              </Badge>
+  1159→  1159→                            ) : (
+  1160→  1160→                              <span className="text-muted-foreground text-xs">—</span>
+  1161→  1161→                            )}
+  1162→  1162→                          </TableCell>
+  1163→  1163→                          <TableCell className="text-center tabular-nums">{qty}</TableCell>
+  1164→  1164→                          <TableCell className="text-center tabular-nums">
+  1165→  1165→                            <span className={recv === qty && qty > 0 ? 'text-emerald-600 font-medium' : ''}>
+  1166→  1166→                              {recv}
+  1167→  1167→                            </span>
+  1168→  1168→                          </TableCell>
+  1169→  1169→                          <TableCell>
+  1170→  1170→                            <div className="w-24">
+  1171→  1171→                              <Progress value={pct} className="h-1.5" />
+  1172→  1172→                            </div>
+  1173→  1173→                          </TableCell>
+  1174→  1174→                          <TableCell className="text-right tabular-nums">
+  1175→  1175→                            {formatCurrency(it.unitPrice, currency)}
+  1176→  1176→                          </TableCell>
+  1177→  1177→                          <TableCell className="text-right tabular-nums font-medium">
+  1178→  1178→                            {formatCurrency(it.totalPrice, currency)}
+  1179→  1179→                          </TableCell>
+  1180→  1180→                        </TableRow>
+  1181→  1181→                      )
+  1182→  1182→                    })
+  1183→  1183→                  )}
+  1184→  1184→                </TableBody>
+  1185→  1185→              </Table>
+  1186→  1186→            </div>
+  1187→  1187→          </Card>
+  1188→  1188→
+  1189→  1189→          {/* Summary */}
+  1190→  1190→          <Card>
+  1191→  1191→            <CardHeader className="pb-2">
+  1192→  1192→              <CardTitle className="text-sm">Summary</CardTitle>
+  1193→  1193→            </CardHeader>
+  1194→  1194→            <CardContent>
+  1195→  1195→              <div className="ml-auto w-full max-w-sm space-y-1.5 text-sm">
+  1196→  1196→                <div className="flex justify-between">
+  1197→  1197→                  <span className="text-muted-foreground">Subtotal</span>
+  1198→  1198→                  <span className="tabular-nums font-medium">{formatCurrency(po.subtotal, currency)}</span>
+  1199→  1199→                </div>
+  1200→  1200→                <div className="flex justify-between">
+  1201→  1201→                  <span className="text-muted-foreground">Tax ({po.taxRate.toFixed(2)}%)</span>
+  1202→  1202→                  <span className="tabular-nums font-medium">{formatCurrency(po.taxAmount, currency)}</span>
+  1203→  1203→                </div>
+  1204→  1204→                <div className="flex justify-between">
+  1205→  1205→                  <span className="text-muted-foreground">Shipping</span>
+  1206→  1206→                  <span className="tabular-nums font-medium">{formatCurrency(po.shippingCost, currency)}</span>
+  1207→  1207→                </div>
+  1208→  1208→                <Separator className="my-1" />
+  1209→  1209→                <div className="flex justify-between text-base font-bold">
+  1210→  1210→                  <span>Total</span>
+  1211→  1211→                  <span className="tabular-nums">{formatCurrency(po.totalAmount, currency)}</span>
+  1212→  1212→                </div>
+  1213→  1213→              </div>
+  1214→  1214→            </CardContent>
+  1215→  1215→          </Card>
+  1216→  1216→
+  1217→  1217→          {/* Notes */}
+  1218→  1218→          {po.notes && (
+  1219→  1219→            <Card>
+  1220→  1220→              <CardHeader className="pb-2">
+  1221→  1221→                <CardTitle className="text-sm">Notes</CardTitle>
+  1222→  1222→              </CardHeader>
+  1223→  1223→              <CardContent>
+  1224→  1224→                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{po.notes}</p>
+  1225→  1225→              </CardContent>
+  1226→  1226→            </Card>
+  1227→  1227→          )}
+  1228→  1228→        </div>
+  1229→  1229→
+  1230→  1230→        <DialogFooter>
+  1231→  1231→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+  1232→  1232→            Close
+  1233→  1233→          </Button>
+  1234→  1234→        </DialogFooter>
+  1235→  1235→      </DialogContent>
+  1236→  1236→    </Dialog>
+  1237→  1237→  )
+  1238→  1238→}
+  1239→  1239→

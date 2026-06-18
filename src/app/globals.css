@@ -1018,3 +1018,168 @@
   100% { transform: scale(2.4); opacity: 0; }
 }
 
+
+/* ============================================================
+   Round 7 — Additional styling utilities (timeline, map, forecast)
+   ============================================================ */
+
+/* Timeline vertical rail */
+.timeline-rail {
+  position: relative;
+}
+.timeline-rail::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: linear-gradient(to bottom, oklch(0.7 0.13 250 / 0.4), oklch(0.7 0.13 250 / 0.1));
+  border-radius: 1px;
+}
+.timeline-dot {
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: oklch(1 0 0);
+  border: 3px solid oklch(0.6 0.15 250);
+  box-shadow: 0 0 0 3px oklch(0.6 0.15 250 / 0.15);
+  z-index: 2;
+}
+.timeline-dot.event-created { border-color: oklch(0.65 0.18 162); box-shadow: 0 0 0 3px oklch(0.65 0.18 162 / 0.15); }
+.timeline-dot.event-assigned { border-color: oklch(0.6 0.18 295); box-shadow: 0 0 0 3px oklch(0.6 0.18 295 / 0.15); }
+.timeline-dot.event-unassigned { border-color: oklch(0.7 0.02 240); box-shadow: 0 0 0 3px oklch(0.7 0.02 240 / 0.15); }
+.timeline-dot.event-maintenance { border-color: oklch(0.7 0.16 70); box-shadow: 0 0 0 3px oklch(0.7 0.16 70 / 0.15); }
+.timeline-dot.event-maintenance-completed { border-color: oklch(0.65 0.18 162); box-shadow: 0 0 0 3px oklch(0.65 0.18 162 / 0.15); }
+.timeline-dot.event-booking { border-color: oklch(0.65 0.15 200); box-shadow: 0 0 0 3px oklch(0.65 0.15 200 / 0.15); }
+.timeline-dot.event-license { border-color: oklch(0.6 0.18 295); box-shadow: 0 0 0 3px oklch(0.6 0.18 295 / 0.15); }
+.timeline-dot.event-disposal { border-color: oklch(0.65 0.22 25); box-shadow: 0 0 0 3px oklch(0.65 0.22 25 / 0.15); }
+.timeline-dot.event-image { border-color: oklch(0.65 0.13 200); box-shadow: 0 0 0 3px oklch(0.65 0.13 200 / 0.15); }
+
+/* Timeline item hover */
+.timeline-item {
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.timeline-item:hover {
+  transform: translateX(2px);
+}
+
+/* Map card — pseudo "map" tile that looks like a location pin on a stylized background */
+.map-tile {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 30%, oklch(0.7 0.13 200 / 0.06), transparent 40%),
+    radial-gradient(circle at 80% 70%, oklch(0.7 0.16 70 / 0.06), transparent 40%),
+    linear-gradient(135deg, oklch(0.97 0.005 240), oklch(0.94 0.005 240));
+}
+.dark .map-tile {
+  background:
+    radial-gradient(circle at 20% 30%, oklch(0.4 0.13 200 / 0.15), transparent 40%),
+    radial-gradient(circle at 80% 70%, oklch(0.4 0.16 70 / 0.15), transparent 40%),
+    linear-gradient(135deg, oklch(0.18 0.01 240), oklch(0.22 0.01 240));
+}
+.map-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(oklch(0.7 0.01 240 / 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.7 0.01 240 / 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Forecast band — for the area between lower and upper bounds */
+.forecast-band {
+  fill: oklch(0.65 0.15 250 / 0.12);
+  stroke: none;
+}
+.forecast-line {
+  stroke: oklch(0.6 0.18 295);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+  fill: none;
+}
+.history-line {
+  stroke: oklch(0.55 0.18 162);
+  stroke-width: 2.5;
+  fill: none;
+}
+
+/* Trend chip colors */
+.trend-chip-up {
+  background: oklch(0.65 0.22 25 / 0.12);
+  color: oklch(0.55 0.22 25);
+  border: 1px solid oklch(0.65 0.22 25 / 0.3);
+}
+.trend-chip-down {
+  background: oklch(0.65 0.18 162 / 0.12);
+  color: oklch(0.5 0.18 162);
+  border: 1px solid oklch(0.65 0.18 162 / 0.3);
+}
+.trend-chip-flat {
+  background: oklch(0.7 0.02 240 / 0.08);
+  color: oklch(0.5 0.02 240);
+  border: 1px solid oklch(0.7 0.02 240 / 0.2);
+}
+
+/* PO receiving progress mini-bar */
+.receive-progress {
+  height: 4px;
+  background: oklch(0.92 0.005 240);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.dark .receive-progress {
+  background: oklch(0.3 0.01 240);
+}
+.receive-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, oklch(0.7 0.16 70), oklch(0.65 0.18 162));
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.receive-progress-fill.full {
+  background: linear-gradient(90deg, oklch(0.65 0.18 162), oklch(0.7 0.13 200));
+}
+
+/* Animated entrance for timeline items (staggered) */
+.timeline-item {
+  animation: timeline-fade-in 0.35s ease-out backwards;
+}
+@keyframes timeline-fade-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Location pin pulse */
+.location-pin {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.location-pin::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: oklch(0.6 0.18 295 / 0.25);
+  animation: location-pulse 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  z-index: -1;
+}
+@keyframes location-pulse {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* Mini sparkline for forecast category cards */
+.sparkline-area {
+  fill: url(#sparkGrad);
+  opacity: 0.4;
+}
+

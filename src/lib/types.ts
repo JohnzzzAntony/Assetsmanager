@@ -938,3 +938,128 @@ export interface MaintenanceCostReport {
   }
 }
 
+// ============ Round 7: Asset Timeline ============
+export type TimelineEventType =
+  | 'created'
+  | 'updated'
+  | 'assigned'
+  | 'unassigned'
+  | 'maintenance.scheduled'
+  | 'maintenance.completed'
+  | 'maintenance.cancelled'
+  | 'booking.created'
+  | 'booking.completed'
+  | 'license.allocated'
+  | 'license.deallocated'
+  | 'image.added'
+  | 'disposal'
+  | 'checkout'
+  | 'checkin'
+
+export interface TimelineEvent {
+  id: string
+  type: TimelineEventType | string
+  timestamp: string
+  title: string
+  description?: string | null
+  icon?: string
+  actorName?: string | null
+  meta?: Record<string, string | number | null | undefined>
+}
+
+export interface AssetTimeline {
+  assetId: string
+  assetTag: string | null
+  assetName: string
+  events: TimelineEvent[]
+  stats: {
+    totalEvents: number
+    assignmentCount: number
+    maintenanceCount: number
+    bookingCount: number
+    firstEventAt: string | null
+    lastEventAt: string | null
+  }
+}
+
+// ============ Round 7: PO Receiving ============
+export interface POReceiveItemPayload {
+  itemId: string
+  receivedQty: number
+}
+
+export interface POReceiveResult {
+  po: PurchaseOrder
+  receivedItems: { itemId: string; description: string; receivedNow: number; totalReceived: number; quantity: number; fullyReceived: boolean }[]
+  allItemsReceived: boolean
+}
+
+// ============ Round 7: Asset Location Map ============
+export interface LocationAssetSummary {
+  locationId: string
+  locationName: string
+  address?: string | null
+  totalAssets: number
+  inUse: number
+  inStock: number
+  repair: number
+  retired: number
+  lost: number
+  utilizationRate: number
+  totalValue: number
+  byType: { assetType: string; count: number }[]
+  topAssets: {
+    id: string
+    assetTag: string | null
+    name: string
+    status: string
+    assetType: string
+  }[]
+}
+
+export interface AssetLocationMapReport {
+  locations: LocationAssetSummary[]
+  totals: {
+    totalLocations: number
+    totalAssets: number
+    totalValue: number
+    avgUtilization: number
+  }
+  unassigned: {
+    count: number
+    value: number
+  }
+}
+
+// ============ Round 7: Cost Forecast ============
+export interface CostForecastPoint {
+  month: string // YYYY-MM
+  historical: number | null // null for future months
+  forecast: number | null // null for past months
+  lowerBound: number | null
+  upperBound: number | null
+}
+
+export interface CostForecastCategory {
+  category: 'purchase' | 'maintenance' | 'depreciation'
+  history: { month: string; value: number }[]
+  forecast: { month: string; value: number; lowerBound: number; upperBound: number }[]
+  trendSlope: number // per month
+  trendDirection: 'up' | 'down' | 'flat'
+  totalHistorical: number
+  totalForecast: number
+  projectedAnnual: number
+}
+
+export interface CostForecastReport {
+  categories: CostForecastCategory[]
+  combined: CostForecastPoint[]
+  totals: {
+    historicalTotal: number
+    forecastTotal: number
+    projectedAnnual: number
+    trendDirection: 'up' | 'down' | 'flat'
+    trendPct: number | null
+  }
+}
+

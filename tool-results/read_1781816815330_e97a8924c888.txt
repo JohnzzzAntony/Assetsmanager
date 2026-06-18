@@ -1,0 +1,918 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useQuery } from '@tanstack/react-query'
+     4→     4→import { dashboardApi, assetsApi, maintenanceApi, auditLogApi } from '@/lib/api'
+     5→     5→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     6→     6→import { Button } from '@/components/ui/button'
+     7→     7→import { Badge } from '@/components/ui/badge'
+     8→     8→import { Progress } from '@/components/ui/progress'
+     9→     9→import { useNav } from '@/lib/nav'
+    10→    10→import { formatRelative, formatCurrency } from '@/lib/format'
+    11→    11→import { STATUS_CONFIG } from '@/lib/types'
+    12→    12→import {
+    13→    13→  Package,
+    14→    14→  CheckCircle2,
+    15→    15→  Boxes,
+    16→    16→  Wrench,
+    17→    17→  Archive,
+    18→    18→  AlertTriangle,
+    19→    19→  TrendingUp,
+    20→    20→  Users,
+    21→    21→  Building2,
+    22→    22→  MapPin,
+    23→    23→  ArrowRight,
+    24→    24→  ScanText,
+    25→    25→  Upload,
+    26→    26→  Plus,
+    27→    27→  Activity,
+    28→    28→  DollarSign,
+    29→    29→  ShieldAlert,
+    30→    30→  KeyRound,
+    31→    31→  ScrollText,
+    32→    32→  Clock,
+    33→    33→  ArrowLeftRight,
+    34→    34→  TrendingDown,
+    35→    35→  Bell,
+    36→    36→  BellRing,
+    37→    37→  Store,
+    38→    38→  ShoppingCart,
+    39→    39→  Trash2,
+    40→    40→  Recycle,
+    41→    41→  Tag,
+    42→    42→  CalendarClock,
+    43→    43→} from 'lucide-react'
+    44→    44→import {
+    45→    45→  ResponsiveContainer,
+    46→    46→  BarChart,
+    47→    47→  Bar,
+    48→    48→  XAxis,
+    49→    49→  YAxis,
+    50→    50→  Tooltip,
+    51→    51→  PieChart,
+    52→    52→  Pie,
+    53→    53→  Cell,
+    54→    54→  CartesianGrid,
+    55→    55→} from 'recharts'
+    56→    56→
+    57→    57→const STATUS_COLORS: Record<string, string> = {
+    58→    58→  'In Use': '#10b981',
+    59→    59→  'In Stock': '#64748b',
+    60→    60→  Repair: '#f59e0b',
+    61→    61→  Retired: '#f43f5e',
+    62→    62→  Lost: '#ef4444',
+    63→    63→}
+    64→    64→
+    65→    65→const CHART_COLORS = ['#0f172a', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+    66→    66→
+    67→    67→function StatCard({
+    68→    68→  label,
+    69→    69→  value,
+    70→    70→  icon: Icon,
+    71→    71→  trend,
+    72→    72→  color,
+    73→    73→  onClick,
+    74→    74→}: {
+    75→    75→  label: string
+    76→    76→  value: number | string
+    77→    77→  icon: typeof Package
+    78→    78→  trend?: string
+    79→    79→  color: string
+    80→    80→  onClick?: () => void
+    81→    81→}) {
+    82→    82→  return (
+    83→    83→    <Card
+    84→    84→      className="card-hover card-hover-lift stat-tile-gradient group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift"
+    85→    85→      style={{ borderLeftColor: color }}
+    86→    86→      onClick={onClick}
+    87→    87→    >
+    88→    88→      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ backgroundColor: `${color}14` }} />
+    89→    89→      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{ background: `linear-gradient(135deg, ${color}08, transparent 70%)` }} />
+    90→    90→      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+    91→    91→        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</CardTitle>
+    92→    92→        <div
+    93→    93→          className="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
+    94→    94→          style={{ backgroundColor: `${color}1a` }}
+    95→    95→        >
+    96→    96→          <Icon className="h-4 w-4 transition-transform" style={{ color }} />
+    97→    97→        </div>
+    98→    98→      </CardHeader>
+    99→    99→      <CardContent className="relative">
+   100→   100→        <div className="text-2xl font-bold tracking-tight tabular-nums animate-count-pop">{value}</div>
+   101→   101→        {trend && (
+   102→   102→          <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+   103→   103→            <TrendingUp className="h-3 w-3" style={{ color }} />
+   104→   104→            {trend}
+   105→   105→          </p>
+   106→   106→        )}
+   107→   107→      </CardContent>
+   108→   108→    </Card>
+   109→   109→  )
+   110→   110→}
+   111→   111→
+   112→   112→function QuickActionCard({
+   113→   113→  title,
+   114→   114→  description,
+   115→   115→  icon: Icon,
+   116→   116→  onClick,
+   117→   117→  color,
+   118→   118→}: {
+   119→   119→  title: string
+   120→   120→  description: string
+   121→   121→  icon: typeof Package
+   122→   122→  onClick: () => void
+   123→   123→  color: string
+   124→   124→}) {
+   125→   125→  return (
+   126→   126→    <button
+   127→   127→      onClick={onClick}
+   128→   128→      className="card-hover card-hover-lift hover-lift group flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left relative overflow-hidden"
+   129→   129→    >
+   130→   130→      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{ background: `linear-gradient(135deg, ${color}10, transparent 70%)` }} />
+   131→   131→      <div
+   132→   132→        className="flex h-10 w-10 items-center justify-center rounded-lg transition-transform group-hover:scale-110 group-hover:-rotate-3 relative"
+   133→   133→        style={{ backgroundColor: `${color}1a` }}
+   134→   134→      >
+   135→   135→        <Icon className="h-5 w-5 transition-transform" style={{ color }} />
+   136→   136→      </div>
+   137→   137→      <div className="flex flex-col gap-0.5 relative">
+   138→   138→        <span className="text-sm font-semibold">{title}</span>
+   139→   139→        <span className="text-xs text-muted-foreground">{description}</span>
+   140→   140→      </div>
+   141→   141→      <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-1 relative">
+   142→   142→        Open <ArrowRight className="h-3 w-3" />
+   143→   143→      </span>
+   144→   144→    </button>
+   145→   145→  )
+   146→   146→}
+   147→   147→
+   148→   148→export function DashboardView() {
+   149→   149→  const { navigate } = useNav()
+   150→   150→  const { data: stats, isLoading } = useQuery({
+   151→   151→    queryKey: ['dashboard'],
+   152→   152→    queryFn: () => dashboardApi.get(),
+   153→   153→  })
+   154→   154→  const { data: recentAssets } = useQuery({
+   155→   155→    queryKey: ['recent-assets'],
+   156→   156→    queryFn: () => assetsApi.list({ pageSize: 5, sortBy: 'createdAt', sortDir: 'desc' }),
+   157→   157→  })
+   158→   158→  const { data: maintData } = useQuery({
+   159→   159→    queryKey: ['maintenance-upcoming'],
+   160→   160→    queryFn: () => maintenanceApi.upcoming(),
+   161→   161→  })
+   162→   162→
+   163→   163→  if (isLoading || !stats) {
+   164→   164→    return (
+   165→   165→      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+   166→   166→        {Array.from({ length: 8 }).map((_, i) => (
+   167→   167→          <Card key={i} className="h-32">
+   168→   168→            <CardContent className="h-full shimmer shimmer-bg rounded-lg" />
+   169→   169→          </Card>
+   170→   170→        ))}
+   171→   171→      </div>
+   172→   172→    )
+   173→   173→  }
+   174→   174→
+   175→   175→  const totalByStatus = stats.totalAssets || 1
+   176→   176→  const statusData = stats.byStatus.map((s) => ({
+   177→   177→    name: s.status,
+   178→   178→    value: s.count,
+   179→   179→    color: STATUS_COLORS[s.status] || '#94a3b8',
+   180→   180→  }))
+   181→   181→
+   182→   182→  const typeData = stats.byType.map((t, i) => ({
+   183→   183→    name: t.name,
+   184→   184→    count: t.count,
+   185→   185→    fill: CHART_COLORS[i % CHART_COLORS.length],
+   186→   186→  }))
+   187→   187→
+   188→   188→  return (
+   189→   189→    <div className="space-y-6 animate-fade-in-up">
+   190→   190→      {/* Welcome banner */}
+   191→   191→      <div className="relative overflow-hidden rounded-xl border bg-card p-6 hover-lift dot-pattern-bg">
+   192→   192→        <div className="absolute inset-0 hero-gradient opacity-100" />
+   193→   193→        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary/5 blur-3xl animate-pulse-soft" />
+   194→   194→        <div className="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-emerald-500/5 blur-3xl" />
+   195→   195→        <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+   196→   196→          <div className="space-y-1.5">
+   197→   197→            <div className="flex items-center gap-2">
+   198→   198→              <span className="live-dot" />
+   199→   199→              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">All systems operational</span>
+   200→   200→            </div>
+   201→   201→            <h2 className="text-2xl font-bold tracking-tight">
+   202→   202→              Welcome back to AssetHub <span className="inline-block animate-fade-in-up">👋</span>
+   203→   203→            </h2>
+   204→   204→            <p className="text-sm text-muted-foreground max-w-2xl">
+   205→   205→              You have <span className="font-semibold text-foreground">{stats.totalAssets}</span> assets across{' '}
+   206→   206→              <span className="font-semibold text-foreground">{stats.totalDepartments}</span> departments and{' '}
+   207→   207→              <span className="font-semibold text-foreground">{stats.totalLocations}</span> locations.
+   208→   208→              Total portfolio value: <span className="font-semibold text-foreground">{formatCurrency(stats.totalValue)}</span>.
+   209→   209→            </p>
+   210→   210→          </div>
+   211→   211→          <div className="flex items-center gap-2 flex-wrap">
+   212→   212→            <Button variant="outline" size="sm" onClick={() => navigate('ocr-upload')} className="bg-background/50 backdrop-blur-sm">
+   213→   213→              <ScanText className="h-4 w-4 mr-1.5" /> Scan Image
+   214→   214→            </Button>
+   215→   215→            <Button size="sm" onClick={() => navigate('asset-new')}>
+   216→   216→              <Plus className="h-4 w-4 mr-1.5" /> Add Asset
+   217→   217→            </Button>
+   218→   218→          </div>
+   219→   219→        </div>
+   220→   220→      </div>
+   221→   221→
+   222→   222→      {/* Stat cards */}
+   223→   223→      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+   224→   224→        <StatCard
+   225→   225→          label="Total Assets"
+   226→   226→          value={stats.totalAssets}
+   227→   227→          icon={Package}
+   228→   228→          color="#0f172a"
+   229→   229→          onClick={() => navigate('assets')}
+   230→   230→        />
+   231→   231→        <StatCard
+   232→   232→          label="In Use"
+   233→   233→          value={stats.inUse}
+   234→   234→          icon={CheckCircle2}
+   235→   235→          color="#10b981"
+   236→   236→          trend={`${Math.round((stats.inUse / totalByStatus) * 100)}% utilization`}
+   237→   237→          onClick={() => navigate('assets', { status: 'In Use' })}
+   238→   238→        />
+   239→   239→        <StatCard
+   240→   240→          label="In Stock"
+   241→   241→          value={stats.inStock}
+   242→   242→          icon={Boxes}
+   243→   243→          color="#64748b"
+   244→   244→          onClick={() => navigate('assets', { status: 'In Stock' })}
+   245→   245→        />
+   246→   246→        <StatCard
+   247→   247→          label="In Repair"
+   248→   248→          value={stats.repair}
+   249→   249→          icon={Wrench}
+   250→   250→          color="#f59e0b"
+   251→   251→          onClick={() => navigate('assets', { status: 'Repair' })}
+   252→   252→        />
+   253→   253→        <StatCard
+   254→   254→          label="Retired"
+   255→   255→          value={stats.retired}
+   256→   256→          icon={Archive}
+   257→   257→          color="#f43f5e"
+   258→   258→          onClick={() => navigate('assets', { status: 'Retired' })}
+   259→   259→        />
+   260→   260→        <StatCard
+   261→   261→          label="Lost"
+   262→   262→          value={stats.lost}
+   263→   263→          icon={AlertTriangle}
+   264→   264→          color="#ef4444"
+   265→   265→          onClick={() => navigate('assets', { status: 'Lost' })}
+   266→   266→        />
+   267→   267→        <StatCard
+   268→   268→          label="Total Value"
+   269→   269→          value={formatCurrency(stats.totalValue)}
+   270→   270→          icon={DollarSign}
+   271→   271→          color="#8b5cf6"
+   272→   272→        />
+   273→   273→        <StatCard
+   274→   274→          label="Warranty Expiring"
+   275→   275→          value={stats.warrantyExpiringSoon}
+   276→   276→          icon={ShieldAlert}
+   277→   277→          color="#06b6d4"
+   278→   278→          trend="within 30 days"
+   279→   279→        />
+   280→   280→      </div>
+   281→   281→
+   282→   282→      {/* Operations Overview - new features stats */}
+   283→   283→      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   284→   284→        {/* Checkouts */}
+   285→   285→        <Card
+   286→   286→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   287→   287→          style={{ borderLeftColor: '#8b5cf6' }}
+   288→   288→          onClick={() => navigate('checkouts')}
+   289→   289→        >
+   290→   290→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   291→   291→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Check-out Requests</CardTitle>
+   292→   292→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 transition-transform group-hover:scale-110">
+   293→   293→              <ArrowLeftRight className="h-4 w-4 text-violet-600" />
+   294→   294→            </div>
+   295→   295→          </CardHeader>
+   296→   296→          <CardContent className="relative">
+   297→   297→            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.checkouts?.total ?? 0}</div>
+   298→   298→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   299→   299→              <span className="text-amber-600 font-medium">{stats.checkouts?.pending ?? 0} pending</span>
+   300→   300→              <span className="text-violet-600 font-medium">{stats.checkouts?.checkedOut ?? 0} out</span>
+   301→   301→              {(stats.checkouts?.overdue ?? 0) > 0 && (
+   302→   302→                <span className="text-rose-600 font-medium">{stats.checkouts?.overdue} overdue</span>
+   303→   303→              )}
+   304→   304→            </div>
+   305→   305→          </CardContent>
+   306→   306→        </Card>
+   307→   307→
+   308→   308→        {/* Depreciation */}
+   309→   309→        <Card
+   310→   310→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   311→   311→          style={{ borderLeftColor: '#10b981' }}
+   312→   312→          onClick={() => navigate('depreciation')}
+   313→   313→        >
+   314→   314→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   315→   315→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Asset Value</CardTitle>
+   316→   316→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 transition-transform group-hover:scale-110">
+   317→   317→              <TrendingDown className="h-4 w-4 text-emerald-600" />
+   318→   318→            </div>
+   319→   319→          </CardHeader>
+   320→   320→          <CardContent className="relative">
+   321→   321→            <div className="text-2xl font-bold tracking-tight tabular-nums">
+   322→   322→              {formatCurrency(stats.depreciation?.totalCurrentValue ?? 0)}
+   323→   323→            </div>
+   324→   324→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   325→   325→              <span>of {formatCurrency(stats.depreciation?.totalPurchaseValue ?? 0)} purchase</span>
+   326→   326→              <span className="text-rose-600 font-medium">-{formatCurrency(stats.depreciation?.totalDepreciation ?? 0)}</span>
+   327→   327→            </div>
+   328→   328→          </CardContent>
+   329→   329→        </Card>
+   330→   330→
+   331→   331→        {/* Notifications */}
+   332→   332→        <Card
+   333→   333→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   334→   334→          style={{ borderLeftColor: (stats.notifications?.unread ?? 0) > 0 ? '#f43f5e' : '#0ea5e9' }}
+   335→   335→          onClick={() => navigate('notifications')}
+   336→   336→        >
+   337→   337→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   338→   338→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notifications</CardTitle>
+   339→   339→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10 transition-transform group-hover:scale-110">
+   340→   340→              {(stats.notifications?.unread ?? 0) > 0 ? (
+   341→   341→                <BellRing className="h-4 w-4 text-rose-600 animate-pulse" />
+   342→   342→              ) : (
+   343→   343→                <Bell className="h-4 w-4 text-sky-600" />
+   344→   344→              )}
+   345→   345→            </div>
+   346→   346→          </CardHeader>
+   347→   347→          <CardContent className="relative">
+   348→   348→            <div className="text-2xl font-bold tracking-tight tabular-nums">
+   349→   349→              {stats.notifications?.unread ?? 0}
+   350→   350→              <span className="text-sm font-normal text-muted-foreground ml-1">unread</span>
+   351→   351→            </div>
+   352→   352→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   353→   353→              <span>{stats.notifications?.total ?? 0} total</span>
+   354→   354→              {(stats.notifications?.critical ?? 0) > 0 && (
+   355→   355→                <span className="text-rose-600 font-medium">{stats.notifications?.critical} critical</span>
+   356→   356→              )}
+   357→   357→            </div>
+   358→   358→          </CardContent>
+   359→   359→        </Card>
+   360→   360→
+   361→   361→        {/* Quick add new asset */}
+   362→   362→        <Card
+   363→   363→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   364→   364→          style={{ borderLeftColor: '#0f172a' }}
+   365→   365→          onClick={() => navigate('asset-new')}
+   366→   366→        >
+   367→   367→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   368→   368→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Add Asset</CardTitle>
+   369→   369→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 transition-transform group-hover:scale-110">
+   370→   370→              <Plus className="h-4 w-4 text-primary" />
+   371→   371→            </div>
+   372→   372→          </CardHeader>
+   373→   373→          <CardContent className="relative">
+   374→   374→            <div className="text-base font-medium leading-tight mt-1">Add a new asset to the inventory</div>
+   375→   375→            <div className="mt-1 text-[10px] text-muted-foreground">
+   376→   376→              Click to start the asset creation form
+   377→   377→            </div>
+   378→   378→          </CardContent>
+   379→   379→        </Card>
+   380→   380→      </div>
+   381→   381→
+   382→   382→      {/* Maintenance & License Stats Row */}
+   383→   383→      <div className="grid gap-4 lg:grid-cols-3">
+   384→   384→        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
+   385→   385→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+   386→   386→            <div>
+   387→   387→              <CardTitle className="text-xs font-medium text-muted-foreground">Maintenance Overview</CardTitle>
+   388→   388→              <div className="mt-2 flex items-baseline gap-1">
+   389→   389→                <span className="text-2xl font-bold">{stats.maintenance?.total ?? 0}</span>
+   390→   390→                <span className="text-xs text-muted-foreground">total records</span>
+   391→   391→              </div>
+   392→   392→            </div>
+   393→   393→            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
+   394→   394→              <Wrench className="h-4 w-4 text-sky-600" />
+   395→   395→            </div>
+   396→   396→          </CardHeader>
+   397→   397→          <CardContent className="grid grid-cols-3 gap-2 pt-2">
+   398→   398→            <div className="rounded-md bg-sky-500/5 p-2 text-center">
+   399→   399→              <p className="text-[10px] text-muted-foreground">Scheduled</p>
+   400→   400→              <p className="text-lg font-bold text-sky-600">{stats.maintenance?.scheduled ?? 0}</p>
+   401→   401→            </div>
+   402→   402→            <div className="rounded-md bg-amber-500/5 p-2 text-center">
+   403→   403→              <p className="text-[10px] text-muted-foreground">In Progress</p>
+   404→   404→              <p className="text-lg font-bold text-amber-600">{stats.maintenance?.inProgress ?? 0}</p>
+   405→   405→            </div>
+   406→   406→            <div className="rounded-md bg-rose-500/5 p-2 text-center">
+   407→   407→              <p className="text-[10px] text-muted-foreground">Overdue</p>
+   408→   408→              <p className="text-lg font-bold text-rose-600">{stats.maintenance?.overdue ?? 0}</p>
+   409→   409→            </div>
+   410→   410→          </CardContent>
+   411→   411→        </Card>
+   412→   412→
+   413→   413→        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+   414→   414→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+   415→   415→            <div>
+   416→   416→              <CardTitle className="text-xs font-medium text-muted-foreground">Software Licenses</CardTitle>
+   417→   417→              <div className="mt-2 flex items-baseline gap-1">
+   418→   418→                <span className="text-2xl font-bold">{stats.licenses?.total ?? 0}</span>
+   419→   419→                <span className="text-xs text-muted-foreground">active licenses</span>
+   420→   420→              </div>
+   421→   421→            </div>
+   422→   422→            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+   423→   423→              <KeyRound className="h-4 w-4 text-violet-600" />
+   424→   424→            </div>
+   425→   425→          </CardHeader>
+   426→   426→          <CardContent className="pt-2">
+   427→   427→            <div className="flex items-center justify-between text-xs mb-1">
+   428→   428→              <span className="text-muted-foreground">Seats Used</span>
+   429→   429→              <span className="font-medium">
+   430→   430→                {stats.licenses?.usedSeats ?? 0} / {stats.licenses?.totalSeats ?? 0}
+   431→   431→              </span>
+   432→   432→            </div>
+   433→   433→            <Progress value={stats.licenses?.totalSeats ? ((stats.licenses.usedSeats || 0) / stats.licenses.totalSeats) * 100 : 0} className="h-1.5" />
+   434→   434→            <p className="mt-2 text-[10px] text-muted-foreground">
+   435→   435→              Total value: <span className="font-medium text-foreground">{formatCurrency(stats.licenses?.totalValue ?? 0)}</span>
+   436→   436→            </p>
+   437→   437→          </CardContent>
+   438→   438→        </Card>
+   439→   439→
+   440→   440→        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#10b981' }}>
+   441→   441→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+   442→   442→            <div>
+   443→   443→              <CardTitle className="text-xs font-medium text-muted-foreground">Upcoming Maintenance</CardTitle>
+   444→   444→              <div className="mt-2 flex items-baseline gap-1">
+   445→   445→                <span className="text-2xl font-bold">{maintData?.upcoming.length ?? 0}</span>
+   446→   446→                <span className="text-xs text-muted-foreground">in 30 days</span>
+   447→   447→              </div>
+   448→   448→            </div>
+   449→   449→            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+   450→   450→              <Clock className="h-4 w-4 text-emerald-600" />
+   451→   451→            </div>
+   452→   452→          </CardHeader>
+   453→   453→          <CardContent className="pt-2">
+   454→   454→            {maintData?.upcoming.length ? (
+   455→   455→              <div className="space-y-1 max-h-16 overflow-y-auto scrollbar-thin">
+   456→   456→                {maintData.upcoming.slice(0, 2).map((m) => (
+   457→   457→                  <div key={m.id} className="flex items-center justify-between text-[11px]">
+   458→   458→                    <span className="truncate">{m.title}</span>
+   459→   459→                    <span className="text-muted-foreground whitespace-nowrap ml-2">{formatRelative(m.scheduledFor)}</span>
+   460→   460→                  </div>
+   461→   461→                ))}
+   462→   462→              </div>
+   463→   463→            ) : (
+   464→   464→              <p className="text-[11px] text-muted-foreground">Nothing scheduled</p>
+   465→   465→            )}
+   466→   466→            <Button variant="ghost" size="sm" className="mt-1 h-6 w-full text-xs" onClick={() => navigate('maintenance')}>
+   467→   467→              View all <ArrowRight className="h-3 w-3 ml-1" />
+   468→   468→            </Button>
+   469→   469→          </CardContent>
+   470→   470→        </Card>
+   471→   471→      </div>
+   472→   472→
+   473→   473→      {/* Charts row */}
+   474→   474→      <div className="grid gap-4 lg:grid-cols-3">
+   475→   475→        <Card className="lg:col-span-2">
+   476→   476→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   477→   477→            <div>
+   478→   478→              <CardTitle className="text-base">Assets by Type</CardTitle>
+   479→   479→              <CardDescription>Distribution across asset categories</CardDescription>
+   480→   480→            </div>
+   481→   481→            <Badge variant="secondary">{stats.byType.length} types</Badge>
+   482→   482→          </CardHeader>
+   483→   483→          <CardContent>
+   484→   484→            <ResponsiveContainer width="100%" height={260}>
+   485→   485→              <BarChart data={typeData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+   486→   486→                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   487→   487→                <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+   488→   488→                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+   489→   489→                <Tooltip
+   490→   490→                  contentStyle={{
+   491→   491→                    borderRadius: 8,
+   492→   492→                    border: '1px solid oklch(0.91 0.005 240)',
+   493→   493→                    fontSize: 12,
+   494→   494→                  }}
+   495→   495→                />
+   496→   496→                <Bar dataKey="count" radius={[6, 6, 0, 0]} />
+   497→   497→              </BarChart>
+   498→   498→            </ResponsiveContainer>
+   499→   499→          </CardContent>
+   500→   500→        </Card>
+   501→   501→
+   502→   502→        <Card>
+   503→   503→          <CardHeader className="pb-2">
+   504→   504→            <CardTitle className="text-base">Status Breakdown</CardTitle>
+   505→   505→            <CardDescription>Current asset status</CardDescription>
+   506→   506→          </CardHeader>
+   507→   507→          <CardContent>
+   508→   508→            <ResponsiveContainer width="100%" height={200}>
+   509→   509→              <PieChart>
+   510→   510→                <Pie
+   511→   511→                  data={statusData}
+   512→   512→                  dataKey="value"
+   513→   513→                  nameKey="name"
+   514→   514→                  cx="50%"
+   515→   515→                  cy="50%"
+   516→   516→                  innerRadius={50}
+   517→   517→                  outerRadius={80}
+   518→   518→                  paddingAngle={3}
+   519→   519→                >
+   520→   520→                  {statusData.map((entry, i) => (
+   521→   521→                    <Cell key={i} fill={entry.color} />
+   522→   522→                  ))}
+   523→   523→                </Pie>
+   524→   524→                <Tooltip
+   525→   525→                  contentStyle={{
+   526→   526→                    borderRadius: 8,
+   527→   527→                    border: '1px solid oklch(0.91 0.005 240)',
+   528→   528→                    fontSize: 12,
+   529→   529→                  }}
+   530→   530→                />
+   531→   531→              </PieChart>
+   532→   532→            </ResponsiveContainer>
+   533→   533→            <div className="mt-2 grid grid-cols-2 gap-1.5">
+   534→   534→              {statusData.map((s) => (
+   535→   535→                <div key={s.name} className="flex items-center gap-1.5 text-xs">
+   536→   536→                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+   537→   537→                  <span className="text-muted-foreground">{s.name}</span>
+   538→   538→                  <span className="ml-auto font-medium">{s.value}</span>
+   539→   539→                </div>
+   540→   540→              ))}
+   541→   541→            </div>
+   542→   542→          </CardContent>
+   543→   543→        </Card>
+   544→   544→      </div>
+   545→   545→
+   546→   546→      {/* Departments & Locations */}
+   547→   547→      <div className="grid gap-4 lg:grid-cols-2">
+   548→   548→        <Card>
+   549→   549→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   550→   550→            <div>
+   551→   551→              <CardTitle className="text-base">Assets by Department</CardTitle>
+   552→   552→              <CardDescription>Department-wise distribution</CardDescription>
+   553→   553→            </div>
+   554→   554→            <Button variant="ghost" size="sm" onClick={() => navigate('departments')}>
+   555→   555→              <Building2 className="h-4 w-4 mr-1" /> Manage
+   556→   556→            </Button>
+   557→   557→          </CardHeader>
+   558→   558→          <CardContent className="space-y-3">
+   559→   559→            {stats.byDepartment.length === 0 ? (
+   560→   560→              <p className="text-sm text-muted-foreground py-4 text-center">No departments yet</p>
+   561→   561→            ) : (
+   562→   562→              stats.byDepartment.slice(0, 6).map((d) => {
+   563→   563→                const pct = Math.round((d.count / totalByStatus) * 100)
+   564→   564→                return (
+   565→   565→                  <div key={d.name} className="space-y-1">
+   566→   566→                    <div className="flex items-center justify-between text-sm">
+   567→   567→                      <span className="font-medium">{d.name}</span>
+   568→   568→                      <span className="text-muted-foreground">
+   569→   569→                        {d.count} <span className="text-xs">({pct}%)</span>
+   570→   570→                      </span>
+   571→   571→                    </div>
+   572→   572→                    <Progress value={pct} className="h-1.5" />
+   573→   573→                  </div>
+   574→   574→                )
+   575→   575→              })
+   576→   576→            )}
+   577→   577→          </CardContent>
+   578→   578→        </Card>
+   579→   579→
+   580→   580→        <Card>
+   581→   581→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   582→   582→            <div>
+   583→   583→              <CardTitle className="text-base">Assets by Location</CardTitle>
+   584→   584→              <CardDescription>Location-wise distribution</CardDescription>
+   585→   585→            </div>
+   586→   586→            <Button variant="ghost" size="sm" onClick={() => navigate('locations')}>
+   587→   587→              <MapPin className="h-4 w-4 mr-1" /> Manage
+   588→   588→            </Button>
+   589→   589→          </CardHeader>
+   590→   590→          <CardContent className="space-y-3">
+   591→   591→            {stats.byLocation.length === 0 ? (
+   592→   592→              <p className="text-sm text-muted-foreground py-4 text-center">No locations yet</p>
+   593→   593→            ) : (
+   594→   594→              stats.byLocation.slice(0, 6).map((l) => {
+   595→   595→                const pct = Math.round((l.count / totalByStatus) * 100)
+   596→   596→                return (
+   597→   597→                  <div key={l.name} className="space-y-1">
+   598→   598→                    <div className="flex items-center justify-between text-sm">
+   599→   599→                      <span className="font-medium">{l.name}</span>
+   600→   600→                      <span className="text-muted-foreground">
+   601→   601→                        {l.count} <span className="text-xs">({pct}%)</span>
+   602→   602→                      </span>
+   603→   603→                    </div>
+   604→   604→                    <Progress value={pct} className="h-1.5" />
+   605→   605→                  </div>
+   606→   606→                )
+   607→   607→              })
+   608→   608→            )}
+   609→   609→          </CardContent>
+   610→   610→        </Card>
+   611→   611→      </div>
+   612→   612→
+   613→   613→      {/* Quick actions */}
+   614→   614→      <div>
+   615→   615→        <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Quick Actions</h3>
+   616→   616→        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+   617→   617→          <QuickActionCard
+   618→   618→            title="Add New Asset"
+   619→   619→            description="Manually create an asset record"
+   620→   620→            icon={Plus}
+   621→   621→            onClick={() => navigate('asset-new')}
+   622→   622→            color="#0f172a"
+   623→   623→          />
+   624→   624→          <QuickActionCard
+   625→   625→            title="Add via Image (OCR)"
+   626→   626→            description="Upload a photo and auto-extract details"
+   627→   627→            icon={ScanText}
+   628→   628→            onClick={() => navigate('ocr-upload')}
+   629→   629→            color="#10b981"
+   630→   630→          />
+   631→   631→          <QuickActionCard
+   632→   632→            title="Import from Excel"
+   633→   633→            description="Bulk import assets from CSV/XLSX"
+   634→   634→            icon={Upload}
+   635→   635→            onClick={() => navigate('import')}
+   636→   636→            color="#f59e0b"
+   637→   637→          />
+   638→   638→          <QuickActionCard
+   639→   639→            title="View Reports"
+   640→   640→            description="Analytics and export tools"
+   641→   641→            icon={Activity}
+   642→   642→            onClick={() => navigate('reports')}
+   643→   643→            color="#8b5cf6"
+   644→   644→          />
+   645→   645→        </div>
+   646→   646→      </div>
+   647→   647→
+   648→   648→      {/* Recent activity & recent assets */}
+   649→   649→      <div className="grid gap-4 lg:grid-cols-3">
+   650→   650→        <Card className="lg:col-span-1">
+   651→   651→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   652→   652→            <div>
+   653→   653→              <CardTitle className="text-base">Recent Activity</CardTitle>
+   654→   654→              <CardDescription>Latest assignment changes</CardDescription>
+   655→   655→            </div>
+   656→   656→          </CardHeader>
+   657→   657→          <CardContent>
+   658→   658→            {stats.recentActivity.length === 0 ? (
+   659→   659→              <p className="text-sm text-muted-foreground py-6 text-center">No recent activity</p>
+   660→   660→            ) : (
+   661→   661→              <div className="space-y-3 max-h-72 overflow-y-auto scrollbar-thin pr-1">
+   662→   662→                {stats.recentActivity.slice(0, 8).map((a) => (
+   663→   663→                  <div key={a.id} className="flex items-start gap-3 text-sm">
+   664→   664→                    <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
+   665→   665→                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
+   666→   666→                    </div>
+   667→   667→                    <div className="flex-1 min-w-0">
+   668→   668→                      <p className="leading-tight">
+   669→   669→                        <span className="font-medium">{a.action}</span>
+   670→   670→                        {a.asset && (
+   671→   671→                          <span className="text-muted-foreground">
+   672→   672→                            {' '}
+   673→   673→                            — {a.asset.assetTag || a.asset.model || a.asset.id.slice(0, 8)}
+   674→   674→                          </span>
+   675→   675→                        )}
+   676→   676→                      </p>
+   677→   677→                      <p className="text-xs text-muted-foreground">
+   678→   678→                        {a.person?.fullName || 'Unassigned'} · {formatRelative(a.assignedOn)}
+   679→   679→                      </p>
+   680→   680→                    </div>
+   681→   681→                  </div>
+   682→   682→                ))}
+   683→   683→              </div>
+   684→   684→            )}
+   685→   685→          </CardContent>
+   686→   686→        </Card>
+   687→   687→
+   688→   688→        <Card className="lg:col-span-1">
+   689→   689→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   690→   690→            <div>
+   691→   691→              <CardTitle className="text-base">Recently Added Assets</CardTitle>
+   692→   692→              <CardDescription>Latest entries in the system</CardDescription>
+   693→   693→            </div>
+   694→   694→            <Button variant="ghost" size="sm" onClick={() => navigate('assets')}>
+   695→   695→              View all <ArrowRight className="h-3.5 w-3.5 ml-1" />
+   696→   696→            </Button>
+   697→   697→          </CardHeader>
+   698→   698→          <CardContent>
+   699→   699→            {!recentAssets || recentAssets.data.length === 0 ? (
+   700→   700→              <p className="text-sm text-muted-foreground py-6 text-center">No assets yet</p>
+   701→   701→            ) : (
+   702→   702→              <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
+   703→   703→                {recentAssets.data.map((asset) => {
+   704→   704→                  const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
+   705→   705→                  return (
+   706→   706→                    <button
+   707→   707→                      key={asset.id}
+   708→   708→                      onClick={() => navigate('asset-detail', { id: asset.id })}
+   709→   709→                      className="flex w-full items-center gap-3 rounded-lg border p-2.5 text-left transition-colors hover:bg-accent/50"
+   710→   710→                    >
+   711→   711→                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${cfg.bg}`}>
+   712→   712→                        <Package className={`h-4 w-4 ${cfg.text}`} />
+   713→   713→                      </div>
+   714→   714→                      <div className="flex-1 min-w-0">
+   715→   715→                        <p className="truncate text-sm font-medium">
+   716→   716→                          {asset.make} {asset.model}
+   717→   717→                        </p>
+   718→   718→                        <p className="truncate text-xs text-muted-foreground">
+   719→   719→                          {asset.assetTag || asset.serialNumber || 'No tag'}
+   720→   720→                        </p>
+   721→   721→                      </div>
+   722→   722→                      <Badge variant="outline" className={`shrink-0 ${cfg.bg} ${cfg.text} border-0`}>
+   723→   723→                        {asset.status}
+   724→   724→                      </Badge>
+   725→   725→                    </button>
+   726→   726→                  )
+   727→   727→                })}
+   728→   728→              </div>
+   729→   729→            )}
+   730→   730→          </CardContent>
+   731→   731→        </Card>
+   732→   732→
+   733→   733→        <Card className="lg:col-span-1">
+   734→   734→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   735→   735→            <div>
+   736→   736→              <CardTitle className="text-base">Audit Log</CardTitle>
+   737→   737→              <CardDescription>Latest system events</CardDescription>
+   738→   738→            </div>
+   739→   739→            <Button variant="ghost" size="sm" onClick={() => navigate('audit-log')}>
+   740→   740→              All <ArrowRight className="h-3.5 w-3.5 ml-1" />
+   741→   741→            </Button>
+   742→   742→          </CardHeader>
+   743→   743→          <CardContent>
+   744→   744→            {!stats.auditLog || stats.auditLog.length === 0 ? (
+   745→   745→              <p className="text-sm text-muted-foreground py-6 text-center">No audit entries yet</p>
+   746→   746→            ) : (
+   747→   747→              <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
+   748→   748→                {stats.auditLog.slice(0, 8).map((log) => (
+   749→   749→                  <div key={log.id} className="flex items-start gap-2 rounded-md border p-2 text-xs hover:bg-accent/30">
+   750→   750→                    <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+   751→   751→                    <div className="flex-1 min-w-0">
+   752→   752→                      <p className="font-medium truncate">{log.action}</p>
+   753→   753→                      <p className="text-muted-foreground truncate">{log.details}</p>
+   754→   754→                      <p className="text-[10px] text-muted-foreground mt-0.5">{formatRelative(log.createdAt)}</p>
+   755→   755→                    </div>
+   756→   756→                  </div>
+   757→   757→                ))}
+   758→   758→              </div>
+   759→   759→            )}
+   760→   760→          </CardContent>
+   761→   761→        </Card>
+   762→   762→      </div>
+   763→   763→
+   764→   764→      {/* Procurement & Lifecycle Overview */}
+   765→   765→      <div className="grid gap-4 lg:grid-cols-3">
+   766→   766→        {/* Vendors card */}
+   767→   767→        <Card
+   768→   768→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   769→   769→          style={{ borderLeftColor: '#0ea5e9' }}
+   770→   770→          onClick={() => navigate('vendors')}
+   771→   771→        >
+   772→   772→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   773→   773→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendors</CardTitle>
+   774→   774→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10 transition-transform group-hover:scale-110">
+   775→   775→              <Store className="h-4 w-4 text-sky-600" />
+   776→   776→            </div>
+   777→   777→          </CardHeader>
+   778→   778→          <CardContent className="relative">
+   779→   779→            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.vendors?.total ?? 0}</div>
+   780→   780→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   781→   781→              <span className="text-emerald-600 font-medium">{stats.vendors?.active ?? 0} active</span>
+   782→   782→              <span>Manage suppliers</span>
+   783→   783→            </div>
+   784→   784→          </CardContent>
+   785→   785→        </Card>
+   786→   786→
+   787→   787→        {/* Purchase Orders card */}
+   788→   788→        <Card
+   789→   789→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   790→   790→          style={{ borderLeftColor: '#8b5cf6' }}
+   791→   791→          onClick={() => navigate('purchase-orders')}
+   792→   792→        >
+   793→   793→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   794→   794→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Purchase Orders</CardTitle>
+   795→   795→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 transition-transform group-hover:scale-110">
+   796→   796→              <ShoppingCart className="h-4 w-4 text-violet-600" />
+   797→   797→            </div>
+   798→   798→          </CardHeader>
+   799→   799→          <CardContent className="relative">
+   800→   800→            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.procurement?.totalPOs ?? 0}</div>
+   801→   801→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   802→   802→              <span className="text-amber-600 font-medium">{stats.procurement?.pendingApproval ?? 0} pending</span>
+   803→   803→              <span className="text-sky-600 font-medium">{stats.procurement?.open ?? 0} open</span>
+   804→   804→            </div>
+   805→   805→            <div className="mt-1.5 text-[11px] text-muted-foreground">
+   806→   806→              Total spend: <span className="font-semibold text-foreground">{formatCurrency(stats.procurement?.totalSpent ?? 0)}</span>
+   807→   807→            </div>
+   808→   808→          </CardContent>
+   809→   809→        </Card>
+   810→   810→
+   811→   811→        {/* Disposals card */}
+   812→   812→        <Card
+   813→   813→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   814→   814→          style={{ borderLeftColor: '#10b981' }}
+   815→   815→          onClick={() => navigate('disposals')}
+   816→   816→        >
+   817→   817→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   818→   818→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Disposals</CardTitle>
+   819→   819→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 transition-transform group-hover:scale-110">
+   820→   820→              <Recycle className="h-4 w-4 text-emerald-600" />
+   821→   821→            </div>
+   822→   822→          </CardHeader>
+   823→   823→          <CardContent className="relative">
+   824→   824→            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.disposals?.total ?? 0}</div>
+   825→   825→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   826→   826→              <span className="text-emerald-600 font-medium">+{formatCurrency(stats.disposals?.totalRecovered ?? 0)}</span>
+   827→   827→              <span className="text-rose-600 font-medium">-{formatCurrency(stats.disposals?.totalCost ?? 0)}</span>
+   828→   828→            </div>
+   829→   829→            {(stats.disposals?.pendingApproval ?? 0) > 0 && (
+   830→   830→              <div className="mt-1.5 text-[11px] text-amber-600 font-medium">
+   831→   831→                {stats.disposals?.pendingApproval} awaiting approval
+   832→   832→              </div>
+   833→   833→            )}
+   834→   834→          </CardContent>
+   835→   835→        </Card>
+   836→   836→      </div>
+   837→   837→
+   838→   838→      {/* Bookings & Tags Overview */}
+   839→   839→      <div className="grid gap-4 lg:grid-cols-3">
+   840→   840→        {/* Bookings card */}
+   841→   841→        <Card
+   842→   842→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   843→   843→          style={{ borderLeftColor: '#06b6d4' }}
+   844→   844→          onClick={() => navigate('bookings')}
+   845→   845→        >
+   846→   846→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   847→   847→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Bookings</CardTitle>
+   848→   848→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 transition-transform group-hover:scale-110">
+   849→   849→              <CalendarClock className="h-4 w-4 text-cyan-600" />
+   850→   850→            </div>
+   851→   851→          </CardHeader>
+   852→   852→          <CardContent className="relative">
+   853→   853→            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.bookings?.total ?? 0}</div>
+   854→   854→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   855→   855→              <span className="text-amber-600 font-medium">{stats.bookings?.pending ?? 0} pending</span>
+   856→   856→              <span className="text-emerald-600 font-medium">{stats.bookings?.active ?? 0} active</span>
+   857→   857→            </div>
+   858→   858→            <div className="mt-1.5 text-[11px] text-muted-foreground">
+   859→   859→              Upcoming: <span className="font-semibold text-foreground">{stats.bookings?.upcoming ?? 0}</span>
+   860→   860→            </div>
+   861→   861→          </CardContent>
+   862→   862→        </Card>
+   863→   863→
+   864→   864→        {/* Tags card */}
+   865→   865→        <Card
+   866→   866→          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+   867→   867→          style={{ borderLeftColor: '#ec4899' }}
+   868→   868→          onClick={() => navigate('tags')}
+   869→   869→        >
+   870→   870→          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+   871→   871→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Tags</CardTitle>
+   872→   872→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-500/10 transition-transform group-hover:scale-110">
+   873→   873→              <Tag className="h-4 w-4 text-pink-600" />
+   874→   874→            </div>
+   875→   875→          </CardHeader>
+   876→   876→          <CardContent className="relative">
+   877→   877→            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.tags?.totalTags ?? 0}</div>
+   878→   878→            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+   879→   879→              <span className="text-pink-600 font-medium">{stats.tags?.totalLinks ?? 0} tag assignments</span>
+   880→   880→            </div>
+   881→   881→            {stats.tags?.topTags && stats.tags.topTags.length > 0 && (
+   882→   882→              <div className="mt-2 flex flex-wrap gap-1">
+   883→   883→                {stats.tags.topTags.slice(0, 3).map((t) => (
+   884→   884→                  <span key={t.name} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium bg-muted">
+   885→   885→                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: t.color === 'slate' ? '#64748b' : `var(--tw-${t.color}-500, ${t.color})` }} />
+   886→   886→                    {t.name}
+   887→   887→                  </span>
+   888→   888→                ))}
+   889→   889→              </div>
+   890→   890→            )}
+   891→   891→          </CardContent>
+   892→   892→        </Card>
+   893→   893→
+   894→   894→        {/* Quick Actions / Workflow Shortcuts */}
+   895→   895→        <Card className="overflow-hidden border-l-4 shadow-soft" style={{ borderLeftColor: '#f59e0b' }}>
+   896→   896→          <CardHeader className="pb-2">
+   897→   897→            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Actions</CardTitle>
+   898→   898→          </CardHeader>
+   899→   899→          <CardContent className="grid grid-cols-2 gap-2 pt-1">
+   900→   900→            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('asset-new')}>
+   901→   901→              <Plus className="h-3.5 w-3.5 mr-1.5 text-emerald-600" /> Add Asset
+   902→   902→            </Button>
+   903→   903→            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('ocr-upload')}>
+   904→   904→              <ScanText className="h-3.5 w-3.5 mr-1.5 text-violet-600" /> OCR Scan
+   905→   905→            </Button>
+   906→   906→            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('bookings')}>
+   907→   907→              <CalendarClock className="h-3.5 w-3.5 mr-1.5 text-cyan-600" /> New Booking
+   908→   908→            </Button>
+   909→   909→            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('tags')}>
+   910→   910→              <Tag className="h-3.5 w-3.5 mr-1.5 text-pink-600" /> Manage Tags
+   911→   911→            </Button>
+   912→   912→          </CardContent>
+   913→   913→        </Card>
+   914→   914→      </div>
+   915→   915→    </div>
+   916→   916→  )
+   917→   917→}
+   918→   918→

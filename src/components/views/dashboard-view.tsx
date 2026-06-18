@@ -20,6 +20,8 @@ import {
   Users,
   Building2,
   MapPin,
+  Map as MapIcon,
+  Sparkles,
   ArrowRight,
   ScanText,
   Upload,
@@ -197,6 +199,10 @@ export function DashboardView() {
             <div className="flex items-center gap-2">
               <span className="live-dot" />
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">All systems operational</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                <Sparkles className="h-3 w-3" />
+                Round 7
+              </span>
             </div>
             <h2 className="text-2xl font-bold tracking-tight">
               Welcome back to AssetHub <span className="inline-block animate-fade-in-up">👋</span>
@@ -205,7 +211,8 @@ export function DashboardView() {
               You have <span className="font-semibold text-foreground">{stats.totalAssets}</span> assets across{' '}
               <span className="font-semibold text-foreground">{stats.totalDepartments}</span> departments and{' '}
               <span className="font-semibold text-foreground">{stats.totalLocations}</span> locations.
-              Total portfolio value: <span className="font-semibold text-foreground">{formatCurrency(stats.totalValue)}</span>.
+              Total portfolio value:{' '}
+              <span className="gradient-text-shine font-bold">{formatCurrency(stats.totalValue)}</span>.
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -613,7 +620,7 @@ export function DashboardView() {
       {/* Quick actions */}
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Quick Actions</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <QuickActionCard
             title="Add New Asset"
             description="Manually create an asset record"
@@ -641,6 +648,13 @@ export function DashboardView() {
             icon={Activity}
             onClick={() => navigate('reports')}
             color="#8b5cf6"
+          />
+          <QuickActionCard
+            title="Location Map"
+            description="View assets by location"
+            icon={MapIcon}
+            onClick={() => navigate('asset-map')}
+            color="#0ea5e9"
           />
         </div>
       </div>

@@ -29,11 +29,11 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency, formatRelative, formatDate } from '@/lib/format'
 import { useNav } from '@/lib/nav'
-import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES } from '@/lib/types'
+import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES, type CostForecastCategory, type CostForecastPoint } from '@/lib/types'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend,
+  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend, ComposedChart,
 } from 'recharts'
 import { Download, TrendingUp, TrendingDown, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock, LineChart as LineChartIcon, RefreshCw, CalendarRange, Bookmark, ChevronDown, FileText, Inbox } from 'lucide-react'
 import { toast } from 'sonner'
@@ -141,6 +141,13 @@ export function ReportsView() {
   const { data: maintenanceCost } = useQuery({
     queryKey: ['maintenance-cost', 12],
     queryFn: () => reportsApi.maintenanceCost(12),
+  })
+
+  // Cost forecast analytics (Round 7) — 12-month historical spend + 6-month forecast per category.
+  // Registered before any early return to keep hook order stable.
+  const { data: costForecast } = useQuery({
+    queryKey: ['cost-forecast'],
+    queryFn: () => reportsApi.costForecast(12, 6),
   })
 
   // Navigation hook for asset-detail click-through (Maintenance Cost Analytics section)
@@ -1614,6 +1621,210 @@ export function ReportsView() {
         </>
       )}
 
+      {/* Cost Forecast Analytics (Round 7) */}
+      <div className="section-accent-bar mt-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold">
+          <TrendingUp className="h-5 w-5 text-violet-600" />
+          Cost Forecast Analytics
+        </h3>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          12-month historical spend + 6-month forecast based on linear regression per category
+        </p>
+      </div>
+
+      {!costForecast ||
+      (costForecast.totals.historicalTotal === 0 && costForecast.totals.forecastTotal === 0) ? (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No cost data available for forecasting
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* 3 KPI tiles: historical / forecast / projected annual */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Card className="stat-tile-gradient border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Historical Total (12mo)</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {formatCurrency(costForecast.totals.historicalTotal)}
+                    </p>
+                  </div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10">
+                    <DollarSign className="h-4 w-4 text-sky-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="stat-tile-gradient border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Forecast Total (6mo)</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {formatCurrency(costForecast.totals.forecastTotal)}
+                    </p>
+                  </div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
+                    <TrendingUp className="h-4 w-4 text-violet-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="stat-tile-gradient border-l-4" style={{ borderLeftColor: '#10b981' }}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Projected Annual Run-Rate</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {formatCurrency(costForecast.totals.projectedAnnual)}
+                    </p>
+                    <div className="mt-1 flex items-center gap-1">
+                      <span
+                        className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                          costForecast.totals.trendDirection === 'up'
+                            ? 'trend-chip-up'
+                            : costForecast.totals.trendDirection === 'down'
+                              ? 'trend-chip-down'
+                              : 'trend-chip-flat'
+                        }`}
+                      >
+                        {costForecast.totals.trendDirection === 'up' && <span>↑ up</span>}
+                        {costForecast.totals.trendDirection === 'down' && <span>↓ down</span>}
+                        {costForecast.totals.trendDirection === 'flat' && <span>→ flat</span>}
+                      </span>
+                      {costForecast.totals.trendPct !== null && (
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          (±{Math.round(costForecast.totals.trendPct * 100)}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 shrink-0">
+                    <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Combined Forecast Chart — ComposedChart with Bar (historical) + Line (forecast) + Area (confidence band) */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TrendingUp className="h-4 w-4 text-violet-600" /> Combined Forecast
+              </CardTitle>
+              <CardDescription>
+                Historical spend (sky bars) + linear regression forecast (violet dashed line) with confidence band
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={320}>
+                <ComposedChart
+                  data={costForecast.combined}
+                  margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="oklch(0.7 0.01 240 / 0.15)"
+                  />
+                  <XAxis
+                    dataKey="month"
+                    tickFormatter={(m: string) => fmtMonth(m)}
+                    tick={{ fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(v: number) => fmtCompactCurrency(v)}
+                    tick={{ fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: '#8b5cf6', strokeWidth: 1, strokeDasharray: '3 3' }}
+                    content={({ active, payload }) => {
+                      if (!active || !payload || payload.length === 0) return null
+                      const p = payload[0].payload as CostForecastPoint
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                          <div className="mb-1 font-semibold">{fmtMonth(p.month)}</div>
+                          {p.historical !== null && (
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Historical</span>
+                              <span className="tabular-nums font-medium text-sky-600">
+                                {formatCurrency(p.historical)}
+                              </span>
+                            </div>
+                          )}
+                          {p.forecast !== null && (
+                            <>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-muted-foreground">Forecast</span>
+                                <span className="tabular-nums font-medium text-violet-600">
+                                  {formatCurrency(p.forecast)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-muted-foreground">Lower Bound</span>
+                                <span className="tabular-nums">{formatCurrency(p.lowerBound)}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-muted-foreground">Upper Bound</span>
+                                <span className="tabular-nums">{formatCurrency(p.upperBound)}</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area
+                    type="monotone"
+                    dataKey="upperBound"
+                    name="Upper Bound"
+                    stroke="#8b5cf6"
+                    strokeOpacity={0.4}
+                    strokeWidth={1}
+                    fill="#8b5cf6"
+                    fillOpacity={0.15}
+                    connectNulls
+                  />
+                  <Bar
+                    dataKey="historical"
+                    name="Historical"
+                    fill="#0ea5e9"
+                    radius={[3, 3, 0, 0]}
+                    barSize={16}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="forecast"
+                    name="Forecast"
+                    stroke="#8b5cf6"
+                    strokeWidth={2.5}
+                    strokeDasharray="5 5"
+                    dot={{ r: 3, fill: '#8b5cf6' }}
+                    connectNulls
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* 3 Category Cards */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+            {costForecast.categories.map((cat) => (
+              <CategoryForecastCard key={cat.category} cat={cat} />
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Detailed tables */}
       <Card>
         <CardHeader className="pb-2">
@@ -1712,5 +1923,107 @@ export function ReportsView() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// ==================== Cost Forecast Category Card ====================
+
+const CATEGORY_COLORS: Record<CostForecastCategory['category'], string> = {
+  purchase: '#0ea5e9',
+  maintenance: '#f59e0b',
+  depreciation: '#f43f5e',
+}
+
+const CATEGORY_TITLES: Record<CostForecastCategory['category'], string> = {
+  purchase: 'Purchase',
+  maintenance: 'Maintenance',
+  depreciation: 'Depreciation',
+}
+
+function CategoryForecastCard({ cat }: { cat: CostForecastCategory }) {
+  // Extract arrays first so the React Compiler can track them in the deps array.
+  const history = cat.history
+  const forecast = cat.forecast
+
+  // Combine history + forecast into a single series for the sparkline (history first, then forecast).
+  const sparkData = useMemo(() => {
+    const h = history.map((pt) => ({ month: pt.month, value: pt.value, kind: 'history' as const }))
+    const f = forecast.map((pt) => ({ month: pt.month, value: pt.value, kind: 'forecast' as const }))
+    return [...h, ...f]
+  }, [history, forecast])
+
+  const color = CATEGORY_COLORS[cat.category] || '#8b5cf6'
+  const title = CATEGORY_TITLES[cat.category] || cat.category
+
+  const trendChipClass =
+    cat.trendDirection === 'up'
+      ? 'trend-chip-up'
+      : cat.trendDirection === 'down'
+        ? 'trend-chip-down'
+        : 'trend-chip-flat'
+  const trendArrow = cat.trendDirection === 'up' ? '↑' : cat.trendDirection === 'down' ? '↓' : '→'
+
+  return (
+    <Card className="card-hover">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between text-base">
+          <span className="flex items-center gap-2 min-w-0">
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
+              style={{ backgroundColor: `${color}1a` }}
+            >
+              {cat.category === 'purchase' && <Package className="h-4 w-4" style={{ color }} />}
+              {cat.category === 'maintenance' && <Wrench className="h-4 w-4" style={{ color }} />}
+              {cat.category === 'depreciation' && <TrendingDown className="h-4 w-4" style={{ color }} />}
+            </span>
+            <span className="truncate">{title}</span>
+          </span>
+          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium shrink-0 ${trendChipClass}`}>
+            <span>{trendArrow}</span> {cat.trendDirection}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Mini rows: total historical / total forecast / projected annual */}
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Historical (12mo)</span>
+            <span className="tabular-nums font-medium">{formatCurrency(cat.totalHistorical)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Forecast (6mo)</span>
+            <span className="tabular-nums font-medium">{formatCurrency(cat.totalForecast)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Projected Annual</span>
+            <span className="tabular-nums font-bold" style={{ color }}>
+              {formatCurrency(cat.projectedAnnual)}
+            </span>
+          </div>
+        </div>
+
+        {/* Sparkline: combined history + forecast values */}
+        <div className="h-[60px] w-full">
+          <ResponsiveContainer width="100%" height={60}>
+            <LineChart data={sparkData} margin={{ top: 2, right: 4, left: 4, bottom: 2 }}>
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={color}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Footer: history/forecast point counts */}
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <span>{history.length}mo history</span>
+          <span>{forecast.length}mo forecast</span>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

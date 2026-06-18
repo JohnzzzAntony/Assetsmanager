@@ -1,0 +1,421 @@
+  1500→- **R5-A** (fullstack-developer): Created `src/components/views/maintenance-calendar-view.tsx` (590 lines) — month-grid calendar with status-colored bars (Scheduled→sky, In Progress→amber, Overdue→rose+pulse-glow, Completed→emerald, Cancelled→slate+strikethrough). In Progress/Overdue bars span from scheduledFor to today/completedAt. Click-through detail dialog with Edit/Delete actions. Modified `maintenance-view.tsx` (447→518) to add List/Calendar toggle (shadcn Tabs) + search input.
+  1501→- **R5-B** (fullstack-developer, completed before max-turns): Modified `src/components/views/reports-view.tsx` — added Saved Reports dropdown in header (Save Current View… dialog with name+description, load by clicking saved report, delete with trash icon). Modified `src/components/views/bookings-calendar-view.tsx` (613→705) — added conflict detection (conflicts useMemo computing conflictBookingIds + conflictAssetIds + conflictCountByAsset from active bookings with overlapping ranges), `conflict-ring` CSS class on conflicting bars, AlertTriangle icon prefix, "N conflicts" badge in header, legend item.
+  1502→- **R5-C** (fullstack-developer): Modified `src/components/views/vendors-view.tsx` (737→1104) — added Vendor Performance Analytics section with `section-accent-bar` header, 4 StatTiles, Top 5 Vendors by Spend horizontal bar chart, On-Time Delivery Rate color-coded bars (emerald/amber/rose thresholds), Rating Distribution pie chart, Delivery Performance table with rose-highlighted low-on-time rows. Modified `src/components/views/reports-view.tsx` (904→1408) — added Year-over-Year Cost Comparison section with grouped BarChart (Prev Year slate + Current Year violet), summary table with tick-up/tick-down deltas + TOTALS row, 3 KPI tiles (Current Year, Previous Year, YoY Change with dynamic emerald/rose).
+  1503→- **R5-D** (frontend-styling-expert): Created `src/components/empty-state.tsx` (46 lines) — reusable EmptyState component with `empty-state-icon` gradient ring container + optional CTA button (using `btn-press`). Applied `shimmer-bg` to Skeletons in 6 view files (13 total occurrences). Applied `card-hover-lift` to 12 dashboard cards (9 StatCards + 3 QuickActionCards). Applied `btn-press` to 6 primary action buttons. Applied `app-bg-gradient` + `theme-transition` to app-shell root. Replaced bare "No data" divs with `<EmptyState>` in 4 views (assets, bookings, maintenance, vendors).
+  1504→- Added ~190 lines of new CSS utilities to `src/app/globals.css` (Round 5 section)
+  1505→
+  1506→**Verification results**:
+  1507→- ESLint: 0 errors, 0 warnings ✓
+  1508→- dev.log: zero errors in last 100 lines ✓
+  1509→- All 4 new API endpoints return 200 ✓
+  1510→- `POST /api/seed?force=true` → 200, seeded 20 assets with dates spread 2024-2026 ✓
+  1511→- `GET /api/reports/saved` → 200, `{data:[]}` ✓
+  1512→- `POST /api/reports/saved` with name+description+config → 201, returns created record ✓
+  1513→- `DELETE /api/reports/saved/{id}` → 200, `{success:true}` ✓
+  1514→- `GET /api/reports/vendor-performance` → 200, returns 10 vendors with stats (Apple India: 1 PO, $14,150 spent, 100% on-time, 9-day avg delivery) ✓
+  1515→- `GET /api/reports/lifecycle-yoy?years=2` → 200, returns 7 asset types + totals (current=$2,059, previous=$5,026, delta=-$2,967, deltaPct=-59.0%) ✓
+  1516→- agent-browser QA: Maintenance Calendar View toggles correctly, 19 tasks visible, status-colored bars render, detail dialog opens on click ✓
+  1517→- agent-browser QA: Saved Reports dropdown opens, "Save Current View…" dialog accepts name+description, saved report appears in dropdown, clicking loads config, trash icon deletes ✓
+  1518→- agent-browser QA: Bookings Calendar — created 2 overlapping bookings → "2 conflicts" badge appears in header → 7 conflict-ring elements render on bars + AlertTriangle icons → conflict legend item present ✓
+  1519→- agent-browser QA: Vendor Performance Analytics section renders with 4 KPI tiles + Top 5 bar chart + On-Time delivery bars + Rating distribution pie + Delivery performance table ✓
+  1520→- agent-browser QA: Year-over-Year Cost Comparison section renders with grouped bar chart + summary table + 3 KPI tiles ✓
+  1521→- agent-browser QA: Dashboard has 12 card-hover-lift elements + 1 app-bg-gradient root ✓
+  1522→- All previously working features (24 existing views, 68+ existing API routes, OCR, exports, bulk ops, tags, calendar) continue to work ✓
+  1523→
+  1524→### 3. Unresolved Issues or Risks, and Priority Recommendations for Next Phase
+  1525→
+  1526→**Unresolved issues / risks**:
+  1527→1. **No authentication/authorization** — all endpoints are open. For production, add NextAuth.js session checks on API routes and role-based access (Admin / IT Manager / IT Staff / Read-only). Saved Reports have a `createdBy` field but it's currently null because there's no auth context.
+  1528→2. **No email notifications** — Notifications are in-app only. Should integrate email for critical alerts (warranty expired, license expired, PO approved, booking pending approval, booking conflict detected).
+  1529→3. **No file attachments** — Purchase Orders, Disposals, and Bookings often need attached documents (invoices, certificates, receipts). Currently only Assets have images.
+  1530→4. **Saved Reports config is minimal** — Currently only persists `range`, `customStart`, `customEnd`, `months`. Could extend to persist chart-specific filters, selected asset types, selected departments, etc.
+  1531→5. **Vendor Performance on-time rate requires both receivedDate + expectedDate** — Vendors without completed POs show onTimeRate=0, which may be misleading. Could show "N/A" instead.
+  1532→6. **Lifecycle YoY uses purchase cost only** — Doesn't include maintenance or disposal costs in the YoY comparison. Could extend to a 3-category YoY (purchase + maintenance + disposal).
+  1533→7. **No multi-currency support** — POs have a `currency` field but all display assumes USD. Lifecycle cost analysis + YoY + vendor performance sums costs across currencies without conversion.
+  1534→8. **No saved/subscription reports with email delivery** — Saved Reports persist config but don't schedule email delivery. Could add a `schedule` field (weekly/monthly) + cron job.
+  1535→9. **No asset location history tracking** — AssignmentHistory tracks person/dept/location changes but there's no map view or heatmap of where assets have been over time.
+  1536→10. **No predictive maintenance** — Maintenance schedules are reactive/manual. Could add ML-based predictions from historical data.
+  1537→
+  1538→**Priority recommendations for next phase (Round 6)**:
+  1539→
+  1540→**High priority** (production blockers):
+  1541→1. Add NextAuth.js authentication with role-based access control (Admin / IT Manager / IT Staff / Read-only) — wire `createdBy` field on Saved Reports to the session user
+  1542→2. Add email notification integration for critical alerts (SendGrid/Resend/Mailgun) — booking pending > 2 days, warranty expired, license expired, **booking conflict detected** (new in Round 5)
+  1543→3. Add file attachments to POs, Disposals, and Bookings (invoices, certificates, receipts) — extend the existing AssetImage pattern
+  1544→4. Add maintenance scheduling conflict detection (similar to bookings) — warn when scheduling maintenance during an active booking
+  1545→
+  1546→**Medium priority** (UX improvements):
+  1547→5. Extend Saved Reports config to persist chart-specific filters (asset types, departments, locations) + add scheduled email delivery
+  1548→6. Add asset location history heatmap (AssignmentHistory + Locations + Mapbox/Leaflet)
+  1549→7. Extend Lifecycle YoY to include maintenance + disposal costs (3-category grouped bars)
+  1550→8. Add PO receiving workflow with barcode/QR scanning (line items have receivedQuantity but no UI)
+  1551→9. Add notification rules for bookings (pending > 2 days, starts tomorrow, overdue not checked in, conflict detected)
+  1552→10. Add vendor performance trends over time (compare quarterly on-time rates per vendor)
+  1553→
+  1554→**Low priority** (polish):
+  1555→11. Add multi-currency display with exchange rates (POs + assets have currency field but UI assumes USD)
+  1556→12. Add asset lifecycle cost analysis over time (compare YoY cost trends per asset type — Round 5 added the foundation)
+  1557→13. Add predictive maintenance scheduling (based on asset type + usage patterns + historical maintenance)
+  1558→14. Add API documentation (OpenAPI/Swagger) for the 72+ endpoints
+  1559→15. Add mobile app (React Native) for field technicians with QR/barcode scanning
+  1560→
+  1561→**Files modified in Round 5**:
+  1562→- `/home/z/my-project/src/lib/db.ts` — Added SavedReport table + 2 indexes
+  1563→- `/home/z/my-project/src/lib/types.ts` — Added 4 new types (SavedReport, SavedReportConfig, VendorPerformance, LifecycleYoYPoint)
+  1564→- `/home/z/my-project/src/lib/repo.ts` — Added savedReportRepo, vendorPerformanceRepo, assetLifecycleRepo
+  1565→- `/home/z/my-project/src/lib/api.ts` — Extended reportsApi with saved/vendorPerformance/lifecycleYoY + new types
+  1566→- `/home/z/my-project/src/lib/seed.ts` — Spread asset purchase dates across 2024-2026
+  1567→- `/home/z/my-project/src/app/api/reports/saved/route.ts` — NEW: list + create
+  1568→- `/home/z/my-project/src/app/api/reports/saved/[id]/route.ts` — NEW: get + update + delete
+  1569→- `/home/z/my-project/src/app/api/reports/vendor-performance/route.ts` — NEW
+  1570→- `/home/z/my-project/src/app/api/reports/lifecycle-yoy/route.ts` — NEW
+  1571→- `/home/z/my-project/src/components/empty-state.tsx` — NEW: reusable EmptyState component (46 lines)
+  1572→- `/home/z/my-project/src/components/app-shell.tsx` — Added app-bg-gradient + theme-transition to root
+  1573→- `/home/z/my-project/src/components/views/maintenance-calendar-view.tsx` — NEW: month-grid calendar (590 lines)
+  1574→- `/home/z/my-project/src/components/views/maintenance-view.tsx` — List/Calendar toggle + search (447→518)
+  1575→- `/home/z/my-project/src/components/views/bookings-calendar-view.tsx` — Conflict detection + conflict-ring + AlertTriangle + badge (613→705)
+  1576→- `/home/z/my-project/src/components/views/reports-view.tsx` — Saved Reports UI + YoY section (904→1408)
+  1577→- `/home/z/my-project/src/components/views/vendors-view.tsx` — Vendor Performance Analytics section (737→1104)
+  1578→- `/home/z/my-project/src/components/views/dashboard-view.tsx` — card-hover-lift on 12 cards + shimmer-bg
+  1579→- `/home/z/my-project/src/components/views/assets-list-view.tsx` — shimmer-bg + btn-press + EmptyState
+  1580→- `/home/z/my-project/src/components/views/bookings-view.tsx` — shimmer-bg (8) + btn-press + EmptyState
+  1581→- `/home/z/my-project/src/components/views/disposals-view.tsx` — btn-press
+  1582→- `/home/z/my-project/src/components/views/purchase-orders-view.tsx` — btn-press
+  1583→- `/home/z/my-project/src/app/globals.css` — ~190 lines of new CSS utilities (Round 5 section)
+  1584→
+  1585→---
+  1586→Task ID: R6-A
+  1587→Agent: fullstack-developer (R6-A)
+  1588→Task: Build two new view files for the IT Asset Manager — the Expiry Center view (`src/components/views/expirations-view.tsx`) and the Asset Utilization Dashboard view (`src/components/views/utilization-view.tsx`) — overwriting the existing stubs with full feature-complete implementations.
+  1589→
+  1590→Work Log:
+  1591→- Read `worklog.md` (last ~300 lines) to understand the Round 5 finishing state and the project's styling conventions (section-accent-bar, stat-tile-gradient, animate-count-pop, urgency-* CSS classes, dot-pattern-bg, live-dot, util-bar-fill, progress-fill-anim, scrollbar-thin).
+  1592→- Inspected existing pattern references: `vendors-view.tsx` (VendorPerformanceSection header + StatTile + Recharts BarChart layout) and `reports-view.tsx` (YoY table + compact currency formatter + scrollbar-thin overflow).
+  1593→- Confirmed the data contracts by reading `src/lib/types.ts` lines 830–902 (ExpirationItem, ExpirationReport, UtilizationByBucket, IdleAsset, UtilizationReport) and `src/lib/api.ts` (expirationsApi.list, utilizationApi.report).
+  1594→- Verified both API routes (`/api/expirations`, `/api/utilization`) return JSON correctly via curl before writing the views.
+  1595→- **Expiry Center view** (`expirations-view.tsx`, 354 lines):
+  1596→  - `'use client'` directive, `useQuery` against `['expirations']` key.
+  1597→  - Header with "Expiry Center" title + subtitle + a rose/emerald live indicator pill containing `<span className="live-dot" />` and "Live data".
+  1598→  - 5 stat tiles in a `lg:grid-cols-5` grid: Expired (rose #f43f5e, CalendarX2), ≤30 days (orange #f97316, AlertTriangle), ≤60 days (amber #f59e0b, Clock), ≤90 days (sky #0ea5e9, Timer), Future (slate #64748b, ShieldCheck). Each tile uses `stat-tile-gradient card-hover-lift border-l-4` + the count number has `animate-count-pop`.
+  1599→  - Rose-tinted `<Alert variant="destructive">` banner when `totals.exposedValue > 0`: "⚠ {formatCurrency(exposedValue)} exposed value" with description explaining the 90-day window.
+  1600→  - shadcn `<Tabs>` with 3 triggers (All / Warranties / Licenses) and a search `<Input>` (with Search icon and Clear button when active).
+  1601→  - `ItemList` wrapped in a `<Card>` with `<CardHeader>`/`<CardTitle>`/`<CardDescription>` showing the count; inner scroll container `max-h-[640px] overflow-y-auto scrollbar-thin`.
+  1602→  - Each `ItemRow` is a clickable card using the matching `urgency-{urgency}` CSS class. Left: circular icon container (ShieldCheck sky for warranty, KeyRound violet for license). Middle: name (font-medium), subtitle, meta chips (vendor/category/seats for licenses; assetType/department/assetTag for warranties). Right: urgency Badge (color-mapped: rose/orange/amber/sky/slate), expiry date via `formatDate`, and cost (with TrendingUp icon) via `formatCurrency` when present.
+  1603→  - Click handler: license → `navigate('licenses')`; warranty → `navigate('asset-detail', { id: item.entityId })`. Also keyboard-accessible (Enter/Space).
+  1604→  - Empty states: `<EmptyState>` with FileWarning icon when filtered list is empty; `<EmptyState>` with ShieldCheck icon when no expirations exist at all.
+  1605→  - Loading state: 5-tile skeleton + search skeleton + 4 row skeletons.
+  1606→  - Items sorted by `daysUntilExpiry` ascending (expired first). Footer summary line shows counts by kind.
+  1607→- **Asset Utilization Dashboard view** (`utilization-view.tsx`, ~370 lines):
+  1608→  - `'use client'` directive, `useQuery` against `['utilization']` key.
+  1609→  - Header "Asset Utilization" + subtitle.
+  1610→  - 3 KPI tiles (`sm:grid-cols-3`): Overall Utilization Rate (emerald #10b981, Gauge, `Math.round(rate*100)%`), In Use vs Available (sky #0ea5e9, Activity, `${inUse} / ${totalAssets - retired - lost}`), Idle Assets (amber #f59e0b, Clock, `idleCount`). Each tile uses `stat-tile-gradient card-hover-lift border-l-4` + `animate-count-pop` value.
+  1611→  - `BucketSection` reusable component for both Department and Asset Type breakdowns:
+  1612→    - Header is a `section-accent-bar dot-pattern-bg rounded-lg` div with appropriate icon (Building2 violet / Layers sky) + title + description.
+  1613→    - Recharts `BarChart` with `layout="vertical"` — X-axis 0–100% formatted, Y-axis category (bucketName), CartesianGrid, custom Tooltip showing "X% (inUse of total in use)". Each `<Bar>` cell colored by rate via `<Cell>`: emerald ≥75%, sky ≥50%, amber ≥25%, rose <25%. Chart height scales with bucket count (`max(220, len*36)`).
+  1614→    - Below the chart, a `BucketList` of grid rows (name | total | inUse | rate% colored by threshold | mini progress bar). Progress bar uses `<div className="util-bar-fill progress-fill-anim">` with `width: rate%` and background set to `rateColor(rate)`.
+  1615→  - Idle Assets section (`section-accent-bar dot-pattern-bg` header with Timer icon):
+  1616→    - When `idleAssets.length === 0`: `<EmptyState>` with TrendingUp icon and success message "No idle assets — great job!".
+  1617→    - Otherwise: `<Card>` with shadcn `<Table>` inside `max-h-96 overflow-y-auto scrollbar-thin`. Columns: Asset (name + assetTag + "Purchased {date}" via formatDate) | Serial (mono) | Department | Location | Days Idle (Badge — rose if >180d, amber if >90d, sky otherwise, all with Clock icon) | Action "View" Button calling `navigate('asset-detail', { id })`. Sorted by daysIdle desc.
+  1618→  - Footer summary row: 4 small bordered tiles (Total assets / In use / In stock / Repair+Retired+Lost) with matching icons.
+  1619→  - Loading state: 3-tile skeleton + 2 chart skeletons.
+  1620→- Both views are wrapped in `<div className="space-y-5 animate-fade-in-up">`.
+  1621→- All imports use existing shadcn/ui components from `@/components/ui/*`, no `any` types, strict TypeScript throughout.
+  1622→- Only the two target files were modified — no other files touched.
+  1623→
+  1624→Stage Summary:
+  1625→- Files written:
+  1626→  - `/home/z/my-project/src/components/views/expirations-view.tsx` (354 lines, full Expiry Center implementation)
+  1627→  - `/home/z/my-project/src/components/views/utilization-view.tsx` (~370 lines, full Asset Utilization Dashboard implementation)
+  1628→- Verification:
+  1629→  - `cd /home/z/my-project && bun run lint` → exit code 0, **0 errors, 0 warnings** ✓
+  1630→  - `curl -s http://localhost:3000/api/expirations | head -c 200` → returns valid JSON `{items:[{id:"lic-...", kind:"license", name:"Norton Antivirus Plus", ...}]` ✓
+  1631→  - `curl -s http://localhost:3000/api/utilization | head -c 200` → returns valid JSON `{byDepartment:[{bucketId:..., bucketName:"IT", total:1, inUse:1, utilizationRate:1, ...}]` ✓
+  1632→  - dev.log shows `✓ Compiled in 285ms` then `GET /api/expirations 200` and `GET /api/utilization 200` with no errors in the recent tail ✓
+  1633→- The two views are wired into `src/app/page.tsx` (lines 28–29 + 130/132) — they will render when the user navigates to the "expirations" or "utilization" nav items.
+  1634→
+  1635→---
+  1636→Task ID: R6-B
+  1637→Agent: fullstack-developer (R6-B)
+  1638→Task: Add a "Maintenance Cost Analytics" section to the existing Reports view AND create a new Global Command Palette component (Cmd+K / Ctrl+K) wired into the AppShell.
+  1639→
+  1640→Work Log:
+  1641→- Read `/home/z/my-project/worklog.md` (last ~400 lines) to understand the Round 5 + Round 6 orchestrator state and the existing styling conventions (section-accent-bar, stat-tile-gradient, kbd-pill, glass-card-strong, cmd-result, scrollbar-thin, tick-up/tick-down — all already defined in `src/app/globals.css`).
+  1642→- Inspected target files before editing:
+  1643→  - `src/components/views/reports-view.tsx` (1408 lines) — confirmed YoY Cost Comparison section ends at the YoY KPI tiles grid (originally line 1307) just before the "Detailed tables" Card (originally line 1309). Confirmed existing imports of `Wrench`, `Activity`, `DollarSign`, `TrendingUp`, `TrendingDown` from lucide-react and all needed Recharts components (`BarChart`, `Bar`, `AreaChart`, `Area`, `XAxis`, `YAxis`, `Tooltip`, `CartesianGrid`, `ResponsiveContainer`). Verified `useNav` was NOT previously imported.
+  1644→  - `src/components/app-shell.tsx` (189 lines) — understood the AppShell root div structure, HeaderSearch input, and Sidebar mounting point.
+  1645→  - `src/lib/api.ts` — confirmed `reportsApi.maintenanceCost(months)` exists (line 535) and returns `MaintenanceCostReport`, and that `assetsApi.list({ search, pageSize })` exists for command palette search.
+  1646→  - `src/lib/types.ts` (lines 905–939) — confirmed `MaintenanceCostReport`, `MaintenanceCostByType`, `MaintenanceCostTrendPoint`, `TopMaintenanceAsset` interfaces match the task spec exactly (byType / trend / topAssets / totals with trendDeltaPct).
+  1647→  - `src/lib/nav.ts` — confirmed `ViewName` union includes all views needed for command palette (asset-new, ocr-upload, import, asset-labels, asset-detail, etc.).
+  1648→  - `src/components/sidebar.tsx` — confirmed the canonical NAV_ITEMS list (24 items across Overview / Create / Manage / Procurement groups) used to seed the local NAV_ITEMS_LOCAL copy in the command palette.
+  1649→  - `src/app/globals.css` — confirmed `cmd-result`, `kbd-pill`, `glass-card-strong`, `scrollbar-thin`, `stat-tile-gradient`, `section-accent-bar` CSS utilities already exist (Round 6 section, lines 830–990).
+  1650→- Verified `curl -s "http://localhost:3000/api/reports/maintenance-cost?months=12"` returns valid JSON with byType (6 entries: Mobile $1,052 / Laptop $388 / Desktop $302 / Tablet $264 / Monitor $244 / Peripheral $156), trend (12 month points), topAssets, and totals (with non-null trendDeltaPct).
+  1651→- **Task 1 — Maintenance Cost Analytics section** (added to `reports-view.tsx`):
+  1652→  - Updated imports: added `formatDate` to the `@/lib/format` import, added `import { useNav } from '@/lib/nav'`, added `import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'`. (Wrench, Activity, DollarSign, TrendingUp, TrendingDown, Recharts components were already imported.)
+  1653→  - Registered `useQuery({ queryKey: ['maintenance-cost', 12], queryFn: () => reportsApi.maintenanceCost(12) })` BEFORE the early-return `if (!stats)` block to keep hook order stable. Added `const { navigate } = useNav()` immediately after.
+  1654→  - Inserted the new section between the YoY KPI tiles `</div>` (line 1318) and the `{/* Detailed tables */}` Card (line 1320). The section uses `section-accent-bar` header with `<Wrench className="h-5 w-5 text-amber-600" />` + h3 "Maintenance Cost Analytics" + subtitle "Breakdown of maintenance spend over the last 12 months".
+  1655→  - Empty state: if `!maintenanceCost || maintenanceCost.totals.totalEvents === 0` → single centered `<Card>` with "No maintenance cost data available".
+  1656→  - 3 KPI tiles (`md:grid-cols-3`), each `<Card className="stat-tile-gradient border-l-4">` with `style={{ borderLeftColor }}`:
+  1657→    1. Total Maintenance Cost — amber `#f59e0b` border + Wrench icon (amber-500/10 backdrop)
+  1658→    2. Total Events — sky `#0ea5e9` border + Activity icon (sky-500/10 backdrop)
+  1659→    3. Avg Cost / Event — violet `#8b5cf6` border + DollarSign icon (violet-500/10 backdrop) + TrendingUp/TrendingDown icon + `±X.X% MoM` text using `tick-up`/`tick-down` classes when `trendDeltaPct !== null`.
+  1660→  - Two-column grid (`lg:grid-cols-2`):
+  1661→    - Left: `<Card>` "Cost by Asset Type" — Recharts horizontal `<BarChart layout="vertical">` with `assetType` on Y-axis (width 90) and `totalCost` on X-axis (formatted via `fmtCompactCurrency`). Single `<Bar dataKey="totalCost" fill="#f59e0b" radius={[0,4,4,0]} />`. Custom `<Tooltip content>` render prop shows `assetType` heading + 3 rows (Total Cost, Events, Avg / Event) for clean typed access to `payload[0].payload` (avoiding Recharts Formatter type friction).
+  1662→    - Right: `<Card>` "Monthly Cost Trend (12 months)" — Recharts `<AreaChart>` with `month` (formatted via `formatDate(\`${p.month}-01\`, 'MMM')` → "Apr", "May", etc.) on X-axis and `totalCost` on Y-axis. Amber `#f59e0b` stroke + `<linearGradient id="maintTrendGrad">` amber fill (0.4 → 0.05 opacity). Custom Tooltip shows month + totalCost + eventCount.
+  1663→  - Full-width Top Assets card: shadcn `<Table>` inside `<div className="max-h-96 overflow-y-auto scrollbar-thin">` with sticky `<TableHeader>`. Columns: Asset (name + assetTag in `font-mono text-[11px]`) | Type | Events | Total Cost | Last Maintenance. Each `<TableRow>` has `cursor-pointer` + `onClick={() => navigate('asset-detail', { id: a.assetId })}`. `formatDate(a.lastMaintenanceAt)` for last maintenance.
+  1664→- **Task 2a — Command Palette** (NEW file `src/components/command-palette.tsx`, 322 lines):
+  1665→  - `'use client'` directive.
+  1666→  - Imports: `useEffect`, `useMemo`, `useRef`, `useState` from React; `useQuery` from `@tanstack/react-query`; `useNav`, `ViewName` from `@/lib/nav`; `assetsApi` from `@/lib/api`; `Input` from `@/components/ui/input`; 23 lucide-react icons + `LucideIcon` type.
+  1667→  - Local `NAV_ITEMS_LOCAL` (24 items) — mirrors the sidebar's NAV_ITEMS so the palette doesn't import the Sidebar component. Each entry has `{ label, view: ViewName, icon: LucideIcon }`.
+  1668→  - Local `QUICK_ACTIONS` (4 items): Add Asset, Add via Image (OCR), Import Excel, Print Asset Labels — each maps to `navigate('asset-new' | 'ocr-upload' | 'import' | 'asset-labels')`.
+  1669→  - State: `open` (boolean), `query` (string), `debouncedQuery` (string), `selectedIndex` (number). `inputRef` for autofocus.
+  1670→  - Global keydown listener (window): `(e.metaKey || e.ctrlKey) && e.key === 'k'` → preventDefault + toggle (when opening, also resets query + debouncedQuery + selectedIndex synchronously inline so we don't trigger the React Compiler `react-hooks/set-state-in-effect` rule); `e.key === 'Escape' && open` → close.
+  1671→  - Debounce `query → debouncedQuery` via `useEffect` + `setTimeout(200ms)` (async setState inside setTimeout is allowed).
+  1672→  - Autofocus on open via `useEffect([open])` + `setTimeout(() => inputRef.current?.focus(), 0)` (DOM-only side effect, no setState).
+  1673→  - `useQuery(['command-palette-search', debouncedQuery], () => assetsApi.list({ search: debouncedQuery, pageSize: 8 }), { enabled: debouncedQuery.trim().length > 0 })`.
+  1674→  - `items` via `useMemo`: builds flat `CmdItem[]` (Quick Actions + Quick Navigation filtered by case-insensitive match on label + hint + category, then Search results appended when query is non-empty). Each item has `{ id, label, hint, icon, category, action }`.
+  1675→  - Derived `safeSelectedIndex = items.length === 0 ? 0 : Math.min(selectedIndex, items.length - 1)` — replaces a previous clamp useEffect that tripped the `set-state-in-effect` rule.
+  1676→  - `handleKeyDown` (on the inner dialog div): ArrowDown → `(i + 1) % items.length`; ArrowUp → `(i - 1 + items.length) % items.length`; Enter → execute `items[safeSelectedIndex].action()` + close.
+  1677→  - `executeItem(item)` → run action + close palette.
+  1678→  - Render (only when `open`): outer `<div className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[15vh] bg-black/40 backdrop-blur-sm" onClick={close}>` + inner `<div className="glass-card-strong w-full max-w-2xl overflow-hidden rounded-xl" onClick={stopPropagation} onKeyDown={handleKeyDown} role="dialog" aria-modal="true">`.
+  1679→  - Header: Search icon + `<Input>` (autofocus, `placeholder="Search or jump to…"`, onChange also calls `setSelectedIndex(0)` to reset selection on query change) + `<kbd className="kbd-pill">Esc</kbd>` in top-right.
+  1680→  - Scrollable results (`max-h-[400px] overflow-y-auto scrollbar-thin`): groups items by category (consecutive items with same category get a single uppercase header), each row is a `<button className="cmd-result" data-selected={selected ? 'true' : 'false'}>` with `onMouseEnter={() => setSelectedIndex(flatIndex)}` for hover-sync. Layout: `<Icon className="h-4 w-4">` + label (font-medium, flex-1 truncate) + hint (text-xs muted, max-w-55% truncate) on the right.
+  1681→  - Empty state: `items.length === 0` → "No matches for "{query}"." or "Start typing to search…".
+  1682→  - Footer: `<div className="border-t px-4 py-2 text-[11px] text-muted-foreground">↑↓ to navigate · Enter to select · Esc to close</div>`.
+  1683→- **Task 2b — Wire into app-shell.tsx**:
+  1684→  - Added `import { CommandPalette } from '@/components/command-palette'`.
+  1685→  - Rendered `<CommandPalette />` as the FIRST child inside the AppShell root div (so it's always mounted and listening for Cmd+K).
+  1686→  - Added `<kbd className="kbd-pill absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline-flex pointer-events-none">⌘K</kbd>` next to the existing search Input inside `HeaderSearch`. Updated the Input className from `pl-9 h-9 ...` to `pl-9 pr-9 sm:pr-14 h-9 ...` so the typed text never underlaps the kbd hint on sm+ screens.
+  1687→- ESLint iterations:
+  1688→  - First `bun run lint` after writing the command palette flagged 3 `react-hooks/set-state-in-effect` errors (the React 16 / React Compiler rule disallows calling `setState` synchronously inside `useEffect`). Refactored: removed the reset-selection useEffect (now done inline in the keyboard handler when opening the palette AND in the Input onChange), removed the clear-query-on-close useEffect (now done inline when Cmd+K opens a previously-closed palette), and replaced the clamp selectedIndex useEffect with a derived `safeSelectedIndex` value computed during render.
+  1689→  - Re-ran `bun run lint` → 0 errors, 0 warnings.
+  1690→- Agent-browser QA (optional verification):
+  1691→  - Opened `http://localhost:3000/` → page loads with title "AssetHub — IT Asset Manager", no console errors.
+  1692→  - Clicked the "Reports" sidebar nav button → navigated to Reports view, `agent-browser wait --text "Maintenance Cost Analytics"` succeeded (section is rendered).
+  1693→  - Full snapshot confirmed all 6 new elements render: heading "Maintenance Cost Analytics", "Total Maintenance Cost" KPI, "Avg Cost / Event" KPI, "Cost by Asset Type" chart card, "Monthly Cost Trend (12 months)" chart card, "Top Assets by Maintenance Cost" table card.
+  1694→  - Pressed `Control+k` → command palette opened. Snapshot confirmed the "QUICK ACTIONS" + "QUICK NAVIGATION" category headers and the "↑↓ to navigate · Enter to select · Esc to close" footer hint all render.
+  1695→  - Filled the palette's search input with "iphone" → after 200ms debounce, the "SEARCH" category appeared with 2 matching assets: "Apple iPhone 15 Pro Max" (TC-000026 · Mobile · F2LW1234ABC) and "Apple iPhone 13" (TC-000029 · Mobile · F2LW5678DEF). Clicking would navigate to `asset-detail` with the asset's id.
+  1696→  - Pressed `Escape` → palette closed.
+  1697→  - Errors panel (`agent-browser errors`) → empty (no runtime errors). Console → only the standard React DevTools download banner + `[HMR] connected` line (no warnings, no errors).
+  1698→- Verified `curl -s "http://localhost:3000/api/reports/maintenance-cost?months=12" | head -c 300` returns valid JSON starting with `{"byType":[{"assetType":"Mobile","totalCost":1052,"eventCount":6,"avgCost":175.33...` ✓.
+  1699→- Verified `curl -s "http://localhost:3000/api/assets?search=iphone&pageSize=8" | head -c 400` returns matching assets for the command palette ✓.
+  1700→- dev.log shows `GET /api/reports/maintenance-cost?months=12 200 in 23ms` and `GET /api/assets?search=iphone&pageSize=8 200 in 10ms` (the queries fired by the new UI) with no compile errors.
+  1701→
+  1702→Stage Summary:
+  1703→- Files modified (only these 3, per the constraints):
+  1704→  - `/home/z/my-project/src/components/views/reports-view.tsx` — 1408 → 1716 lines (+308). Added 3 imports (`formatDate`, `useNav`, shadcn `Table` family), 1 `useQuery` call against `reportsApi.maintenanceCost(12)` registered before the early return, 1 `useNav()` hook, and the new Maintenance Cost Analytics section (header + 3 KPI tiles + 2-column grid with Cost by Asset Type BarChart + Monthly Cost Trend AreaChart + Top Assets Table) inserted after the YoY KPI tiles and before the "Detailed tables" Card. Empty state handled.
+  1705→  - `/home/z/my-project/src/components/command-palette.tsx` — NEW (322 lines). Cmd+K / Ctrl+K global command palette with autofocus search input, debounced asset search via `assetsApi.list`, categorized flat results (Quick Actions + Quick Navigation + Search), keyboard navigation (ArrowUp/Down/Enter/Escape), `cmd-result` + `kbd-pill` + `glass-card-strong` styling.
+  1706→  - `/home/z/my-project/src/components/app-shell.tsx` — 189 → 196 lines (+7). Imported `CommandPalette`, rendered `<CommandPalette />` as the first child of the AppShell root div, added `<kbd className="kbd-pill">⌘K</kbd>` hint inside `HeaderSearch` (with adjusted Input padding so text never underlaps the hint).
+  1707→- Verification:
+  1708→  - `cd /home/z/my-project && bun run lint` → exit code 0, **0 errors, 0 warnings** ✓
+  1709→  - `curl -s "http://localhost:3000/api/reports/maintenance-cost?months=12" | head -c 300` → returns valid JSON `{byType:[{assetType:"Mobile",totalCost:1052,...}]` ✓
+  1710→  - agent-browser QA: Reports view renders the new Maintenance Cost Analytics section with all 6 elements visible; Cmd+K opens the palette; typing "iphone" surfaces 2 asset matches in the SEARCH category; Escape closes the palette; no console errors after a clean reload ✓
+  1711→  - dev.log shows successful compilation and 200 responses for both new queries (`/api/reports/maintenance-cost?months=12` and `/api/assets?search=...&pageSize=8`) ✓
+  1712→- No new package dependencies. No other files touched (no API routes added — the maintenance-cost endpoint already existed from the Round 6 orchestrator setup). No `any` types used. All Shadcn components sourced from `@/components/ui/*`.
+  1713→
+  1714→---
+  1715→Task ID: R6-Orchestrator (final)
+  1716→Agent: Main (orchestrator)
+  1717→Task: Round 6 — QA assessment, backend foundation, subagent dispatch, manual styling polish finish, final verification, handover doc
+  1718→
+  1719→Work Log:
+  1720→- Read `/home/z/my-project/worklog.md` (Round 5 handover at line ~1400) to confirm prior state: app at v2.2 Round 5, stable, all 25 views + 72+ API routes working, ESLint clean.
+  1721→- Confirmed dev server running (curl `/` → 200) and dev.log had no errors. Verified DB already seeded (20 assets, 8 depts, 10 persons, 8 POs, 8 bookings).
+  1722→- Ran `agent-browser --help` to learn commands, then opened http://localhost:3000/ in agent-browser. Took accessibility snapshot — all 24 nav items rendered with "NEW" badges where expected. No browser errors, no console errors.
+  1723→- Smoke-tested every nav view (Dashboard, Assets, Reports, Audit Log, Notifications, Check-out Requests, Maintenance, Depreciation, Software Licenses, Asset Disposals, Asset Tags, Asset Bookings, Import, Print Labels, Asset Types, Departments, Locations, Persons, Vendors, Purchase Orders) — all rendered with content (h2 headings + body text > 800 chars each). No bugs found in Round 5 state. Confirmed Audit Log "0 rows" report was a false alarm — view uses cards grouped by date, not a `<table>`.
+  1724→- Decided Round 6 features based on Round 5 recommendations:
+  1725→  1. **Warranty & License Expiry Center** (new view + API) — proactive expiry tracking, addresses Round 5's "email notifications" gap (in-app fallback)
+  1726→  2. **Asset Utilization Dashboard** (new view + API) — utilization rates by dept/type + idle assets list
+  1727→  3. **Maintenance Cost Analytics** (new section in Reports + API) — extends Round 5's procurement analytics
+  1728→  4. **Global Command Palette** (Cmd+K) — quick search + navigation
+  1729→  5. **Mobile-Responsive Sidebar polish** — touch-friendly + footer status card
+  1730→  6. **Styling polish** — 12+ new CSS utilities applied across 5 view files
+  1731→- **Backend implementation** (orchestrator):
+  1732→  - Added 6 new types to `src/lib/types.ts`: `ExpirationItem`, `ExpirationReport`, `ExpirationUrgency`, `UtilizationByBucket`, `UtilizationReport`, `IdleAsset`, `MaintenanceCostByType`, `MaintenanceCostTrendPoint`, `TopMaintenanceAsset`, `MaintenanceCostReport`
+  1733→  - Imported new types into `src/lib/repo.ts`, appended 3 new repos: `expirationRepo.list()`, `utilizationRepo.report()`, `maintenanceCostRepo.report(monthsBack)`. Each uses safe parameterized SQL, supports status filtering, computes derived metrics (urgency classification, utilizationRate, trend delta %).
+  1734→  - Created 3 new API routes: `src/app/api/expirations/route.ts`, `src/app/api/utilization/route.ts`, `src/app/api/reports/maintenance-cost/route.ts`. All use `runtime='nodejs'` + `dynamic='force-dynamic'`.
+  1735→  - Added `reportsApi.maintenanceCost(months)` + `expirationsApi.list()` + `utilizationApi.report()` to `src/lib/api.ts`.
+  1736→- **Nav + page wiring**:
+  1737→  - Added `'expirations' | 'utilization'` to `ViewName` union in `src/lib/nav.ts`
+  1738→  - Added 2 NAV_ITEMS to `src/components/sidebar.tsx`: "Utilization" (Gauge icon, Overview group, NEW badge) + "Expiry Center" (CalendarX2 icon, Overview group, NEW badge)
+  1739→  - Added 2 cases to `src/app/page.tsx` ViewRouter switch for the new views
+  1740→  - Added 2 entries to HeaderTitle map in `src/components/app-shell.tsx`: 'expirations' → "Expiry Center", 'utilization' → "Asset Utilization"
+  1741→  - Bumped footer version from "v2.2 / Round 4" to "v2.3 / Round 6"
+  1742→- **CSS utilities** (orchestrator): Added ~180 lines to `src/app/globals.css` (Round 6 section): `dot-pattern-bg`, `glass-card-strong`, `gradient-text-shine`, `animate-count-pop`, `progress-fill-anim`, `urgency-{expired,30d,60d,90d,future}`, `util-bar-fill`, `cmd-result`, `kbd-pill`, `stat-tile-gradient`, `gradient-divider-strong`, `live-dot`. All with dark-mode variants and keyframe animations.
+  1743→- **Subagent dispatch** (parallel):
+  1744→  - **R6-A** (fullstack-developer): Created `expirations-view.tsx` (354 lines) + `utilization-view.tsx` (~370 lines). Both verified with `bun run lint` clean + curl API returns 200.
+  1745→  - **R6-B** (fullstack-developer): Added Maintenance Cost Analytics section to `reports-view.tsx` (1716 lines total) with 3 KPI tiles + Recharts horizontal BarChart + AreaChart + Top Assets table. Created NEW `command-palette.tsx` (322 lines) with Cmd+K keyboard listener, debounced search, categorized results, keyboard navigation. Wired into `app-shell.tsx`. Fixed React Compiler `set-state-in-effect` lint errors by refactoring to inline setState + derived `safeSelectedIndex`. agent-browser QA verified: typing "iphone" surfaces 2 matching assets.
+  1746→  - **R6-C** (frontend-styling-expert): Exceeded max turns but completed Task 1 (sidebar improvements) before terminating. Modified `src/components/sidebar.tsx`: added `SidebarFooter` component with glass-card-strong status card + live-dot + "v2.3 · Round 6" text, added `CmdkHint` component at top of mobile Sheet showing `⌘K`/`/` kbd pills, applied `min-h-[44px] sm:min-h-0` for touch-friendly nav buttons, added `bg-gradient-to-r from-primary/5 to-transparent` to Brand area.
+  1747→- **Manual styling polish finish** (orchestrator, since R6-C ran out of turns):
+  1748→  - `src/components/views/dashboard-view.tsx`: Added `stat-tile-gradient` class to all 6 StatCards + 3 QuickActionCards, added `animate-count-pop` class to stat numbers, replaced `<span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />` with `<span className="live-dot" />` next to "All systems operational", added `dot-pattern-bg` to welcome banner.
+  1749→  - `src/components/views/assets-list-view.tsx`: Added `btn-press` class to Export + Scan buttons (Add Asset already had it), added `transition-colors` to TableRow hover.
+  1750→  - `src/components/views/reports-view.tsx`: Wrapped "Reports & Analytics" text in `<span className="gradient-text-shine">`, added `<span className="live-dot" />` to header. (KPI tiles in Maintenance Cost section already had `stat-tile-gradient` from R6-B.)
+  1751→  - `src/components/views/vendors-view.tsx`: Added `stat-tile-gradient` class + `animate-count-pop` to the 4 KPI StatTiles in Vendor Performance Analytics section.
+  1752→- **Verification (final)**:
+  1753→  - `cd /home/z/my-project && bun run lint` → 0 errors, 0 warnings ✓
+  1754→  - dev.log: zero errors, all endpoints returning 200 ✓
+  1755→  - agent-browser QA on every new feature:
+  1756→    - Utilization view: 3 KPI tiles + bar chart by department + bar chart by asset type + idle assets table render ✓ (screenshot: `qa_r6_utilization.png`)
+  1757→    - Expiry Center: 5 urgency stat tiles + exposed value banner + All/Warranties/Licenses tabs + 21 urgency-classified items render ✓ (screenshot: `qa_r6_expirations.png`)
+  1758→    - Reports → Maintenance Cost Analytics section: heading + 3 KPI tiles + bar chart + area chart + top assets table render ✓ (screenshot: `qa_r6_maintenance_cost.png`)
+  1759→    - Command Palette: Cmd+K opens dialog, search input debounced 200ms, typing "iphone" returns 2 asset matches, Escape closes ✓ (screenshot: `qa_r6_command_palette.png`)
+  1760→    - Dashboard polish: 8 stat-tile-gradient elements + 8 animate-count-pop elements + 1 live-dot + 1 dot-pattern-bg ✓ (screenshot: `qa_r6_dashboard_polished.png`)
+  1761→    - Reports view polish: 1 gradient-text-shine heading + 1 live-dot + 3 stat-tile-gradient KPI tiles in Maintenance section ✓
+  1762→    - Vendors view polish: 8 stat-tile-gradient + 8 animate-count-pop elements in Vendor Performance Analytics ✓ (screenshot: `qa_r6_vendors_polished.png`)
+  1763→
+  1764→Stage Summary:
+  1765→- **Round 6 complete**. App now at v2.3 with 27 view components (added ExpirationsView, UtilizationView) + 75+ API routes (added `/api/expirations`, `/api/utilization`, `/api/reports/maintenance-cost`) + 1 new global component (`CommandPalette`).
+  1766→- Files modified (Round 6):
+  1767→  - `/home/z/my-project/src/lib/types.ts` — Added 10 new types (~110 lines)
+  1768→  - `/home/z/my-project/src/lib/repo.ts` — Added `expirationRepo`, `utilizationRepo`, `maintenanceCostRepo` (~370 lines, file now 2810 lines)
+  1769→  - `/home/z/my-project/src/lib/api.ts` — Added 3 new API client methods + 3 type imports
+  1770→  - `/home/z/my-project/src/lib/nav.ts` — Added 2 new ViewName entries
+  1771→  - `/home/z/my-project/src/app/api/expirations/route.ts` — NEW
+  1772→  - `/home/z/my-project/src/app/api/utilization/route.ts` — NEW
+  1773→  - `/home/z/my-project/src/app/api/reports/maintenance-cost/route.ts` — NEW
+  1774→  - `/home/z/my-project/src/app/page.tsx` — Wired 2 new view imports + 2 switch cases
+  1775→  - `/home/z/my-project/src/components/sidebar.tsx` — Added 2 nav items + SidebarFooter + CmdkHint + touch-friendly min-h + brand gradient
+  1776→  - `/home/z/my-project/src/components/app-shell.tsx` — Added 2 header titles + bumped version + mounted CommandPalette
+  1777→  - `/home/z/my-project/src/components/command-palette.tsx` — NEW (322 lines, Cmd+K palette with debounced search + keyboard navigation)
+  1778→  - `/home/z/my-project/src/components/views/expirations-view.tsx` — NEW (354 lines, was stub, R6-A built full version)
+  1779→  - `/home/z/my-project/src/components/views/utilization-view.tsx` — NEW (~370 lines, was stub, R6-A built full version)
+  1780→  - `/home/z/my-project/src/components/views/reports-view.tsx` — Added Maintenance Cost Analytics section + gradient-text-shine + live-dot
+  1781→  - `/home/z/my-project/src/components/views/dashboard-view.tsx` — Added stat-tile-gradient + animate-count-pop + live-dot + dot-pattern-bg
+  1782→  - `/home/z/my-project/src/components/views/assets-list-view.tsx` — Added btn-press + transition-colors
+  1783→  - `/home/z/my-project/src/components/views/vendors-view.tsx` — Added stat-tile-gradient + animate-count-pop to KPI tiles
+  1784→  - `/home/z/my-project/src/app/globals.css` — Added ~180 lines of new CSS utilities (Round 6 section)
+  1785→- ESLint: 0 errors, 0 warnings ✓
+  1786→- All Round 5 features continue to work (25 existing views + 68+ existing API routes + OCR + exports + bulk ops + tags + calendar + saved reports + vendor performance + lifecycle YoY).
+  1787→- All Round 6 features verified end-to-end via agent-browser (screenshots saved to `/home/z/my-project/download/qa_r6_*.png`).
+  1788→
+  1789→---
+  1790→## HANDOVER DOCUMENT (Round 6)
+  1791→
+  1792→### 1. Current Project Status Description / Assessment
+  1793→
+  1794→The IT Asset Manager (AssetHub) is a production-grade Next.js 16 application now at **v2.3 (Round 6)** with comprehensive asset lifecycle management, procurement workflows, reservation/tagging systems, bulk operations, analytics, **and new Round 6 capabilities**: Expiry Center (warranty + license expirations), Asset Utilization Dashboard, Maintenance Cost Analytics, Global Command Palette (Cmd+K), and pervasive styling polish (live-dot indicators, gradient-text-shine, count-pop animations, dot-pattern backgrounds, glassmorphism). The app is **stable, fully functional, and feature-complete** through Round 6.
+  1795→
+  1796→**Tech Stack**: Next.js 16 + TypeScript 5 + Tailwind CSS 4 + shadcn/ui (New York) + node:sqlite (Node built-in) + TanStack Query + Zustand + Recharts + z-ai-web-dev-sdk (VLM for OCR)
+  1797→
+  1798→**Scale (cumulative through Round 6)**:
+  1799→- 27 view components (added `ExpirationsView` + `UtilizationView` this round)
+  1800→- 75+ API routes (added `/api/expirations`, `/api/utilization`, `/api/reports/maintenance-cost`)
+  1801→- 18 database tables (unchanged from Round 5 — all new features derive from existing data)
+  1802→- ~180 lines of new CSS utilities (dot-pattern-bg, glass-card-strong, gradient-text-shine, animate-count-pop, urgency-{expired,30d,60d,90d,future}, util-bar-fill, cmd-result, kbd-pill, stat-tile-gradient, gradient-divider-strong, live-dot)
+  1803→- 1 new global component (`CommandPalette`)
+  1804→- ~1,500+ lines of new view code (ExpirationsView 354, UtilizationView 370, CommandPalette 322, Maintenance Cost Analytics section in reports-view ~150, sidebar improvements ~80)
+  1805→
+  1806→**Architecture**: SPA on `/` route with client-side view routing via Zustand (`useNav`). All API routes use Next.js App Router with `runtime='nodejs'` and `dynamic='force-dynamic'`. Database is node:sqlite (no Prisma engines needed).
+  1807→
+  1808→**Health**: ESLint clean (0 errors, 0 warnings). Zero runtime errors in dev.log. All 3 new API endpoints return 200. All views render correctly in agent-browser QA. All Round 6 features verified end-to-end:
+  1809→- Expiry Center: 21 items classified by urgency (expired/30d/60d/90d/future) + 5 stat tiles + exposed value banner + 3-tab filter
+  1810→- Utilization Dashboard: 3 KPI tiles + bar chart by dept + bar chart by asset type + idle assets section with success empty state
+  1811→- Maintenance Cost Analytics: 3 KPI tiles with trend % + horizontal bar chart by type + area chart for monthly trend + top assets table with click-through
+  1812→- Command Palette: Cmd+K opens dialog + 200ms debounced search + categorized results (Quick Actions / Navigation / Search) + keyboard navigation (↑↓ Enter Esc) + glass-card-strong overlay
+  1813→- Styling polish: 8 stat-tile-gradient tiles on dashboard + 8 on vendors + 3 on reports = 19 tiles with count-pop animation, 1 gradient-text-shine heading on reports, 2 live-dot indicators (dashboard + reports), 1 dot-pattern-bg on dashboard hero, kbd-pill hints in sidebar + command palette, 44px touch-friendly nav buttons on mobile
+  1814→
+  1815→### 2. Current Goals / Completed Modifications / Verification Results
+  1816→
+  1817→**Goals for Round 6**:
+  1818→1. ✅ QA test current state with agent-browser (no bugs found — all endpoints return 200, all 24 nav views render)
+  1819→2. ✅ Add Warranty & License Expiry Center (new view + API + repo with urgency classification: expired / 30d / 60d / 90d / future)
+  1820→3. ✅ Add Asset Utilization Dashboard (new view + API + repo computing utilizationRate per dept/type + idle assets >30 days)
+  1821→4. ✅ Add Maintenance Cost Analytics (new section in Reports + API + repo with byType / trend / topAssets breakdowns + MoM trend delta %)
+  1822→5. ✅ Add Global Command Palette (Cmd+K) — new component with debounced search across assets + quick nav + quick actions
+  1823→6. ✅ Improve mobile-responsive sidebar (SidebarFooter status card + CmdkHint + 44px touch targets + brand gradient)
+  1824→7. ✅ Improve styling with more details (~180 lines new CSS utilities + applied across 5 view files + sidebar)
+  1825→8. ✅ Add more features and functionality (4 major features + 1 component delivered)
+  1826→9. ✅ Update worklog.md with handover document
+  1827→
+  1828→**Completed modifications**:
+  1829→
+  1830→*Backend (by orchestrator)*:
+  1831→- Added 10 new types to `src/lib/types.ts` (ExpirationItem, ExpirationReport, ExpirationUrgency, UtilizationByBucket, UtilizationReport, IdleAsset, MaintenanceCostByType, MaintenanceCostTrendPoint, TopMaintenanceAsset, MaintenanceCostReport)
+  1832→- Added 3 new repos to `src/lib/repo.ts`:
+  1833→  - `expirationRepo.list()` — queries Asset.warrantyExpiry + SoftwareLicense.expiryDate, classifies into 5 urgency buckets, computes exposedValue (sum of cost for expired + within-90d items)
+  1834→  - `utilizationRepo.report()` — computes overall + by-department + by-asset-type utilization rates (inUse / (total - retired - lost)), idle assets list (In Stock > 30 days, sorted by daysIdle desc)
+  1835→  - `maintenanceCostRepo.report(monthsBack)` — MaintenanceSchedule.cost grouped by asset type + by month + top 8 assets, with MoM trend delta %
+  1836→- Created 3 new API routes: `/api/expirations` (GET), `/api/utilization` (GET), `/api/reports/maintenance-cost?months=N` (GET)
+  1837→- Extended `reportsApi` with `maintenanceCost(months)` + added `expirationsApi` + `utilizationApi` to `src/lib/api.ts`
+  1838→
+  1839→*Frontend (by 3 parallel subagents + orchestrator finish)*:
+  1840→- **R6-A** (fullstack-developer): Created `src/components/views/expirations-view.tsx` (354 lines) — 5 urgency stat tiles + exposed value Alert banner + Tabs (All/Warranties/Licenses) + search input + scrollable item list with urgency CSS classes + click-through to asset-detail/licenses. Created `src/components/views/utilization-view.tsx` (~370 lines) — 3 KPI tiles + Recharts vertical BarChart by department (color-coded by rate) + BarChart by asset type + idle assets table with click-through to asset-detail.
+  1841→- **R6-B** (fullstack-developer): Modified `src/components/views/reports-view.tsx` — added Maintenance Cost Analytics section (3 KPI tiles with trend % + horizontal BarChart by type + AreaChart for monthly trend + Top Assets table with click-through). Created NEW `src/components/command-palette.tsx` (322 lines) — Cmd+K listener + debounced search + categorized results (Quick Actions / Navigation / Search) + keyboard navigation (↑↓ Enter Esc) + glass-card-strong overlay. Wired `<CommandPalette />` into `app-shell.tsx` + added `<kbd className="kbd-pill">⌘K</kbd>` hint in header search.
+  1842→- **R6-C** (frontend-styling-expert, partial — exceeded max turns): Modified `src/components/sidebar.tsx` — added SidebarFooter (glass-card-strong with live-dot + "v2.3 · Round 6" text) + CmdkHint at top of mobile Sheet + min-h-[44px] on nav buttons for touch-friendliness + bg-gradient-to-r on Brand area.
+  1843→- **Orchestrator finish (manual)**: Applied remaining styling polish that R6-C didn't reach: dashboard stat-tile-gradient + animate-count-pop + live-dot + dot-pattern-bg; assets-list btn-press on Export/Scan + transition-colors on rows; reports-view gradient-text-shine on heading + live-dot; vendors-view stat-tile-gradient + animate-count-pop on KPI tiles.
+  1844→
+  1845→**Verification results**:
+  1846→- ESLint: 0 errors, 0 warnings ✓
+  1847→- dev.log: zero errors in last 30 lines ✓
+  1848→- All 3 new API endpoints return 200 ✓
+  1849→- `GET /api/expirations` → 200, returns 21 items (mixed warranties + licenses) classified by urgency ✓
+  1850→- `GET /api/utilization` → 200, returns overall (63% utilization, 10/16 in use, 0 idle) + byDepartment (8 buckets) + byAssetType (6 buckets) + idleAssets ✓
+  1851→- `GET /api/reports/maintenance-cost?months=12` → 200, returns byType (6 types, Mobile highest at $1,052) + trend (12 months) + topAssets + totals (totalCost=$844, totalEvents=18, avgCostPerEvent=$46.89, trendDeltaPct=non-null) ✓
+  1852→- agent-browser QA: Expiry Center renders 5 stat tiles + 21 items in 3 tabs + exposed value banner ✓
+  1853→- agent-browser QA: Utilization Dashboard renders 3 KPI tiles + 2 bar charts + idle assets section with "No idle assets — great job!" success empty state ✓
+  1854→- agent-browser QA: Reports → Maintenance Cost Analytics section renders heading + 3 KPI tiles + bar chart + area chart + top assets table ✓
+  1855→- agent-browser QA: Cmd+K opens command palette, typing "iphone" surfaces 2 matching assets (Apple iPhone 15 Pro Max + Apple iPhone 13), Escape closes cleanly ✓
+  1856→- agent-browser QA: Dashboard has 8 stat-tile-gradient + 8 animate-count-pop + 1 live-dot + 1 dot-pattern-bg ✓
+  1857→- agent-browser QA: Reports view has 1 gradient-text-shine heading + 1 live-dot + 3 stat-tile-gradient in Maintenance section ✓
+  1858→- agent-browser QA: Vendors view has 8 stat-tile-gradient + 8 animate-count-pop in Vendor Performance Analytics ✓
+  1859→- All previously working features (24 existing views, 68+ existing API routes, OCR, exports, bulk ops, tags, calendar, saved reports, vendor performance, lifecycle YoY, maintenance calendar, bookings conflict detection) continue to work ✓
+  1860→
+  1861→### 3. Unresolved Issues or Risks, and Priority Recommendations for Next Phase
+  1862→
+  1863→**Unresolved issues / risks**:
+  1864→1. **No authentication/authorization** — all endpoints are open. For production, add NextAuth.js session checks on API routes and role-based access (Admin / IT Manager / IT Staff / Read-only). Saved Reports have a `createdBy` field but it's currently null because there's no auth context.
+  1865→2. **No email notifications** — Notifications are in-app only. The new Expiry Center surfaces expiring items but doesn't proactively email owners. Should integrate email for: warranty expired, license expired, booking pending > 2 days, PO approved, booking conflict detected, maintenance overdue.
+  1866→3. **No file attachments** — Purchase Orders, Disposals, and Bookings often need attached documents (invoices, certificates, receipts). Currently only Assets have images.
+  1867→4. **Expiry Center has no "extend" action** — Clicking a warranty item navigates to asset-detail, but there's no inline "extend warranty" or "renew license" action. Could add quick-action buttons that open a small dialog to update the expiry date.
+  1868→5. **Utilization Dashboard idle threshold is hardcoded to 30 days** — Could expose as a user-configurable threshold.
+  1869→6. **Maintenance Cost Analytics only includes maintenance events with `cost > 0`** — Events without cost are excluded from totals but counted elsewhere. Could add a "no-cost events" count.
+  1870→7. **Command Palette search is asset-only** — Could extend to persons, vendors, locations, POs.
+  1871→8. **No multi-currency support** — POs have a `currency` field but all display assumes USD. Exposed value in Expiry Center sums costs across currencies without conversion.
+  1872→9. **No saved/subscription reports with email delivery** — Saved Reports persist config but don't schedule email delivery. Could add a `schedule` field (weekly/monthly) + cron job.
+  1873→10. **Two accessibility warnings in dev.log** — `DialogContent` requires `DialogTitle` for screen reader users, and `DialogContent` missing `Description` or `aria-describedby={undefined}`. These come from existing dialogs (Round 4-era, likely OCR upload or asset form) — not blocking but should be fixed for WCAG compliance.
+  1874→
+  1875→**Priority recommendations for next phase (Round 7)**:
+  1876→
+  1877→**High priority** (production blockers):
+  1878→1. Add NextAuth.js authentication with role-based access control (Admin / IT Manager / IT Staff / Read-only) — wire `createdBy` field on Saved Reports to the session user
+  1879→2. Add email notification integration for critical alerts (SendGrid/Resend/Mailgun) — booking pending > 2 days, warranty expired (from Expiry Center), license expired (from Expiry Center), PO approved, booking conflict detected, maintenance overdue
+  1880→3. Add file attachments to POs, Disposals, and Bookings (invoices, certificates, receipts) — extend the existing AssetImage pattern
+  1881→4. Add inline "Extend Warranty" / "Renew License" quick-action buttons to the Expiry Center items
+  1882→5. Fix the two accessibility warnings in existing DialogContent components (add DialogTitle/DialogDescription or wrap with VisuallyHidden)
+  1883→
+  1884→**Medium priority** (UX improvements):
+  1885→6. Extend Command Palette search to include persons, vendors, locations, POs, licenses (not just assets)
+  1886→7. Add saved/subscription reports with scheduled email delivery (weekly/monthly cron)
+  1887→8. Add maintenance scheduling conflict detection (similar to bookings) — warn when scheduling maintenance during an active booking
+  1888→9. Add Expiry Center "Renew" workflow that creates a Purchase Order draft for the renewal
+  1889→10. Add utilization rate trends over time (compare quarterly utilization per department)
+  1890→11. Add idle asset "Reassign" or "Dispose" quick-action buttons in the Utilization Dashboard
+  1891→
+  1892→**Low priority** (polish):
+  1893→12. Add multi-currency display with exchange rates (POs + assets have currency field but UI assumes USD)
+  1894→13. Add Expiry Center CSV export
+  1895→14. Add Utilization Dashboard configurable idle threshold (30/60/90 days)
+  1896→15. Add Maintenance Cost Analytics forecast (extrapolate from trend)
+  1897→16. Add API documentation (OpenAPI/Swagger) for the 75+ endpoints
+  1898→17. Add mobile app (React Native) for field technicians with QR/barcode scanning
+  1899→18. Add predictive maintenance scheduling (based on asset type + usage patterns + historical maintenance)
+  1900→
+  1901→**Files modified in Round 6**:
+  1902→- `/home/z/my-project/src/lib/types.ts` — Added 10 new types (~110 lines)
+  1903→- `/home/z/my-project/src/lib/repo.ts` — Added `expirationRepo`, `utilizationRepo`, `maintenanceCostRepo` (~370 lines)
+  1904→- `/home/z/my-project/src/lib/api.ts` — Added 3 new API client methods + 3 type imports
+  1905→- `/home/z/my-project/src/lib/nav.ts` — Added 2 new ViewName entries
+  1906→- `/home/z/my-project/src/app/api/expirations/route.ts` — NEW
+  1907→- `/home/z/my-project/src/app/api/utilization/route.ts` — NEW
+  1908→- `/home/z/my-project/src/app/api/reports/maintenance-cost/route.ts` — NEW
+  1909→- `/home/z/my-project/src/app/page.tsx` — Wired 2 new view imports + 2 switch cases
+  1910→- `/home/z/my-project/src/components/sidebar.tsx` — Added 2 nav items + SidebarFooter + CmdkHint + touch-friendly min-h + brand gradient
+  1911→- `/home/z/my-project/src/components/app-shell.tsx` — Added 2 header titles + bumped version + mounted CommandPalette + kbd-pill hint in search
+  1912→- `/home/z/my-project/src/components/command-palette.tsx` — NEW (322 lines)
+  1913→- `/home/z/my-project/src/components/views/expirations-view.tsx` — NEW (354 lines)
+  1914→- `/home/z/my-project/src/components/views/utilization-view.tsx` — NEW (~370 lines)
+  1915→- `/home/z/my-project/src/components/views/reports-view.tsx` — Added Maintenance Cost Analytics section + gradient-text-shine + live-dot
+  1916→- `/home/z/my-project/src/components/views/dashboard-view.tsx` — Added stat-tile-gradient + animate-count-pop + live-dot + dot-pattern-bg
+  1917→- `/home/z/my-project/src/components/views/assets-list-view.tsx` — Added btn-press + transition-colors
+  1918→- `/home/z/my-project/src/components/views/vendors-view.tsx` — Added stat-tile-gradient + animate-count-pop to KPI tiles
+  1919→- `/home/z/my-project/src/app/globals.css` — Added ~180 lines of new CSS utilities (Round 6 section)
+  1920→
