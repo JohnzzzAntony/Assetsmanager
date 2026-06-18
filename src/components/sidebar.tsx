@@ -32,6 +32,8 @@ import {
   Trash2,
   Tag,
   CalendarClock,
+  CalendarX2,
+  Gauge,
 } from 'lucide-react'
 import type { ViewName } from '@/lib/nav'
 
@@ -43,9 +45,50 @@ interface NavItem {
   badge?: 'new'
 }
 
+/** Footer summary card shown at the bottom of the sidebar (desktop + mobile). */
+function SidebarFooter() {
+  return (
+    <div className="border-t px-3 py-3">
+      <div className="glass-card-strong rounded-lg p-3">
+        <div className="flex items-center gap-2">
+          <span className="live-dot" />
+          <span className="text-xs font-semibold text-foreground">System Status</span>
+          <span className="ml-auto inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+            Operational
+          </span>
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <CircleDot className="h-3 w-3 text-emerald-500 animate-pulse" />
+          <span>v2.3 · Round 6</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Visual ⌘K shortcut hint shown at the top of the mobile Sheet. */
+function CmdkHint() {
+  return (
+    <div
+      className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+      aria-hidden="true"
+    >
+      <span className="font-medium">Press</span>
+      <span className="flex items-center gap-1.5">
+        <kbd className="kbd-pill">⌘K</kbd>
+        <span className="text-muted-foreground/60">or</span>
+        <kbd className="kbd-pill">/</kbd>
+        <span className="text-muted-foreground">to search</span>
+      </span>
+    </div>
+  )
+}
+
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', view: 'dashboard', icon: LayoutDashboard, group: 'Overview' },
   { label: 'Assets', view: 'assets', icon: Package, group: 'Overview' },
+  { label: 'Utilization', view: 'utilization', icon: Gauge, group: 'Overview', badge: 'new' },
+  { label: 'Expiry Center', view: 'expirations', icon: CalendarX2, group: 'Overview', badge: 'new' },
   { label: 'Reports', view: 'reports', icon: BarChart3, group: 'Overview' },
   { label: 'Audit Log', view: 'audit-log', icon: ScrollText, group: 'Overview', badge: 'new' },
   { label: 'Notifications', view: 'notifications', icon: Bell, group: 'Overview', badge: 'new' },
@@ -92,7 +135,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
                   onNavigate?.()
                 }}
                 className={cn(
-                  'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+                  'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all min-h-[44px] sm:min-h-0',
                   active
                     ? 'bg-primary text-primary-foreground shadow-sm nav-active-glow'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-0.5'
@@ -118,7 +161,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
 
 function Brand() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 px-5 py-4 border-b">
+    <Link href="/" className="flex items-center gap-2.5 px-5 py-4 border-b bg-gradient-to-r from-primary/5 to-transparent">
       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-sm">
         <Boxes className="h-5 w-5 text-primary-foreground" />
       </div>
@@ -137,12 +180,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         <NavList />
       </div>
-      <div className="border-t px-5 py-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <CircleDot className="h-3 w-3 text-emerald-500 animate-pulse" />
-          <span>System Online</span>
-        </div>
-      </div>
+      <SidebarFooter />
     </aside>
   )
 }
@@ -159,8 +197,14 @@ export function MobileNav() {
       </SheetTrigger>
       <SheetContent side="left" className="w-72 p-0">
         <Brand />
-        <div className="overflow-y-auto h-[calc(100vh-65px)] scrollbar-thin">
-          <NavList onNavigate={() => setOpen(false)} />
+        <div className="overflow-y-auto h-[calc(100vh-65px)] scrollbar-thin flex flex-col">
+          <div className="px-3 pt-3">
+            <CmdkHint />
+          </div>
+          <div className="flex-1">
+            <NavList onNavigate={() => setOpen(false)} />
+          </div>
+          <SidebarFooter />
         </div>
       </SheetContent>
     </Sheet>

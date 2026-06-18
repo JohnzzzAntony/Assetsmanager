@@ -25,6 +25,8 @@ import { PurchaseOrdersView } from '@/components/views/purchase-orders-view'
 import { DisposalsView } from '@/components/views/disposals-view'
 import { TagsView } from '@/components/views/tags-view'
 import { BookingsView } from '@/components/views/bookings-view'
+import { ExpirationsView } from '@/components/views/expirations-view'
+import { UtilizationView } from '@/components/views/utilization-view'
 import { useQuery } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -124,6 +126,10 @@ function ViewRouter() {
       return <TagsView />
     case 'bookings':
       return <BookingsView />
+    case 'expirations':
+      return <ExpirationsView />
+    case 'utilization':
+      return <UtilizationView />
     default:
       return <DashboardView />
   }

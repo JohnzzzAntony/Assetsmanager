@@ -283,10 +283,10 @@ export function AssetsListView() {
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!data}>
+          <Button variant="outline" size="sm" className="btn-press" onClick={exportCsv} disabled={!data}>
             <Download className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Export</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('ocr-upload')}>
+          <Button variant="outline" size="sm" className="btn-press" onClick={() => navigate('ocr-upload')}>
             <ScanText className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Scan</span>
           </Button>
           <Button size="sm" className="btn-press" onClick={() => navigate('asset-new')}>
@@ -686,7 +686,7 @@ export function AssetsListView() {
                   return (
                     <TableRow
                       key={asset.id}
-                      className={`cursor-pointer hover:bg-muted/40 ${isRowSelected ? 'bg-primary/5' : ''}`}
+                      className={`cursor-pointer hover:bg-muted/40 transition-colors ${isRowSelected ? 'bg-primary/5' : ''}`}
                       onClick={() => navigate('asset-detail', { id: asset.id })}
                     >
                       <TableCell

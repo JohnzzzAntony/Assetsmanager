@@ -1,0 +1,314 @@
+  1400→  - Saved reports list (scrollable `max-h-72 overflow-y-auto scrollbar-thin`): each row has a left `button` (click loads the report — shows `Bookmark` icon emerald when active, muted otherwise; `name`; `Updated <relative time>` via `formatRelative(r.updatedAt)`) + a right trash `button` (with `Trash2` icon, hover rose-600/rose-500/10) — disabled while `deletingId === r.id`. The trash button calls `e.stopPropagation()` so clicking it does NOT also trigger the row's load action.
+  1401→- Added a `Dialog` (controlled by `saveDialogOpen`) at the end of the JSX tree: `DialogTitle` "Save Current View" with bookmark icon; `Label` + `Input` (id `sr-name`, required, autofocus, Enter-to-submit); `Label` + `Textarea` (id `sr-desc`, optional); a "Snapshot" preview box showing the current `rangeLabel` + (custom dates if applicable) + month count; `DialogFooter` with Cancel + Save Report buttons (Save disabled while `savingReport` or empty name; emerald bg). The Save button calls `submitSaveReport()`.
+  1402→
+  1403→### Feature 2 — Bookings conflict highlighting in bookings-calendar-view.tsx
+  1404→- Added a `conflicts` `useMemo` (right after the existing `visibleCount` memo) that returns `{ conflictBookingIds: Set<string>, conflictAssetIds: Set<string>, conflictCountByAsset: Map<string, number> }`. Algorithm:
+  1405→  1. Build a `Map<id, AssetBooking>` of unique visible bookings by walking the existing `dayBookings` map for every day in the current 6-week `gridDays`.
+  1406→  2. Filter to active statuses only — `new Set(['Pending', 'Approved', 'Active'])` (excludes Cancelled / Rejected / Completed).
+  1407→  3. O(n²) pair check on `activeList`: for each `a`, scan every other `b`; if `a.assetId === b.assetId` AND date ranges overlap inclusively (`as <= be && bs <= ae`), mark `a` as conflicting (`conflictBookingIds.add(a.id)` + `conflictAssetIds.add(a.assetId)`); break on first conflict for efficiency.
+  1408→  4. For each conflicting asset, count how many of its bookings are flagged and store in `conflictCountByAsset`.
+  1409→  Depends on `[gridDays, dayBookings]` only (re-computes when the visible window changes).
+  1410→- In the header card's `flex flex-wrap items-baseline` row, added a rose-tinted `Badge` (outline variant + `border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300` classes — there is no built-in "rose" Badge variant so used the same pattern as the existing "Overdue" badge) with `AlertTriangle` icon + `{conflicts.conflictBookingIds.size} conflict{s}` text, only rendered when size > 0. Title attribute explains the rule.
+  1411→- In the per-booking-bar render loop: computed `isConflict = conflicts.conflictBookingIds.has(b.id)`, `conflictN = max(0, conflictCountByAsset.get(b.assetId) ?? 0 - 1)`, `barTitle = isConflict ? \`Conflicts with ${conflictN} other booking(s) for this asset\` : b.title`. Added `conflict-ring` class + `title={barTitle}` + prepended a `AlertTriangle` icon (h-2.5 w-2.5, rose-600/rose-300) before the existing `↳` continuation marker.
+  1412→- Added a legend swatch in the existing legend `Card`: a `h-2.5 w-2.5 rounded-sm bg-rose-500/30 conflict-ring` span + "Conflict (same asset booked twice)" text.
+  1413→
+  1414→### Verification
+  1415→- `cd /home/z/my-project && bun run lint` → 0 errors, 0 warnings ✓.
+  1416→- `curl -s http://localhost:3000/api/reports/saved | head -c 300` → `{"data":[]}` (200 OK) ✓.
+  1417→- agent-browser end-to-end test of Saved Reports (all steps done via JS `eval` chains because the Radix dropdown's pointer-event triggers were flaky under direct `agent-browser click @ref` — used `PointerEvent('pointerdown'/'pointerup') + MouseEvent('click')` dispatched in sequence with `setTimeout` waits between steps, all inside one async IIFE):
+  1418→  1. Navigated to Reports view ✓
+  1419→  2. Opened "Saved Reports" dropdown — verified "Save Current View…" item + empty state "No saved reports yet" appear ✓
+  1420→  3. Clicked "Save Current View…" → Save dialog opened with `sr-name` (required) + `sr-desc` (optional) inputs + Snapshot preview + Cancel/Save buttons ✓
+  1421→  4. Filled name "Quarterly IT Budget Snapshot" via the React-tracked setter (`Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set` + `dispatchEvent(new Event('input', {bubbles:true}))` so React's controlled-input state updates) → Save Report button became enabled ✓
+  1422→  5. Clicked Save Report → dialog closed, toast shown, `GET /api/reports/saved` returns the new record `{"id":"6fe907ea-...","name":"Quarterly IT Budget Snapshot","config":{"range":"all","customStart":null,"customEnd":null,"months":24},...}` ✓
+  1423→  6. Reopened dropdown — verified the saved report appears with name + "Updated 1 minute ago" relative time + trash icon ✓
+  1424→  7. Clicked the saved report name → range badge + "Saved: Quarterly IT Budget Snapshot" emerald badge both appear next to "Reports & Analytics" in the h2 ✓
+  1425→  8. Clicked trash icon (with `window.confirm` auto-accepted via `window.confirm = () => true`) → report deleted, `GET /api/reports/saved` returns `{"data":[]}` again, "Saved:" badge cleared ✓
+  1426→  9. Screenshot saved to `/home/z/my-project/download/qa_r5_saved_reports.png` ✓
+  1427→- agent-browser test of Bookings conflict highlighting:
+  1428→  1. Created two overlapping Approved bookings for the same asset via the API (`Conflict Test 1` Jul 10-12 2026 + `Conflict Test 2` Jul 11-13 2026, same `assetId` `8d7aa77a-...`) — both returned 200 with created records ✓
+  1429→  2. Navigated to Asset Bookings → clicked "Calendar View" tab → clicked "Next month" once to reach July 2026 ✓
+  1430→  3. Verified via DOM eval: `monthLabel: "July 2026"`, `conflictBadge: "2 conflicts"` (rose badge with AlertTriangle in header), `conflictBars: 6` (each of the 2 bookings appears in 3 day cells, total 6 visible bars), `alertTriangles: 6` (matching `button[title*="Conflicts with"]` elements with the right title text), `hasLegendText: true` ("Conflict (same asset booked twice)" rendered in the legend card) ✓
+  1431→  4. Screenshot saved to `/home/z/my-project/download/qa_r5_bookings_conflicts.png` (+ a `--full` page screenshot at `qa_r5_bookings_conflicts_full.png`) ✓
+  1432→  5. Cleaned up test data: deleted both Conflict Test bookings via `DELETE /api/bookings/{id}` → both returned `{"success":true}` ✓
+  1433→- dev.log: clean compile (`✓ Compiled in 245ms`), no runtime errors, all API endpoints return 200, `GET /api/reports/saved` and `GET /api/bookings?limit=500` both return expected JSON ✓.
+  1434→
+  1435→Stage Summary:
+  1436→- Both features are complete and verified end-to-end. Files modified (only these two, per the constraints):
+  1437→  - `/home/z/my-project/src/components/views/reports-view.tsx` — 904 → 1408 lines (+504). Added: 17 new imports, 7 new state hooks, 1 new useQuery, 6 new handlers, Saved Reports dropdown (with empty state + list + trash buttons), Save Current View dialog, "Saved:" badge next to range badge, and wired the existing range/customStart/customEnd setters through `handleManual*` wrappers so manual changes clear the loaded-saved indicator.
+  1438→  - `/home/z/my-project/src/components/views/bookings-calendar-view.tsx` — 612 → 705 lines (+93). Added: `conflicts` useMemo (visible-bookings scan with active-status filter + inclusive overlap test), rose "N conflicts" header badge with AlertTriangle, `conflict-ring` class + AlertTriangle icon + per-booking `title="Conflicts with N other booking(s) for this asset"` on each conflicting bar, and a legend swatch "Conflict (same asset booked twice)".
+  1439→- `bun run lint` → 0 errors, 0 warnings ✓.
+  1440→- No new package dependencies, no other files touched, no API routes changed, no other views modified.
+  1441→- All Saved Reports operations (list/create/load/delete) tested via the UI and confirmed against `GET /api/reports/saved` API responses. Bookings conflict detection confirmed against two deliberately-created overlapping Approved bookings for the same asset.
+  1442→
+  1443→---
+  1444→## HANDOVER DOCUMENT (Round 5)
+  1445→
+  1446→### 1. Current Project Status Description / Assessment
+  1447→
+  1448→The IT Asset Manager (AssetHub) is a production-grade Next.js 16 application now at **v2.2 (Round 5)** with comprehensive asset lifecycle management, procurement workflows, reservation/tagging systems, bulk operations, analytics, AND new Round 5 capabilities: Maintenance Calendar View, Saved Reports, Bookings conflict visualization, Vendor Performance Dashboard, and Asset Lifecycle YoY Comparison. The app is **stable, fully functional, and feature-complete** through Round 5.
+  1449→
+  1450→**Tech Stack**: Next.js 16 + TypeScript 5 + Tailwind CSS 4 + shadcn/ui (New York) + node:sqlite (Node built-in) + TanStack Query + Zustand + Recharts + z-ai-web-dev-sdk (VLM for OCR)
+  1451→
+  1452→**Scale (cumulative through Round 5)**:
+  1453→- 25 view components (added `MaintenanceCalendarView` this round)
+  1454→- 72+ API routes (added `/api/reports/saved`, `/api/reports/saved/[id]`, `/api/reports/vendor-performance`, `/api/reports/lifecycle-yoy`)
+  1455→- 18 database tables (added `SavedReport`)
+  1456→- ~190 lines of new CSS utilities (shimmer-bg, btn-press, card-hover-lift, glass-card, gradient-text-*, app-bg-gradient, empty-state-icon, animate-pop-in, pulse-glow, conflict-ring, tick-up/down, gradient-divider, section-accent-bar)
+  1457→- 1 new reusable component (`EmptyState`)
+  1458→- ~3,800+ lines of new view code (MaintenanceCalendarView ~590, vendors-view +367, reports-view +504, bookings-calendar-view conflict logic, plus styling polish across 9 files)
+  1459→
+  1460→**Architecture**: SPA on `/` route with client-side view routing via Zustand (`useNav`). All API routes use Next.js App Router with `runtime='nodejs'` and `dynamic='force-dynamic'`. Database is node:sqlite (no Prisma engines needed).
+  1461→
+  1462→**Health**: ESLint clean (0 errors, 0 warnings). Zero runtime errors in dev.log. All 4 new API endpoints return 200. All views render correctly in agent-browser QA. All Round 5 features verified end-to-end:
+  1463→- Maintenance Calendar View: 19 tasks visible in month grid, color-coded by status, click-through detail dialog works
+  1464→- Saved Reports: Save Current View → fill name/description → submit → appears in dropdown → click loads config → delete removes it (tested full CRUD)
+  1465→- Bookings conflict highlighting: Created 2 overlapping bookings → "2 conflicts" badge appears in header → 7 conflict-ring elements render on calendar bars + AlertTriangle icons
+  1466→- Vendor Performance Dashboard: Top 5 vendors bar chart + On-Time delivery + Rating distribution pie + Delivery performance table all render with real data (Apple India: 1 PO, $14,150 spent, 100% on-time, 9-day avg delivery)
+  1467→- Asset Lifecycle YoY: Grouped bar chart (Prev Year slate + Current Year violet) + summary table with deltas + 3 KPI tiles (current=$2,059, previous=$5,026, YoY change=-$2,967/-59%)
+  1468→- Styling polish: 12 hover-lift cards on dashboard, shimmer-bg on skeletons across 6 views, btn-press on 6 primary action buttons, app-bg-gradient on app shell root, EmptyState component applied to 4 views
+  1469→
+  1470→### 2. Current Goals / Completed Modifications / Verification Results
+  1471→
+  1472→**Goals for Round 5**:
+  1473→1. ✅ QA test current state with agent-browser (no bugs found — all endpoints return 200, all views render)
+  1474→2. ✅ Add Maintenance Calendar View (month grid + status-colored bars + detail dialog + List/Calendar toggle)
+  1475→3. ✅ Add Saved Reports feature (CRUD: save/load/delete report configurations with name + description + config JSON)
+  1476→4. ✅ Add Bookings conflict visualization (red ring + AlertTriangle icon + "N conflicts" badge + legend item)
+  1477→5. ✅ Add Vendor Performance Dashboard (4 KPI tiles + Top 5 by Spend + On-Time Delivery + Rating Distribution + Performance table)
+  1478→6. ✅ Add Asset Lifecycle YoY Comparison (grouped bar chart + summary table with deltas + 3 KPI tiles)
+  1479→7. ✅ Improve styling with more details (~190 lines new CSS utilities + EmptyState component + applied across 9 views)
+  1480→8. ✅ Add more features and functionality (5 major features delivered)
+  1481→9. ✅ Update worklog.md with handover document
+  1482→
+  1483→**Completed modifications**:
+  1484→
+  1485→*Backend (by orchestrator)*:
+  1486→- Added `SavedReport` table to `src/lib/db.ts` (id, name, description, section, config JSON, createdBy, createdAt, updatedAt) + 2 indexes
+  1487→- Added 4 new types to `src/lib/types.ts`: `SavedReport`, `SavedReportConfig`, `VendorPerformance`, `LifecycleYoYPoint`
+  1488→- Added `savedReportRepo` to `src/lib/repo.ts` (list, get, create, update, delete — with audit logging)
+  1489→- Added `vendorPerformanceRepo.list()` to `src/lib/repo.ts` — per-vendor stats: totalPOs, activePOs, completedPOs, cancelledPOs, totalSpent, avgDeliveryDays, onTimeRate, lateDeliveries
+  1490→- Added `assetLifecycleRepo.yoyByType(yearsBack)` to `src/lib/repo.ts` — yearly purchase cost comparison per asset type with delta + deltaPct. Used parameter binding for the IN clause (fixed SQLite text/integer type affinity bug)
+  1491→- Updated `src/lib/seed.ts` to spread asset purchase dates across 2024/2025/2026 (7/7/6 split) so YoY analytics have meaningful data
+  1492→- Created 4 new API routes:
+  1493→  - `POST/GET /api/reports/saved` — list + create saved reports
+  1494→  - `GET/PATCH/DELETE /api/reports/saved/[id]` — single saved report CRUD
+  1495→  - `GET /api/reports/vendor-performance` — returns `{data: VendorPerformance[], totals: {...}}`
+  1496→  - `GET /api/reports/lifecycle-yoy?years=N` — returns `{data: LifecycleYoYPoint[], totals: {...}}`
+  1497→- Extended `reportsApi` client in `src/lib/api.ts` with `savedList()`, `savedCreate()`, `savedDelete()`, `vendorPerformance()`, `lifecycleYoY()` + new types
+  1498→
+  1499→*Frontend (by 3 parallel subagents + orchestrator finishing R5-B)*:
+  1500→- **R5-A** (fullstack-developer): Created `src/components/views/maintenance-calendar-view.tsx` (590 lines) — month-grid calendar with status-colored bars (Scheduled→sky, In Progress→amber, Overdue→rose+pulse-glow, Completed→emerald, Cancelled→slate+strikethrough). In Progress/Overdue bars span from scheduledFor to today/completedAt. Click-through detail dialog with Edit/Delete actions. Modified `maintenance-view.tsx` (447→518) to add List/Calendar toggle (shadcn Tabs) + search input.
+  1501→- **R5-B** (fullstack-developer, completed before max-turns): Modified `src/components/views/reports-view.tsx` — added Saved Reports dropdown in header (Save Current View… dialog with name+description, load by clicking saved report, delete with trash icon). Modified `src/components/views/bookings-calendar-view.tsx` (613→705) — added conflict detection (conflicts useMemo computing conflictBookingIds + conflictAssetIds + conflictCountByAsset from active bookings with overlapping ranges), `conflict-ring` CSS class on conflicting bars, AlertTriangle icon prefix, "N conflicts" badge in header, legend item.
+  1502→- **R5-C** (fullstack-developer): Modified `src/components/views/vendors-view.tsx` (737→1104) — added Vendor Performance Analytics section with `section-accent-bar` header, 4 StatTiles, Top 5 Vendors by Spend horizontal bar chart, On-Time Delivery Rate color-coded bars (emerald/amber/rose thresholds), Rating Distribution pie chart, Delivery Performance table with rose-highlighted low-on-time rows. Modified `src/components/views/reports-view.tsx` (904→1408) — added Year-over-Year Cost Comparison section with grouped BarChart (Prev Year slate + Current Year violet), summary table with tick-up/tick-down deltas + TOTALS row, 3 KPI tiles (Current Year, Previous Year, YoY Change with dynamic emerald/rose).
+  1503→- **R5-D** (frontend-styling-expert): Created `src/components/empty-state.tsx` (46 lines) — reusable EmptyState component with `empty-state-icon` gradient ring container + optional CTA button (using `btn-press`). Applied `shimmer-bg` to Skeletons in 6 view files (13 total occurrences). Applied `card-hover-lift` to 12 dashboard cards (9 StatCards + 3 QuickActionCards). Applied `btn-press` to 6 primary action buttons. Applied `app-bg-gradient` + `theme-transition` to app-shell root. Replaced bare "No data" divs with `<EmptyState>` in 4 views (assets, bookings, maintenance, vendors).
+  1504→- Added ~190 lines of new CSS utilities to `src/app/globals.css` (Round 5 section)
+  1505→
+  1506→**Verification results**:
+  1507→- ESLint: 0 errors, 0 warnings ✓
+  1508→- dev.log: zero errors in last 100 lines ✓
+  1509→- All 4 new API endpoints return 200 ✓
+  1510→- `POST /api/seed?force=true` → 200, seeded 20 assets with dates spread 2024-2026 ✓
+  1511→- `GET /api/reports/saved` → 200, `{data:[]}` ✓
+  1512→- `POST /api/reports/saved` with name+description+config → 201, returns created record ✓
+  1513→- `DELETE /api/reports/saved/{id}` → 200, `{success:true}` ✓
+  1514→- `GET /api/reports/vendor-performance` → 200, returns 10 vendors with stats (Apple India: 1 PO, $14,150 spent, 100% on-time, 9-day avg delivery) ✓
+  1515→- `GET /api/reports/lifecycle-yoy?years=2` → 200, returns 7 asset types + totals (current=$2,059, previous=$5,026, delta=-$2,967, deltaPct=-59.0%) ✓
+  1516→- agent-browser QA: Maintenance Calendar View toggles correctly, 19 tasks visible, status-colored bars render, detail dialog opens on click ✓
+  1517→- agent-browser QA: Saved Reports dropdown opens, "Save Current View…" dialog accepts name+description, saved report appears in dropdown, clicking loads config, trash icon deletes ✓
+  1518→- agent-browser QA: Bookings Calendar — created 2 overlapping bookings → "2 conflicts" badge appears in header → 7 conflict-ring elements render on bars + AlertTriangle icons → conflict legend item present ✓
+  1519→- agent-browser QA: Vendor Performance Analytics section renders with 4 KPI tiles + Top 5 bar chart + On-Time delivery bars + Rating distribution pie + Delivery performance table ✓
+  1520→- agent-browser QA: Year-over-Year Cost Comparison section renders with grouped bar chart + summary table + 3 KPI tiles ✓
+  1521→- agent-browser QA: Dashboard has 12 card-hover-lift elements + 1 app-bg-gradient root ✓
+  1522→- All previously working features (24 existing views, 68+ existing API routes, OCR, exports, bulk ops, tags, calendar) continue to work ✓
+  1523→
+  1524→### 3. Unresolved Issues or Risks, and Priority Recommendations for Next Phase
+  1525→
+  1526→**Unresolved issues / risks**:
+  1527→1. **No authentication/authorization** — all endpoints are open. For production, add NextAuth.js session checks on API routes and role-based access (Admin / IT Manager / IT Staff / Read-only). Saved Reports have a `createdBy` field but it's currently null because there's no auth context.
+  1528→2. **No email notifications** — Notifications are in-app only. Should integrate email for critical alerts (warranty expired, license expired, PO approved, booking pending approval, booking conflict detected).
+  1529→3. **No file attachments** — Purchase Orders, Disposals, and Bookings often need attached documents (invoices, certificates, receipts). Currently only Assets have images.
+  1530→4. **Saved Reports config is minimal** — Currently only persists `range`, `customStart`, `customEnd`, `months`. Could extend to persist chart-specific filters, selected asset types, selected departments, etc.
+  1531→5. **Vendor Performance on-time rate requires both receivedDate + expectedDate** — Vendors without completed POs show onTimeRate=0, which may be misleading. Could show "N/A" instead.
+  1532→6. **Lifecycle YoY uses purchase cost only** — Doesn't include maintenance or disposal costs in the YoY comparison. Could extend to a 3-category YoY (purchase + maintenance + disposal).
+  1533→7. **No multi-currency support** — POs have a `currency` field but all display assumes USD. Lifecycle cost analysis + YoY + vendor performance sums costs across currencies without conversion.
+  1534→8. **No saved/subscription reports with email delivery** — Saved Reports persist config but don't schedule email delivery. Could add a `schedule` field (weekly/monthly) + cron job.
+  1535→9. **No asset location history tracking** — AssignmentHistory tracks person/dept/location changes but there's no map view or heatmap of where assets have been over time.
+  1536→10. **No predictive maintenance** — Maintenance schedules are reactive/manual. Could add ML-based predictions from historical data.
+  1537→
+  1538→**Priority recommendations for next phase (Round 6)**:
+  1539→
+  1540→**High priority** (production blockers):
+  1541→1. Add NextAuth.js authentication with role-based access control (Admin / IT Manager / IT Staff / Read-only) — wire `createdBy` field on Saved Reports to the session user
+  1542→2. Add email notification integration for critical alerts (SendGrid/Resend/Mailgun) — booking pending > 2 days, warranty expired, license expired, **booking conflict detected** (new in Round 5)
+  1543→3. Add file attachments to POs, Disposals, and Bookings (invoices, certificates, receipts) — extend the existing AssetImage pattern
+  1544→4. Add maintenance scheduling conflict detection (similar to bookings) — warn when scheduling maintenance during an active booking
+  1545→
+  1546→**Medium priority** (UX improvements):
+  1547→5. Extend Saved Reports config to persist chart-specific filters (asset types, departments, locations) + add scheduled email delivery
+  1548→6. Add asset location history heatmap (AssignmentHistory + Locations + Mapbox/Leaflet)
+  1549→7. Extend Lifecycle YoY to include maintenance + disposal costs (3-category grouped bars)
+  1550→8. Add PO receiving workflow with barcode/QR scanning (line items have receivedQuantity but no UI)
+  1551→9. Add notification rules for bookings (pending > 2 days, starts tomorrow, overdue not checked in, conflict detected)
+  1552→10. Add vendor performance trends over time (compare quarterly on-time rates per vendor)
+  1553→
+  1554→**Low priority** (polish):
+  1555→11. Add multi-currency display with exchange rates (POs + assets have currency field but UI assumes USD)
+  1556→12. Add asset lifecycle cost analysis over time (compare YoY cost trends per asset type — Round 5 added the foundation)
+  1557→13. Add predictive maintenance scheduling (based on asset type + usage patterns + historical maintenance)
+  1558→14. Add API documentation (OpenAPI/Swagger) for the 72+ endpoints
+  1559→15. Add mobile app (React Native) for field technicians with QR/barcode scanning
+  1560→
+  1561→**Files modified in Round 5**:
+  1562→- `/home/z/my-project/src/lib/db.ts` — Added SavedReport table + 2 indexes
+  1563→- `/home/z/my-project/src/lib/types.ts` — Added 4 new types (SavedReport, SavedReportConfig, VendorPerformance, LifecycleYoYPoint)
+  1564→- `/home/z/my-project/src/lib/repo.ts` — Added savedReportRepo, vendorPerformanceRepo, assetLifecycleRepo
+  1565→- `/home/z/my-project/src/lib/api.ts` — Extended reportsApi with saved/vendorPerformance/lifecycleYoY + new types
+  1566→- `/home/z/my-project/src/lib/seed.ts` — Spread asset purchase dates across 2024-2026
+  1567→- `/home/z/my-project/src/app/api/reports/saved/route.ts` — NEW: list + create
+  1568→- `/home/z/my-project/src/app/api/reports/saved/[id]/route.ts` — NEW: get + update + delete
+  1569→- `/home/z/my-project/src/app/api/reports/vendor-performance/route.ts` — NEW
+  1570→- `/home/z/my-project/src/app/api/reports/lifecycle-yoy/route.ts` — NEW
+  1571→- `/home/z/my-project/src/components/empty-state.tsx` — NEW: reusable EmptyState component (46 lines)
+  1572→- `/home/z/my-project/src/components/app-shell.tsx` — Added app-bg-gradient + theme-transition to root
+  1573→- `/home/z/my-project/src/components/views/maintenance-calendar-view.tsx` — NEW: month-grid calendar (590 lines)
+  1574→- `/home/z/my-project/src/components/views/maintenance-view.tsx` — List/Calendar toggle + search (447→518)
+  1575→- `/home/z/my-project/src/components/views/bookings-calendar-view.tsx` — Conflict detection + conflict-ring + AlertTriangle + badge (613→705)
+  1576→- `/home/z/my-project/src/components/views/reports-view.tsx` — Saved Reports UI + YoY section (904→1408)
+  1577→- `/home/z/my-project/src/components/views/vendors-view.tsx` — Vendor Performance Analytics section (737→1104)
+  1578→- `/home/z/my-project/src/components/views/dashboard-view.tsx` — card-hover-lift on 12 cards + shimmer-bg
+  1579→- `/home/z/my-project/src/components/views/assets-list-view.tsx` — shimmer-bg + btn-press + EmptyState
+  1580→- `/home/z/my-project/src/components/views/bookings-view.tsx` — shimmer-bg (8) + btn-press + EmptyState
+  1581→- `/home/z/my-project/src/components/views/disposals-view.tsx` — btn-press
+  1582→- `/home/z/my-project/src/components/views/purchase-orders-view.tsx` — btn-press
+  1583→- `/home/z/my-project/src/app/globals.css` — ~190 lines of new CSS utilities (Round 5 section)
+  1584→
+  1585→---
+  1586→Task ID: R6-A
+  1587→Agent: fullstack-developer (R6-A)
+  1588→Task: Build two new view files for the IT Asset Manager — the Expiry Center view (`src/components/views/expirations-view.tsx`) and the Asset Utilization Dashboard view (`src/components/views/utilization-view.tsx`) — overwriting the existing stubs with full feature-complete implementations.
+  1589→
+  1590→Work Log:
+  1591→- Read `worklog.md` (last ~300 lines) to understand the Round 5 finishing state and the project's styling conventions (section-accent-bar, stat-tile-gradient, animate-count-pop, urgency-* CSS classes, dot-pattern-bg, live-dot, util-bar-fill, progress-fill-anim, scrollbar-thin).
+  1592→- Inspected existing pattern references: `vendors-view.tsx` (VendorPerformanceSection header + StatTile + Recharts BarChart layout) and `reports-view.tsx` (YoY table + compact currency formatter + scrollbar-thin overflow).
+  1593→- Confirmed the data contracts by reading `src/lib/types.ts` lines 830–902 (ExpirationItem, ExpirationReport, UtilizationByBucket, IdleAsset, UtilizationReport) and `src/lib/api.ts` (expirationsApi.list, utilizationApi.report).
+  1594→- Verified both API routes (`/api/expirations`, `/api/utilization`) return JSON correctly via curl before writing the views.
+  1595→- **Expiry Center view** (`expirations-view.tsx`, 354 lines):
+  1596→  - `'use client'` directive, `useQuery` against `['expirations']` key.
+  1597→  - Header with "Expiry Center" title + subtitle + a rose/emerald live indicator pill containing `<span className="live-dot" />` and "Live data".
+  1598→  - 5 stat tiles in a `lg:grid-cols-5` grid: Expired (rose #f43f5e, CalendarX2), ≤30 days (orange #f97316, AlertTriangle), ≤60 days (amber #f59e0b, Clock), ≤90 days (sky #0ea5e9, Timer), Future (slate #64748b, ShieldCheck). Each tile uses `stat-tile-gradient card-hover-lift border-l-4` + the count number has `animate-count-pop`.
+  1599→  - Rose-tinted `<Alert variant="destructive">` banner when `totals.exposedValue > 0`: "⚠ {formatCurrency(exposedValue)} exposed value" with description explaining the 90-day window.
+  1600→  - shadcn `<Tabs>` with 3 triggers (All / Warranties / Licenses) and a search `<Input>` (with Search icon and Clear button when active).
+  1601→  - `ItemList` wrapped in a `<Card>` with `<CardHeader>`/`<CardTitle>`/`<CardDescription>` showing the count; inner scroll container `max-h-[640px] overflow-y-auto scrollbar-thin`.
+  1602→  - Each `ItemRow` is a clickable card using the matching `urgency-{urgency}` CSS class. Left: circular icon container (ShieldCheck sky for warranty, KeyRound violet for license). Middle: name (font-medium), subtitle, meta chips (vendor/category/seats for licenses; assetType/department/assetTag for warranties). Right: urgency Badge (color-mapped: rose/orange/amber/sky/slate), expiry date via `formatDate`, and cost (with TrendingUp icon) via `formatCurrency` when present.
+  1603→  - Click handler: license → `navigate('licenses')`; warranty → `navigate('asset-detail', { id: item.entityId })`. Also keyboard-accessible (Enter/Space).
+  1604→  - Empty states: `<EmptyState>` with FileWarning icon when filtered list is empty; `<EmptyState>` with ShieldCheck icon when no expirations exist at all.
+  1605→  - Loading state: 5-tile skeleton + search skeleton + 4 row skeletons.
+  1606→  - Items sorted by `daysUntilExpiry` ascending (expired first). Footer summary line shows counts by kind.
+  1607→- **Asset Utilization Dashboard view** (`utilization-view.tsx`, ~370 lines):
+  1608→  - `'use client'` directive, `useQuery` against `['utilization']` key.
+  1609→  - Header "Asset Utilization" + subtitle.
+  1610→  - 3 KPI tiles (`sm:grid-cols-3`): Overall Utilization Rate (emerald #10b981, Gauge, `Math.round(rate*100)%`), In Use vs Available (sky #0ea5e9, Activity, `${inUse} / ${totalAssets - retired - lost}`), Idle Assets (amber #f59e0b, Clock, `idleCount`). Each tile uses `stat-tile-gradient card-hover-lift border-l-4` + `animate-count-pop` value.
+  1611→  - `BucketSection` reusable component for both Department and Asset Type breakdowns:
+  1612→    - Header is a `section-accent-bar dot-pattern-bg rounded-lg` div with appropriate icon (Building2 violet / Layers sky) + title + description.
+  1613→    - Recharts `BarChart` with `layout="vertical"` — X-axis 0–100% formatted, Y-axis category (bucketName), CartesianGrid, custom Tooltip showing "X% (inUse of total in use)". Each `<Bar>` cell colored by rate via `<Cell>`: emerald ≥75%, sky ≥50%, amber ≥25%, rose <25%. Chart height scales with bucket count (`max(220, len*36)`).
+  1614→    - Below the chart, a `BucketList` of grid rows (name | total | inUse | rate% colored by threshold | mini progress bar). Progress bar uses `<div className="util-bar-fill progress-fill-anim">` with `width: rate%` and background set to `rateColor(rate)`.
+  1615→  - Idle Assets section (`section-accent-bar dot-pattern-bg` header with Timer icon):
+  1616→    - When `idleAssets.length === 0`: `<EmptyState>` with TrendingUp icon and success message "No idle assets — great job!".
+  1617→    - Otherwise: `<Card>` with shadcn `<Table>` inside `max-h-96 overflow-y-auto scrollbar-thin`. Columns: Asset (name + assetTag + "Purchased {date}" via formatDate) | Serial (mono) | Department | Location | Days Idle (Badge — rose if >180d, amber if >90d, sky otherwise, all with Clock icon) | Action "View" Button calling `navigate('asset-detail', { id })`. Sorted by daysIdle desc.
+  1618→  - Footer summary row: 4 small bordered tiles (Total assets / In use / In stock / Repair+Retired+Lost) with matching icons.
+  1619→  - Loading state: 3-tile skeleton + 2 chart skeletons.
+  1620→- Both views are wrapped in `<div className="space-y-5 animate-fade-in-up">`.
+  1621→- All imports use existing shadcn/ui components from `@/components/ui/*`, no `any` types, strict TypeScript throughout.
+  1622→- Only the two target files were modified — no other files touched.
+  1623→
+  1624→Stage Summary:
+  1625→- Files written:
+  1626→  - `/home/z/my-project/src/components/views/expirations-view.tsx` (354 lines, full Expiry Center implementation)
+  1627→  - `/home/z/my-project/src/components/views/utilization-view.tsx` (~370 lines, full Asset Utilization Dashboard implementation)
+  1628→- Verification:
+  1629→  - `cd /home/z/my-project && bun run lint` → exit code 0, **0 errors, 0 warnings** ✓
+  1630→  - `curl -s http://localhost:3000/api/expirations | head -c 200` → returns valid JSON `{items:[{id:"lic-...", kind:"license", name:"Norton Antivirus Plus", ...}]` ✓
+  1631→  - `curl -s http://localhost:3000/api/utilization | head -c 200` → returns valid JSON `{byDepartment:[{bucketId:..., bucketName:"IT", total:1, inUse:1, utilizationRate:1, ...}]` ✓
+  1632→  - dev.log shows `✓ Compiled in 285ms` then `GET /api/expirations 200` and `GET /api/utilization 200` with no errors in the recent tail ✓
+  1633→- The two views are wired into `src/app/page.tsx` (lines 28–29 + 130/132) — they will render when the user navigates to the "expirations" or "utilization" nav items.
+  1634→
+  1635→---
+  1636→Task ID: R6-B
+  1637→Agent: fullstack-developer (R6-B)
+  1638→Task: Add a "Maintenance Cost Analytics" section to the existing Reports view AND create a new Global Command Palette component (Cmd+K / Ctrl+K) wired into the AppShell.
+  1639→
+  1640→Work Log:
+  1641→- Read `/home/z/my-project/worklog.md` (last ~400 lines) to understand the Round 5 + Round 6 orchestrator state and the existing styling conventions (section-accent-bar, stat-tile-gradient, kbd-pill, glass-card-strong, cmd-result, scrollbar-thin, tick-up/tick-down — all already defined in `src/app/globals.css`).
+  1642→- Inspected target files before editing:
+  1643→  - `src/components/views/reports-view.tsx` (1408 lines) — confirmed YoY Cost Comparison section ends at the YoY KPI tiles grid (originally line 1307) just before the "Detailed tables" Card (originally line 1309). Confirmed existing imports of `Wrench`, `Activity`, `DollarSign`, `TrendingUp`, `TrendingDown` from lucide-react and all needed Recharts components (`BarChart`, `Bar`, `AreaChart`, `Area`, `XAxis`, `YAxis`, `Tooltip`, `CartesianGrid`, `ResponsiveContainer`). Verified `useNav` was NOT previously imported.
+  1644→  - `src/components/app-shell.tsx` (189 lines) — understood the AppShell root div structure, HeaderSearch input, and Sidebar mounting point.
+  1645→  - `src/lib/api.ts` — confirmed `reportsApi.maintenanceCost(months)` exists (line 535) and returns `MaintenanceCostReport`, and that `assetsApi.list({ search, pageSize })` exists for command palette search.
+  1646→  - `src/lib/types.ts` (lines 905–939) — confirmed `MaintenanceCostReport`, `MaintenanceCostByType`, `MaintenanceCostTrendPoint`, `TopMaintenanceAsset` interfaces match the task spec exactly (byType / trend / topAssets / totals with trendDeltaPct).
+  1647→  - `src/lib/nav.ts` — confirmed `ViewName` union includes all views needed for command palette (asset-new, ocr-upload, import, asset-labels, asset-detail, etc.).
+  1648→  - `src/components/sidebar.tsx` — confirmed the canonical NAV_ITEMS list (24 items across Overview / Create / Manage / Procurement groups) used to seed the local NAV_ITEMS_LOCAL copy in the command palette.
+  1649→  - `src/app/globals.css` — confirmed `cmd-result`, `kbd-pill`, `glass-card-strong`, `scrollbar-thin`, `stat-tile-gradient`, `section-accent-bar` CSS utilities already exist (Round 6 section, lines 830–990).
+  1650→- Verified `curl -s "http://localhost:3000/api/reports/maintenance-cost?months=12"` returns valid JSON with byType (6 entries: Mobile $1,052 / Laptop $388 / Desktop $302 / Tablet $264 / Monitor $244 / Peripheral $156), trend (12 month points), topAssets, and totals (with non-null trendDeltaPct).
+  1651→- **Task 1 — Maintenance Cost Analytics section** (added to `reports-view.tsx`):
+  1652→  - Updated imports: added `formatDate` to the `@/lib/format` import, added `import { useNav } from '@/lib/nav'`, added `import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'`. (Wrench, Activity, DollarSign, TrendingUp, TrendingDown, Recharts components were already imported.)
+  1653→  - Registered `useQuery({ queryKey: ['maintenance-cost', 12], queryFn: () => reportsApi.maintenanceCost(12) })` BEFORE the early-return `if (!stats)` block to keep hook order stable. Added `const { navigate } = useNav()` immediately after.
+  1654→  - Inserted the new section between the YoY KPI tiles `</div>` (line 1318) and the `{/* Detailed tables */}` Card (line 1320). The section uses `section-accent-bar` header with `<Wrench className="h-5 w-5 text-amber-600" />` + h3 "Maintenance Cost Analytics" + subtitle "Breakdown of maintenance spend over the last 12 months".
+  1655→  - Empty state: if `!maintenanceCost || maintenanceCost.totals.totalEvents === 0` → single centered `<Card>` with "No maintenance cost data available".
+  1656→  - 3 KPI tiles (`md:grid-cols-3`), each `<Card className="stat-tile-gradient border-l-4">` with `style={{ borderLeftColor }}`:
+  1657→    1. Total Maintenance Cost — amber `#f59e0b` border + Wrench icon (amber-500/10 backdrop)
+  1658→    2. Total Events — sky `#0ea5e9` border + Activity icon (sky-500/10 backdrop)
+  1659→    3. Avg Cost / Event — violet `#8b5cf6` border + DollarSign icon (violet-500/10 backdrop) + TrendingUp/TrendingDown icon + `±X.X% MoM` text using `tick-up`/`tick-down` classes when `trendDeltaPct !== null`.
+  1660→  - Two-column grid (`lg:grid-cols-2`):
+  1661→    - Left: `<Card>` "Cost by Asset Type" — Recharts horizontal `<BarChart layout="vertical">` with `assetType` on Y-axis (width 90) and `totalCost` on X-axis (formatted via `fmtCompactCurrency`). Single `<Bar dataKey="totalCost" fill="#f59e0b" radius={[0,4,4,0]} />`. Custom `<Tooltip content>` render prop shows `assetType` heading + 3 rows (Total Cost, Events, Avg / Event) for clean typed access to `payload[0].payload` (avoiding Recharts Formatter type friction).
+  1662→    - Right: `<Card>` "Monthly Cost Trend (12 months)" — Recharts `<AreaChart>` with `month` (formatted via `formatDate(\`${p.month}-01\`, 'MMM')` → "Apr", "May", etc.) on X-axis and `totalCost` on Y-axis. Amber `#f59e0b` stroke + `<linearGradient id="maintTrendGrad">` amber fill (0.4 → 0.05 opacity). Custom Tooltip shows month + totalCost + eventCount.
+  1663→  - Full-width Top Assets card: shadcn `<Table>` inside `<div className="max-h-96 overflow-y-auto scrollbar-thin">` with sticky `<TableHeader>`. Columns: Asset (name + assetTag in `font-mono text-[11px]`) | Type | Events | Total Cost | Last Maintenance. Each `<TableRow>` has `cursor-pointer` + `onClick={() => navigate('asset-detail', { id: a.assetId })}`. `formatDate(a.lastMaintenanceAt)` for last maintenance.
+  1664→- **Task 2a — Command Palette** (NEW file `src/components/command-palette.tsx`, 322 lines):
+  1665→  - `'use client'` directive.
+  1666→  - Imports: `useEffect`, `useMemo`, `useRef`, `useState` from React; `useQuery` from `@tanstack/react-query`; `useNav`, `ViewName` from `@/lib/nav`; `assetsApi` from `@/lib/api`; `Input` from `@/components/ui/input`; 23 lucide-react icons + `LucideIcon` type.
+  1667→  - Local `NAV_ITEMS_LOCAL` (24 items) — mirrors the sidebar's NAV_ITEMS so the palette doesn't import the Sidebar component. Each entry has `{ label, view: ViewName, icon: LucideIcon }`.
+  1668→  - Local `QUICK_ACTIONS` (4 items): Add Asset, Add via Image (OCR), Import Excel, Print Asset Labels — each maps to `navigate('asset-new' | 'ocr-upload' | 'import' | 'asset-labels')`.
+  1669→  - State: `open` (boolean), `query` (string), `debouncedQuery` (string), `selectedIndex` (number). `inputRef` for autofocus.
+  1670→  - Global keydown listener (window): `(e.metaKey || e.ctrlKey) && e.key === 'k'` → preventDefault + toggle (when opening, also resets query + debouncedQuery + selectedIndex synchronously inline so we don't trigger the React Compiler `react-hooks/set-state-in-effect` rule); `e.key === 'Escape' && open` → close.
+  1671→  - Debounce `query → debouncedQuery` via `useEffect` + `setTimeout(200ms)` (async setState inside setTimeout is allowed).
+  1672→  - Autofocus on open via `useEffect([open])` + `setTimeout(() => inputRef.current?.focus(), 0)` (DOM-only side effect, no setState).
+  1673→  - `useQuery(['command-palette-search', debouncedQuery], () => assetsApi.list({ search: debouncedQuery, pageSize: 8 }), { enabled: debouncedQuery.trim().length > 0 })`.
+  1674→  - `items` via `useMemo`: builds flat `CmdItem[]` (Quick Actions + Quick Navigation filtered by case-insensitive match on label + hint + category, then Search results appended when query is non-empty). Each item has `{ id, label, hint, icon, category, action }`.
+  1675→  - Derived `safeSelectedIndex = items.length === 0 ? 0 : Math.min(selectedIndex, items.length - 1)` — replaces a previous clamp useEffect that tripped the `set-state-in-effect` rule.
+  1676→  - `handleKeyDown` (on the inner dialog div): ArrowDown → `(i + 1) % items.length`; ArrowUp → `(i - 1 + items.length) % items.length`; Enter → execute `items[safeSelectedIndex].action()` + close.
+  1677→  - `executeItem(item)` → run action + close palette.
+  1678→  - Render (only when `open`): outer `<div className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[15vh] bg-black/40 backdrop-blur-sm" onClick={close}>` + inner `<div className="glass-card-strong w-full max-w-2xl overflow-hidden rounded-xl" onClick={stopPropagation} onKeyDown={handleKeyDown} role="dialog" aria-modal="true">`.
+  1679→  - Header: Search icon + `<Input>` (autofocus, `placeholder="Search or jump to…"`, onChange also calls `setSelectedIndex(0)` to reset selection on query change) + `<kbd className="kbd-pill">Esc</kbd>` in top-right.
+  1680→  - Scrollable results (`max-h-[400px] overflow-y-auto scrollbar-thin`): groups items by category (consecutive items with same category get a single uppercase header), each row is a `<button className="cmd-result" data-selected={selected ? 'true' : 'false'}>` with `onMouseEnter={() => setSelectedIndex(flatIndex)}` for hover-sync. Layout: `<Icon className="h-4 w-4">` + label (font-medium, flex-1 truncate) + hint (text-xs muted, max-w-55% truncate) on the right.
+  1681→  - Empty state: `items.length === 0` → "No matches for "{query}"." or "Start typing to search…".
+  1682→  - Footer: `<div className="border-t px-4 py-2 text-[11px] text-muted-foreground">↑↓ to navigate · Enter to select · Esc to close</div>`.
+  1683→- **Task 2b — Wire into app-shell.tsx**:
+  1684→  - Added `import { CommandPalette } from '@/components/command-palette'`.
+  1685→  - Rendered `<CommandPalette />` as the FIRST child inside the AppShell root div (so it's always mounted and listening for Cmd+K).
+  1686→  - Added `<kbd className="kbd-pill absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline-flex pointer-events-none">⌘K</kbd>` next to the existing search Input inside `HeaderSearch`. Updated the Input className from `pl-9 h-9 ...` to `pl-9 pr-9 sm:pr-14 h-9 ...` so the typed text never underlaps the kbd hint on sm+ screens.
+  1687→- ESLint iterations:
+  1688→  - First `bun run lint` after writing the command palette flagged 3 `react-hooks/set-state-in-effect` errors (the React 16 / React Compiler rule disallows calling `setState` synchronously inside `useEffect`). Refactored: removed the reset-selection useEffect (now done inline in the keyboard handler when opening the palette AND in the Input onChange), removed the clear-query-on-close useEffect (now done inline when Cmd+K opens a previously-closed palette), and replaced the clamp selectedIndex useEffect with a derived `safeSelectedIndex` value computed during render.
+  1689→  - Re-ran `bun run lint` → 0 errors, 0 warnings.
+  1690→- Agent-browser QA (optional verification):
+  1691→  - Opened `http://localhost:3000/` → page loads with title "AssetHub — IT Asset Manager", no console errors.
+  1692→  - Clicked the "Reports" sidebar nav button → navigated to Reports view, `agent-browser wait --text "Maintenance Cost Analytics"` succeeded (section is rendered).
+  1693→  - Full snapshot confirmed all 6 new elements render: heading "Maintenance Cost Analytics", "Total Maintenance Cost" KPI, "Avg Cost / Event" KPI, "Cost by Asset Type" chart card, "Monthly Cost Trend (12 months)" chart card, "Top Assets by Maintenance Cost" table card.
+  1694→  - Pressed `Control+k` → command palette opened. Snapshot confirmed the "QUICK ACTIONS" + "QUICK NAVIGATION" category headers and the "↑↓ to navigate · Enter to select · Esc to close" footer hint all render.
+  1695→  - Filled the palette's search input with "iphone" → after 200ms debounce, the "SEARCH" category appeared with 2 matching assets: "Apple iPhone 15 Pro Max" (TC-000026 · Mobile · F2LW1234ABC) and "Apple iPhone 13" (TC-000029 · Mobile · F2LW5678DEF). Clicking would navigate to `asset-detail` with the asset's id.
+  1696→  - Pressed `Escape` → palette closed.
+  1697→  - Errors panel (`agent-browser errors`) → empty (no runtime errors). Console → only the standard React DevTools download banner + `[HMR] connected` line (no warnings, no errors).
+  1698→- Verified `curl -s "http://localhost:3000/api/reports/maintenance-cost?months=12" | head -c 300` returns valid JSON starting with `{"byType":[{"assetType":"Mobile","totalCost":1052,"eventCount":6,"avgCost":175.33...` ✓.
+  1699→- Verified `curl -s "http://localhost:3000/api/assets?search=iphone&pageSize=8" | head -c 400` returns matching assets for the command palette ✓.
+  1700→- dev.log shows `GET /api/reports/maintenance-cost?months=12 200 in 23ms` and `GET /api/assets?search=iphone&pageSize=8 200 in 10ms` (the queries fired by the new UI) with no compile errors.
+  1701→
+  1702→Stage Summary:
+  1703→- Files modified (only these 3, per the constraints):
+  1704→  - `/home/z/my-project/src/components/views/reports-view.tsx` — 1408 → 1716 lines (+308). Added 3 imports (`formatDate`, `useNav`, shadcn `Table` family), 1 `useQuery` call against `reportsApi.maintenanceCost(12)` registered before the early return, 1 `useNav()` hook, and the new Maintenance Cost Analytics section (header + 3 KPI tiles + 2-column grid with Cost by Asset Type BarChart + Monthly Cost Trend AreaChart + Top Assets Table) inserted after the YoY KPI tiles and before the "Detailed tables" Card. Empty state handled.
+  1705→  - `/home/z/my-project/src/components/command-palette.tsx` — NEW (322 lines). Cmd+K / Ctrl+K global command palette with autofocus search input, debounced asset search via `assetsApi.list`, categorized flat results (Quick Actions + Quick Navigation + Search), keyboard navigation (ArrowUp/Down/Enter/Escape), `cmd-result` + `kbd-pill` + `glass-card-strong` styling.
+  1706→  - `/home/z/my-project/src/components/app-shell.tsx` — 189 → 196 lines (+7). Imported `CommandPalette`, rendered `<CommandPalette />` as the first child of the AppShell root div, added `<kbd className="kbd-pill">⌘K</kbd>` hint inside `HeaderSearch` (with adjusted Input padding so text never underlaps the hint).
+  1707→- Verification:
+  1708→  - `cd /home/z/my-project && bun run lint` → exit code 0, **0 errors, 0 warnings** ✓
+  1709→  - `curl -s "http://localhost:3000/api/reports/maintenance-cost?months=12" | head -c 300` → returns valid JSON `{byType:[{assetType:"Mobile",totalCost:1052,...}]` ✓
+  1710→  - agent-browser QA: Reports view renders the new Maintenance Cost Analytics section with all 6 elements visible; Cmd+K opens the palette; typing "iphone" surfaces 2 asset matches in the SEARCH category; Escape closes the palette; no console errors after a clean reload ✓
+  1711→  - dev.log shows successful compilation and 200 responses for both new queries (`/api/reports/maintenance-cost?months=12` and `/api/assets?search=...&pageSize=8`) ✓
+
+[showing lines 1400-1711 of 1713; use offset=1712 with limit to continue reading]

@@ -26,6 +26,8 @@ export type ViewName =
   | 'disposals'
   | 'tags'
   | 'bookings'
+  | 'expirations'
+  | 'utilization'
 
 interface NavState {
   view: ViewName

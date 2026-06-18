@@ -27,8 +27,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { formatCurrency, formatRelative } from '@/lib/format'
+import { formatCurrency, formatRelative, formatDate } from '@/lib/format'
+import { useNav } from '@/lib/nav'
 import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES } from '@/lib/types'
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend,
@@ -134,6 +136,15 @@ export function ReportsView() {
     queryKey: ['lifecycle-yoy', 2],
     queryFn: () => reportsApi.lifecycleYoY(2),
   })
+
+  // Maintenance cost analytics (Round 6) — registered before early return to keep hook order stable
+  const { data: maintenanceCost } = useQuery({
+    queryKey: ['maintenance-cost', 12],
+    queryFn: () => reportsApi.maintenanceCost(12),
+  })
+
+  // Navigation hook for asset-detail click-through (Maintenance Cost Analytics section)
+  const { navigate } = useNav()
 
   function refreshAll() {
     qc.invalidateQueries()
@@ -263,7 +274,8 @@ export function ReportsView() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
-            <Activity className="h-5 w-5" /> Reports & Analytics
+            <span className="live-dot" aria-hidden="true" />
+            <Activity className="h-5 w-5" /> <span className="gradient-text-shine">Reports & Analytics</span>
             <Badge variant="secondary" className="text-xs font-normal">{rangeLabel}</Badge>
             {loadedSavedReport && (
               <Badge
@@ -1305,6 +1317,302 @@ export function ReportsView() {
           )
         })()}
       </div>
+
+      {/* Maintenance Cost Analytics (Round 6) */}
+      <div className="section-accent-bar mt-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold">
+          <Wrench className="h-5 w-5 text-amber-600" />
+          Maintenance Cost Analytics
+        </h3>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Breakdown of maintenance spend over the last 12 months
+        </p>
+      </div>
+
+      {!maintenanceCost || maintenanceCost.totals.totalEvents === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No maintenance cost data available
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* KPI tiles */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Card className="stat-tile-gradient border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Maintenance Cost</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {formatCurrency(maintenanceCost.totals.totalCost)}
+                    </p>
+                  </div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+                    <Wrench className="h-4 w-4 text-amber-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="stat-tile-gradient border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Events</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {maintenanceCost.totals.totalEvents}
+                    </p>
+                  </div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/10">
+                    <Activity className="h-4 w-4 text-sky-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="stat-tile-gradient border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Avg Cost / Event</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {formatCurrency(maintenanceCost.totals.avgCostPerEvent)}
+                    </p>
+                    {maintenanceCost.totals.trendDeltaPct !== null && (
+                      <p
+                        className={`text-[11px] inline-flex items-center gap-0.5 ${
+                          maintenanceCost.totals.trendDeltaPct >= 0 ? 'tick-up' : 'tick-down'
+                        }`}
+                      >
+                        {maintenanceCost.totals.trendDeltaPct >= 0 ? (
+                          <TrendingUp className="h-3 w-3" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3" />
+                        )}
+                        {maintenanceCost.totals.trendDeltaPct >= 0 ? '+' : ''}
+                        {(maintenanceCost.totals.trendDeltaPct * 100).toFixed(1)}% MoM
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
+                    <DollarSign className="h-4 w-4 text-violet-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Two-column grid: Cost by Asset Type + Monthly Cost Trend */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Cost by Asset Type — horizontal BarChart */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Wrench className="h-4 w-4 text-amber-600" /> Cost by Asset Type
+                </CardTitle>
+                <CardDescription>Total maintenance cost per asset type</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer
+                  width="100%"
+                  height={Math.max(220, maintenanceCost.byType.length * 36)}
+                >
+                  <BarChart
+                    data={maintenanceCost.byType}
+                    layout="vertical"
+                    margin={{ top: 5, right: 15, left: 5, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={false}
+                      stroke="oklch(0.7 0.01 240 / 0.15)"
+                    />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v: number) => fmtCompactCurrency(v)}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="assetType"
+                      tick={{ fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={90}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'oklch(0.7 0.01 240 / 0.06)' }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload || payload.length === 0) return null
+                        const p = payload[0].payload as {
+                          assetType: string
+                          totalCost: number
+                          eventCount: number
+                          avgCost: number
+                          assetCount: number
+                        }
+                        return (
+                          <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                            <div className="mb-1 font-semibold">{p.assetType}</div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Total Cost</span>
+                              <span className="tabular-nums font-medium">
+                                {formatCurrency(p.totalCost)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Events</span>
+                              <span className="tabular-nums">{p.eventCount}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Avg / Event</span>
+                              <span className="tabular-nums">
+                                {formatCurrency(p.avgCost)}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      }}
+                    />
+                    <Bar dataKey="totalCost" name="Total Cost" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Monthly Cost Trend — AreaChart */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="h-4 w-4 text-amber-600" /> Monthly Cost Trend (12 months)
+                </CardTitle>
+                <CardDescription>Maintenance spend by month</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart
+                    data={maintenanceCost.trend.map((p) => ({
+                      ...p,
+                      label: formatDate(`${p.month}-01`, 'MMM'),
+                    }))}
+                    margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
+                  >
+                    <defs>
+                      <linearGradient id="maintTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="oklch(0.7 0.01 240 / 0.15)"
+                    />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v: number) => fmtCompactCurrency(v)}
+                    />
+                    <Tooltip
+                      cursor={{ stroke: '#f59e0b', strokeWidth: 1, strokeDasharray: '3 3' }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload || payload.length === 0) return null
+                        const p = payload[0].payload as {
+                          month: string
+                          totalCost: number
+                          eventCount: number
+                          label: string
+                        }
+                        return (
+                          <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                            <div className="mb-1 font-semibold">{p.month}</div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Total Cost</span>
+                              <span className="tabular-nums font-medium">
+                                {formatCurrency(p.totalCost)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Events</span>
+                              <span className="tabular-nums">{p.eventCount}</span>
+                            </div>
+                          </div>
+                        )
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="totalCost"
+                      name="Total Cost"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      fill="url(#maintTrendGrad)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Top Assets by Maintenance Cost — full width table */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <DollarSign className="h-4 w-4 text-amber-600" /> Top Assets by Maintenance Cost
+              </CardTitle>
+              <CardDescription>Assets ranked by total maintenance spend (click row to view detail)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-96 overflow-y-auto scrollbar-thin">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-background">
+                    <TableRow className="border-b text-left text-xs text-muted-foreground hover:bg-transparent">
+                      <TableHead className="font-medium">Asset</TableHead>
+                      <TableHead className="font-medium">Type</TableHead>
+                      <TableHead className="text-right font-medium">Events</TableHead>
+                      <TableHead className="text-right font-medium">Total Cost</TableHead>
+                      <TableHead className="text-right font-medium">Last Maintenance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {maintenanceCost.topAssets.map((a) => (
+                      <TableRow
+                        key={a.assetId}
+                        className="cursor-pointer"
+                        onClick={() => navigate('asset-detail', { id: a.assetId })}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex flex-col">
+                            <span>{a.assetName}</span>
+                            {a.assetTag && (
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                {a.assetTag}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {a.assetTypeName || '—'}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{a.eventCount}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {formatCurrency(a.totalCost)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatDate(a.lastMaintenanceAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Detailed tables */}
       <Card>

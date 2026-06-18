@@ -828,3 +828,113 @@ export interface LifecycleYoYPoint {
   deltaPct: number | null
 }
 
+// ============ Round 6: Expirations Center ============
+export type ExpirationUrgency = 'expired' | '30d' | '60d' | '90d' | 'future'
+
+export interface ExpirationItem {
+  id: string
+  kind: 'warranty' | 'license'
+  name: string
+  subtitle?: string | null
+  entityId: string
+  entityType: string
+  expiryDate: string
+  daysUntilExpiry: number
+  urgency: ExpirationUrgency
+  cost?: number | null
+  currency?: string | null
+  meta?: Record<string, string | null | undefined>
+}
+
+export interface ExpirationReport {
+  items: ExpirationItem[]
+  totals: {
+    expired: number
+    within30: number
+    within60: number
+    within90: number
+    future: number
+    total: number
+    exposedValue: number // sum of cost for expired + within 90d
+  }
+}
+
+// ============ Round 6: Utilization Dashboard ============
+export interface UtilizationByBucket {
+  bucketId: string
+  bucketName: string
+  total: number
+  inUse: number
+  inStock: number
+  repair: number
+  retired: number
+  lost: number
+  utilizationRate: number // 0..1 — inUse / (total - retired - lost)
+  idleDays?: number | null
+}
+
+export interface IdleAsset {
+  id: string
+  assetTag: string | null
+  name: string
+  serialNumber: string | null
+  status: string
+  purchaseDate: string | null
+  daysIdle: number
+  departmentName?: string | null
+  locationName?: string | null
+}
+
+export interface UtilizationReport {
+  byDepartment: UtilizationByBucket[]
+  byAssetType: UtilizationByBucket[]
+  overall: {
+    totalAssets: number
+    inUse: number
+    inStock: number
+    repair: number
+    retired: number
+    lost: number
+    utilizationRate: number
+    idleCount: number
+  }
+  idleAssets: IdleAsset[]
+}
+
+// ============ Round 6: Maintenance Cost Analytics ============
+export interface MaintenanceCostByType {
+  assetType: string
+  totalCost: number
+  eventCount: number
+  avgCost: number
+  assetCount: number
+}
+
+export interface MaintenanceCostTrendPoint {
+  month: string // YYYY-MM
+  totalCost: number
+  eventCount: number
+}
+
+export interface TopMaintenanceAsset {
+  assetId: string
+  assetTag: string | null
+  assetName: string
+  assetTypeName?: string | null
+  totalCost: number
+  eventCount: number
+  lastMaintenanceAt: string | null
+}
+
+export interface MaintenanceCostReport {
+  byType: MaintenanceCostByType[]
+  trend: MaintenanceCostTrendPoint[]
+  topAssets: TopMaintenanceAsset[]
+  totals: {
+    totalCost: number
+    totalEvents: number
+    avgCostPerEvent: number
+    trendDeltaPct: number | null // current month vs previous month
+  }
+}
+

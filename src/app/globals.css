@@ -842,4 +842,179 @@
   background: linear-gradient(to bottom, oklch(0.55 0.18 295), oklch(0.6 0.18 162));
 }
 
+/* ============================================================
+   Round 6 — Additional styling utilities
+   ============================================================ */
+
+/* Subtle dotted background pattern for hero / empty sections */
+.dot-pattern-bg {
+  background-image: radial-gradient(circle, oklch(0.7 0.01 240 / 0.18) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Strong glassmorphism card (for command palette, modal overlays) */
+.glass-card-strong {
+  background: oklch(1 0 0 / 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid oklch(0.91 0.005 240 / 0.6);
+  box-shadow:
+    0 20px 50px -10px oklch(0.2 0.01 240 / 0.18),
+    0 0 0 1px oklch(0.95 0.005 240 / 0.5);
+}
+.dark .glass-card-strong {
+  background: oklch(0.18 0.01 240 / 0.85);
+  border: 1px solid oklch(0.3 0.01 240 / 0.6);
+  box-shadow:
+    0 20px 50px -10px oklch(0 0 0 / 0.5),
+    0 0 0 1px oklch(0.3 0.01 240 / 0.5);
+}
+
+/* Animated shine sweep for gradient text on hover */
+.gradient-text-shine {
+  background: linear-gradient(110deg, oklch(0.45 0.2 295) 0%, oklch(0.55 0.2 162) 45%, oklch(0.5 0.2 250) 55%, oklch(0.45 0.2 295) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: text-shine 6s linear infinite;
+}
+@keyframes text-shine {
+  to { background-position: -200% 0; }
+}
+
+/* Counter pop-in — used by stat tiles on data load */
+.animate-count-pop {
+  animation: count-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes count-pop {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Smooth progress-bar fill animation */
+.progress-fill-anim {
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Urgency color utilities (expiry center) */
+.urgency-expired {
+  background: linear-gradient(135deg, oklch(0.65 0.22 25 / 0.12), oklch(0.6 0.22 25 / 0.04));
+  border-left: 3px solid oklch(0.65 0.22 25);
+}
+.urgency-30d {
+  background: linear-gradient(135deg, oklch(0.7 0.19 35 / 0.12), oklch(0.65 0.19 35 / 0.04));
+  border-left: 3px solid oklch(0.7 0.19 35);
+}
+.urgency-60d {
+  background: linear-gradient(135deg, oklch(0.75 0.16 70 / 0.12), oklch(0.7 0.16 70 / 0.04));
+  border-left: 3px solid oklch(0.75 0.16 70);
+}
+.urgency-90d {
+  background: linear-gradient(135deg, oklch(0.75 0.13 200 / 0.12), oklch(0.7 0.13 200 / 0.04));
+  border-left: 3px solid oklch(0.75 0.13 200);
+}
+.urgency-future {
+  background: linear-gradient(135deg, oklch(0.7 0.01 240 / 0.04), transparent);
+  border-left: 3px solid oklch(0.7 0.01 240 / 0.4);
+}
+
+/* Bar fill gradient — for utilization bar chart */
+.util-bar-fill {
+  background: linear-gradient(90deg, oklch(0.65 0.18 162), oklch(0.7 0.18 200));
+  position: relative;
+  overflow: hidden;
+}
+.util-bar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.25), transparent);
+  animation: util-shimmer 2.5s ease-in-out infinite;
+}
+@keyframes util-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Command palette result item hover */
+.cmd-result {
+  transition: background-color 0.12s ease, transform 0.12s ease;
+}
+.cmd-result[data-selected='true'] {
+  background: oklch(0.94 0.02 250 / 0.6);
+}
+.dark .cmd-result[data-selected='true'] {
+  background: oklch(0.3 0.02 250 / 0.6);
+}
+
+/* Kbd pill style */
+.kbd-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 0.35rem;
+  background: oklch(0.96 0.005 240);
+  border: 1px solid oklch(0.88 0.005 240);
+  color: oklch(0.4 0.01 240);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  box-shadow: 0 1px 0 oklch(0.85 0.005 240);
+}
+.dark .kbd-pill {
+  background: oklch(0.25 0.01 240);
+  border-color: oklch(0.35 0.01 240);
+  color: oklch(0.8 0.005 240);
+  box-shadow: 0 1px 0 oklch(0 0 0 / 0.3);
+}
+
+/* Stat tile with subtle gradient overlay */
+.stat-tile-gradient {
+  position: relative;
+  overflow: hidden;
+}
+.stat-tile-gradient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(circle at top right, oklch(0.7 0.15 250 / 0.08), transparent 70%);
+  pointer-events: none;
+}
+
+/* Soft section divider with gradient */
+.gradient-divider-strong {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(0.7 0.01 240 / 0.3), transparent);
+  margin: 1.5rem 0;
+}
+
+/* Pulse dot for "live" indicator */
+.live-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: oklch(0.65 0.18 162);
+}
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: oklch(0.65 0.18 162 / 0.4);
+  animation: live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes live-ping {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
 

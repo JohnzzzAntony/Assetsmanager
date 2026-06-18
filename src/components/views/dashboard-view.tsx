@@ -81,7 +81,7 @@ function StatCard({
 }) {
   return (
     <Card
-      className="card-hover card-hover-lift group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift"
+      className="card-hover card-hover-lift stat-tile-gradient group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift"
       style={{ borderLeftColor: color }}
       onClick={onClick}
     >
@@ -97,7 +97,7 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent className="relative">
-        <div className="text-2xl font-bold tracking-tight tabular-nums">{value}</div>
+        <div className="text-2xl font-bold tracking-tight tabular-nums animate-count-pop">{value}</div>
         {trend && (
           <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
             <TrendingUp className="h-3 w-3" style={{ color }} />
@@ -188,14 +188,14 @@ export function DashboardView() {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-xl border bg-card p-6 hover-lift">
+      <div className="relative overflow-hidden rounded-xl border bg-card p-6 hover-lift dot-pattern-bg">
         <div className="absolute inset-0 hero-gradient opacity-100" />
         <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary/5 blur-3xl animate-pulse-soft" />
         <div className="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-emerald-500/5 blur-3xl" />
         <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="live-dot" />
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">All systems operational</span>
             </div>
             <h2 className="text-2xl font-bold tracking-tight">

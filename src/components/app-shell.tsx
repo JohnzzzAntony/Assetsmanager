@@ -2,6 +2,7 @@
 
 import { Sidebar, MobileNav } from '@/components/sidebar'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { CommandPalette } from '@/components/command-palette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useNav } from '@/lib/nav'
@@ -24,7 +25,7 @@ function HeaderSearch() {
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
       <Input
         placeholder="Search assets, serial, IMEI..."
-        className="pl-9 h-9 bg-muted/50 border-0 focus-visible:ring-1"
+        className="pl-9 pr-9 sm:pr-14 h-9 bg-muted/50 border-0 focus-visible:ring-1"
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             const val = (e.target as HTMLInputElement).value
@@ -32,6 +33,9 @@ function HeaderSearch() {
           }
         }}
       />
+      <kbd className="kbd-pill absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline-flex pointer-events-none">
+        ⌘K
+      </kbd>
     </div>
   )
 }
@@ -79,6 +83,8 @@ function HeaderTitle() {
     disposals: 'Asset Disposals',
     tags: 'Asset Tags',
     bookings: 'Asset Bookings',
+    expirations: 'Expiry Center',
+    utilization: 'Asset Utilization',
   }
   const showBack = ['asset-detail', 'asset-edit'].includes(view)
   return (
@@ -115,6 +121,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full bg-background app-bg-gradient theme-transition">
+      <CommandPalette />
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0">
         <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md lg:px-6 sticky-elevated">
@@ -152,9 +159,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-medium text-foreground/80">AssetHub</span>
               <span className="opacity-50">·</span>
-              <span>IT Asset Manager v2.2</span>
+              <span>IT Asset Manager v2.3</span>
               <span className="hidden sm:inline opacity-50">·</span>
-              <span className="hidden sm:inline rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Round 4</span>
+              <span className="hidden sm:inline rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Round 6</span>
             </div>
             <div className="flex items-center gap-3">
               <span>{stats ? `${stats.totalAssets} assets · ${stats.totalPersons} persons · ${stats.totalDepartments} depts` : 'Loading...'}</span>

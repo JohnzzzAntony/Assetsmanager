@@ -89,14 +89,14 @@ interface StatTileProps {
 
 function StatTile({ label, value, icon: Icon, color, hint }: StatTileProps) {
   return (
-    <Card className="card-hover overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
+    <Card className="card-hover stat-tile-gradient overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {label}
             </p>
-            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums animate-count-pop">{value}</p>
             {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
           </div>
           <div

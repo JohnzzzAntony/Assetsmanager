@@ -23,6 +23,9 @@ import type {
   AssetDisposal,
   AssetTag,
   AssetBooking,
+  ExpirationReport,
+  UtilizationReport,
+  MaintenanceCostReport,
 } from './types'
 
 class ApiError extends Error {
@@ -529,4 +532,14 @@ export const reportsApi = {
     request<{ success: boolean }>(`/api/reports/saved/${id}`, { method: 'DELETE' }),
   vendorPerformance: () => request<VendorPerformanceReport>('/api/reports/vendor-performance'),
   lifecycleYoY: (years = 2) => request<LifecycleYoYReport>(`/api/reports/lifecycle-yoy?years=${years}`),
+  maintenanceCost: (months = 12) => request<MaintenanceCostReport>(`/api/reports/maintenance-cost?months=${months}`),
+}
+
+// ---- Round 6: Expirations & Utilization ----
+export const expirationsApi = {
+  list: () => request<ExpirationReport>('/api/expirations'),
+}
+
+export const utilizationApi = {
+  report: () => request<UtilizationReport>('/api/utilization'),
 }

@@ -27,6 +27,13 @@ import type {
   SavedReportConfig,
   VendorPerformance,
   LifecycleYoYPoint,
+  ExpirationItem,
+  ExpirationReport,
+  ExpirationUrgency,
+  UtilizationByBucket,
+  UtilizationReport,
+  IdleAsset,
+  MaintenanceCostReport,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -2431,6 +2438,372 @@ export const assetLifecycleRepo = {
       })
     }
     return out
+  },
+}
+
+// ============ Round 6: Expiration Center ============
+function classifyUrgency(daysUntilExpiry: number): ExpirationUrgency {
+  if (daysUntilExpiry < 0) return 'expired'
+  if (daysUntilExpiry <= 30) return '30d'
+  if (daysUntilExpiry <= 60) return '60d'
+  if (daysUntilExpiry <= 90) return '90d'
+  return 'future'
+}
+
+export const expirationRepo = {
+  list(): ExpirationReport {
+    ensure()
+    const now = Date.now()
+    const DAY_MS = 24 * 60 * 60 * 1000
+    const items: ExpirationItem[] = []
+
+    // Warranty expirations (Asset.warrantyExpiry)
+    const warrantyRows = rows<{
+      id: string; assetTag: string | null; make: string | null; model: string | null;
+      serialNumber: string | null; warrantyExpiry: string; cost: number | null;
+      currency: string; assetTypeId: string; assetTypeName: string;
+      departmentId: string | null; departmentName: string | null;
+    }>(
+      db.prepare(`
+        SELECT a.id, a.assetTag, a.make, a.model, a.serialNumber, a.warrantyExpiry,
+               a.cost, a.currency, a.assetTypeId, t.name as assetTypeName,
+               a.departmentId, d.name as departmentName
+        FROM Asset a
+        LEFT JOIN AssetType t ON a.assetTypeId = t.id
+        LEFT JOIN Department d ON a.departmentId = d.id
+        WHERE a.warrantyExpiry IS NOT NULL AND a.warrantyExpiry != ''
+          AND a.status NOT IN ('Retired', 'Lost')
+        ORDER BY a.warrantyExpiry ASC
+      `).all()
+    )
+
+    for (const r of warrantyRows) {
+      const exp = new Date(r.warrantyExpiry).getTime()
+      if (isNaN(exp)) continue
+      const days = Math.floor((exp - now) / DAY_MS)
+      items.push({
+        id: `warr-${r.id}`,
+        kind: 'warranty',
+        name: `${r.make || ''} ${r.model || ''}`.trim() || r.assetTag || r.serialNumber || 'Asset',
+        subtitle: r.serialNumber || r.assetTag,
+        entityId: r.id,
+        entityType: 'Asset',
+        expiryDate: r.warrantyExpiry,
+        daysUntilExpiry: days,
+        urgency: classifyUrgency(days),
+        cost: r.cost != null ? Number(r.cost) : null,
+        currency: r.currency,
+        meta: {
+          assetTag: r.assetTag,
+          assetType: r.assetTypeName,
+          department: r.departmentName,
+        },
+      })
+    }
+
+    // License expirations (SoftwareLicense.expiryDate)
+    const licenseRows = rows<{
+      id: string; name: string; vendor: string | null; key: string | null;
+      expiryDate: string; cost: number | null; currency: string;
+      seatsTotal: number; seatsUsed: number; category: string | null;
+    }>(
+      db.prepare(`
+        SELECT id, name, vendor, key, expiryDate, cost, currency,
+               seatsTotal, seatsUsed, category
+        FROM SoftwareLicense
+        WHERE expiryDate IS NOT NULL AND expiryDate != ''
+        ORDER BY expiryDate ASC
+      `).all()
+    )
+
+    for (const r of licenseRows) {
+      const exp = new Date(r.expiryDate).getTime()
+      if (isNaN(exp)) continue
+      const days = Math.floor((exp - now) / DAY_MS)
+      items.push({
+        id: `lic-${r.id}`,
+        kind: 'license',
+        name: r.name,
+        subtitle: r.vendor ? `Vendor: ${r.vendor}` : null,
+        entityId: r.id,
+        entityType: 'SoftwareLicense',
+        expiryDate: r.expiryDate,
+        daysUntilExpiry: days,
+        urgency: classifyUrgency(days),
+        cost: r.cost != null ? Number(r.cost) : null,
+        currency: r.currency,
+        meta: {
+          vendor: r.vendor,
+          category: r.category,
+          seats: `${r.seatsUsed}/${r.seatsTotal}`,
+        },
+      })
+    }
+
+    // Sort by expiry date ascending
+    items.sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime())
+
+    const totals = {
+      expired: items.filter((i) => i.urgency === 'expired').length,
+      within30: items.filter((i) => i.urgency === '30d').length,
+      within60: items.filter((i) => i.urgency === '60d').length,
+      within90: items.filter((i) => i.urgency === '90d').length,
+      future: items.filter((i) => i.urgency === 'future').length,
+      total: items.length,
+      exposedValue: items
+        .filter((i) => i.urgency !== 'future' && i.cost != null)
+        .reduce((s, i) => s + (i.cost || 0), 0),
+    }
+
+    return { items, totals }
+  },
+}
+
+// ============ Round 6: Utilization Dashboard ============
+function bucketFromRows(
+  bucketId: string,
+  bucketName: string,
+  assetRows: Array<{ status: string; createdAt?: string | null; purchaseDate?: string | null }>
+): UtilizationByBucket {
+  const total = assetRows.length
+  const inUse = assetRows.filter((a) => a.status === 'In Use').length
+  const inStock = assetRows.filter((a) => a.status === 'In Stock').length
+  const repair = assetRows.filter((a) => a.status === 'Repair').length
+  const retired = assetRows.filter((a) => a.status === 'Retired').length
+  const lost = assetRows.filter((a) => a.status === 'Lost').length
+  const eligible = total - retired - lost
+  // Idle days: oldest in-stock asset's days since createdAt
+  let idleDays: number | null = null
+  const stockRows = assetRows.filter((a) => a.status === 'In Stock' && (a.createdAt || a.purchaseDate))
+  if (stockRows.length) {
+    const oldest = stockRows.reduce((min, r) => {
+      const d = new Date(r.createdAt || r.purchaseDate || '').getTime()
+      return d < min ? d : min
+    }, Date.now())
+    idleDays = Math.max(0, Math.floor((Date.now() - oldest) / (24 * 60 * 60 * 1000)))
+  }
+  return {
+    bucketId,
+    bucketName,
+    total,
+    inUse,
+    inStock,
+    repair,
+    retired,
+    lost,
+    utilizationRate: eligible > 0 ? inUse / eligible : 0,
+    idleDays,
+  }
+}
+
+export const utilizationRepo = {
+  report(): UtilizationReport {
+    ensure()
+    const allAssets = rows<{
+      id: string; assetTag: string | null; make: string | null; model: string | null;
+      serialNumber: string | null; status: string; purchaseDate: string | null;
+      createdAt: string; assetTypeId: string; assetTypeName: string;
+      departmentId: string | null; departmentName: string | null;
+      locationId: string | null; locationName: string | null;
+    }>(
+      db.prepare(`
+        SELECT a.id, a.assetTag, a.make, a.model, a.serialNumber, a.status,
+               a.purchaseDate, a.createdAt, a.assetTypeId,
+               t.name as assetTypeName,
+               a.departmentId, d.name as departmentName,
+               a.locationId, l.name as locationName
+        FROM Asset a
+        LEFT JOIN AssetType t ON a.assetTypeId = t.id
+        LEFT JOIN Department d ON a.departmentId = d.id
+        LEFT JOIN Location l ON a.locationId = l.id
+      `).all()
+    )
+
+    // Overall
+    const overall = bucketFromRows('overall', 'All Assets', allAssets) as UtilizationByBucket & { idleCount?: number }
+
+    // By Department
+    const byDeptMap = new Map<string, UtilizationByBucket>()
+    const depts = rows<{ id: string; name: string }>(db.prepare('SELECT id, name FROM Department').all())
+    for (const d of depts) {
+      const rowsForDept = allAssets.filter((a) => a.departmentId === d.id)
+      byDeptMap.set(d.id, bucketFromRows(d.id, d.name, rowsForDept))
+    }
+
+    // By Asset Type
+    const byTypeMap = new Map<string, UtilizationByBucket>()
+    const types = rows<{ id: string; name: string }>(db.prepare('SELECT id, name FROM AssetType').all())
+    for (const t of types) {
+      const rowsForType = allAssets.filter((a) => a.assetTypeId === t.id)
+      byTypeMap.set(t.id, bucketFromRows(t.id, t.name, rowsForType))
+    }
+
+    // Idle assets: In Stock for > 30 days
+    const DAY_MS = 24 * 60 * 60 * 1000
+    const idleAssets: IdleAsset[] = allAssets
+      .filter((a) => a.status === 'In Stock')
+      .map((a) => {
+        const created = new Date(a.createdAt).getTime()
+        const days = Math.floor((Date.now() - created) / DAY_MS)
+        return {
+          id: a.id,
+          assetTag: a.assetTag,
+          name: `${a.make || ''} ${a.model || ''}`.trim() || a.assetTag || a.serialNumber || 'Asset',
+          serialNumber: a.serialNumber,
+          status: a.status,
+          purchaseDate: a.purchaseDate,
+          daysIdle: isNaN(days) ? 0 : days,
+          departmentName: a.departmentName,
+          locationName: a.locationName,
+        }
+      })
+      .filter((a) => a.daysIdle >= 30)
+      .sort((a, b) => b.daysIdle - a.daysIdle)
+
+    return {
+      byDepartment: Array.from(byDeptMap.values()).sort((a, b) => b.utilizationRate - a.utilizationRate),
+      byAssetType: Array.from(byTypeMap.values()).sort((a, b) => b.utilizationRate - a.utilizationRate),
+      overall: {
+        totalAssets: overall.total,
+        inUse: overall.inUse,
+        inStock: overall.inStock,
+        repair: overall.repair,
+        retired: overall.retired,
+        lost: overall.lost,
+        utilizationRate: overall.utilizationRate,
+        idleCount: idleAssets.length,
+      },
+      idleAssets,
+    }
+  },
+}
+
+// ============ Round 6: Maintenance Cost Analytics ============
+export const maintenanceCostRepo = {
+  report(monthsBack = 12): MaintenanceCostReport {
+    ensure()
+    const now = new Date()
+    const cutoff = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1)
+
+    // All maintenance with cost
+    const allMaint = rows<{
+      id: string; assetId: string; type: string; title: string; status: string;
+      scheduledFor: string; completedAt: string | null; cost: number | null;
+      createdAt: string;
+      assetTag: string | null; make: string | null; model: string | null;
+      assetTypeName: string;
+    }>(
+      db.prepare(`
+        SELECT m.id, m.assetId, m.type, m.title, m.status, m.scheduledFor, m.completedAt,
+               m.cost, m.createdAt,
+               a.assetTag, a.make, a.model,
+               t.name as assetTypeName
+        FROM MaintenanceSchedule m
+        JOIN Asset a ON m.assetId = a.id
+        LEFT JOIN AssetType t ON a.assetTypeId = t.id
+        WHERE m.cost IS NOT NULL AND m.cost > 0
+      `).all()
+    )
+
+    // By type
+    const byTypeMap = new Map<string, { totalCost: number; eventCount: number; assetCount: Set<string> }>()
+    for (const m of allMaint) {
+      const key = m.assetTypeName || 'Unknown'
+      if (!byTypeMap.has(key)) byTypeMap.set(key, { totalCost: 0, eventCount: 0, assetCount: new Set() })
+      const e = byTypeMap.get(key)!
+      e.totalCost += Number(m.cost) || 0
+      e.eventCount += 1
+      e.assetCount.add(m.assetId)
+    }
+    const byType = Array.from(byTypeMap.entries())
+      .map(([assetType, e]) => ({
+        assetType,
+        totalCost: e.totalCost,
+        eventCount: e.eventCount,
+        avgCost: e.eventCount ? e.totalCost / e.eventCount : 0,
+        assetCount: e.assetCount.size,
+      }))
+      .sort((a, b) => b.totalCost - a.totalCost)
+
+    // Trend: by month (YYYY-MM)
+    const trendMap = new Map<string, { totalCost: number; eventCount: number }>()
+    // Build month buckets for the past N months
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      trendMap.set(k, { totalCost: 0, eventCount: 0 })
+    }
+    for (const m of allMaint) {
+      const d = new Date(m.scheduledFor || m.completedAt || m.createdAt)
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if (trendMap.has(k)) {
+        const e = trendMap.get(k)!
+        e.totalCost += Number(m.cost) || 0
+        e.eventCount += 1
+      }
+    }
+    const trend = Array.from(trendMap.entries()).map(([month, e]) => ({
+      month,
+      totalCost: e.totalCost,
+      eventCount: e.eventCount,
+    }))
+
+    // Top assets by maintenance cost
+    const assetMap = new Map<string, { assetId: string; assetTag: string | null; assetName: string; assetTypeName: string; totalCost: number; eventCount: number; lastMaintenanceAt: number }>()
+    for (const m of allMaint) {
+      if (!assetMap.has(m.assetId)) {
+        assetMap.set(m.assetId, {
+          assetId: m.assetId,
+          assetTag: m.assetTag,
+          assetName: `${m.make || ''} ${m.model || ''}`.trim() || m.assetTag || m.assetId,
+          assetTypeName: m.assetTypeName,
+          totalCost: 0,
+          eventCount: 0,
+          lastMaintenanceAt: 0,
+        })
+      }
+      const e = assetMap.get(m.assetId)!
+      e.totalCost += Number(m.cost) || 0
+      e.eventCount += 1
+      const ts = new Date(m.scheduledFor || m.completedAt || m.createdAt).getTime()
+      if (ts > e.lastMaintenanceAt) e.lastMaintenanceAt = ts
+    }
+    const topAssets = Array.from(assetMap.values())
+      .sort((a, b) => b.totalCost - a.totalCost)
+      .slice(0, 8)
+      .map((a) => ({
+        assetId: a.assetId,
+        assetTag: a.assetTag,
+        assetName: a.assetName,
+        assetTypeName: a.assetTypeName,
+        totalCost: a.totalCost,
+        eventCount: a.eventCount,
+        lastMaintenanceAt: a.lastMaintenanceAt ? new Date(a.lastMaintenanceAt).toISOString() : null,
+      }))
+
+    const totalCost = allMaint.reduce((s, m) => s + (Number(m.cost) || 0), 0)
+    const totalEvents = allMaint.length
+    const avgCostPerEvent = totalEvents ? totalCost / totalEvents : 0
+
+    // Trend delta: last month vs previous month
+    let trendDeltaPct: number | null = null
+    if (trend.length >= 2) {
+      const last = trend[trend.length - 1].totalCost
+      const prev = trend[trend.length - 2].totalCost
+      if (prev > 0) trendDeltaPct = (last - prev) / prev
+    }
+
+    return {
+      byType,
+      trend,
+      topAssets,
+      totals: {
+        totalCost,
+        totalEvents,
+        avgCostPerEvent,
+        trendDeltaPct,
+      },
+    }
   },
 }
 
