@@ -2,7 +2,7 @@
 
 import { useState, useMemo, type ReactNode, createElement } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { disposalsApi, assetsApi, personsApi } from '@/lib/api'
+import { disposalsApi, assetsApi, personsApi, exportApi } from '@/lib/api'
 import { useNav } from '@/lib/nav'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -63,6 +63,7 @@ import {
   FileText,
   ShieldCheck,
   Package,
+  Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -206,9 +207,14 @@ export function DisposalsView() {
             Track retired, sold, recycled, and donated assets.
           </p>
         </div>
-        <Button onClick={() => { setEditingId(null); setShowForm(true) }}>
-          <Plus className="h-4 w-4 mr-1.5" /> Record Disposal
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportApi.download(exportApi.disposals())}>
+            <Download className="h-4 w-4 mr-1.5" /> Export CSV
+          </Button>
+          <Button onClick={() => { setEditingId(null); setShowForm(true) }}>
+            <Plus className="h-4 w-4 mr-1.5" /> Record Disposal
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

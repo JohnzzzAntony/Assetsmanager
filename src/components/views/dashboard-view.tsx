@@ -38,6 +38,8 @@ import {
   ShoppingCart,
   Trash2,
   Recycle,
+  Tag,
+  CalendarClock,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -827,6 +829,84 @@ export function DashboardView() {
                 {stats.disposals?.pendingApproval} awaiting approval
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Bookings & Tags Overview */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Bookings card */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#06b6d4' }}
+          onClick={() => navigate('bookings')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Bookings</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 transition-transform group-hover:scale-110">
+              <CalendarClock className="h-4 w-4 text-cyan-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.bookings?.total ?? 0}</div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="text-amber-600 font-medium">{stats.bookings?.pending ?? 0} pending</span>
+              <span className="text-emerald-600 font-medium">{stats.bookings?.active ?? 0} active</span>
+            </div>
+            <div className="mt-1.5 text-[11px] text-muted-foreground">
+              Upcoming: <span className="font-semibold text-foreground">{stats.bookings?.upcoming ?? 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tags card */}
+        <Card
+          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
+          style={{ borderLeftColor: '#ec4899' }}
+          onClick={() => navigate('tags')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Tags</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-500/10 transition-transform group-hover:scale-110">
+              <Tag className="h-4 w-4 text-pink-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.tags?.totalTags ?? 0}</div>
+            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="text-pink-600 font-medium">{stats.tags?.totalLinks ?? 0} tag assignments</span>
+            </div>
+            {stats.tags?.topTags && stats.tags.topTags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {stats.tags.topTags.slice(0, 3).map((t) => (
+                  <span key={t.name} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium bg-muted">
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: t.color === 'slate' ? '#64748b' : `var(--tw-${t.color}-500, ${t.color})` }} />
+                    {t.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions / Workflow Shortcuts */}
+        <Card className="overflow-hidden border-l-4 shadow-soft" style={{ borderLeftColor: '#f59e0b' }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-2 pt-1">
+            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('asset-new')}>
+              <Plus className="h-3.5 w-3.5 mr-1.5 text-emerald-600" /> Add Asset
+            </Button>
+            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('ocr-upload')}>
+              <ScanText className="h-3.5 w-3.5 mr-1.5 text-violet-600" /> OCR Scan
+            </Button>
+            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('bookings')}>
+              <CalendarClock className="h-3.5 w-3.5 mr-1.5 text-cyan-600" /> New Booking
+            </Button>
+            <Button variant="outline" size="sm" className="justify-start text-xs h-8" onClick={() => navigate('tags')}>
+              <Tag className="h-3.5 w-3.5 mr-1.5 text-pink-600" /> Manage Tags
+            </Button>
           </CardContent>
         </Card>
       </div>

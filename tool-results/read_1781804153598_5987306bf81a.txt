@@ -1,0 +1,731 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo } from 'react'
+     4→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     5→import { vendorsApi } from '@/lib/api'
+     6→import { VENDOR_CATEGORIES } from '@/lib/types'
+     7→import type { Vendor } from '@/lib/types'
+     8→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     9→import { Button } from '@/components/ui/button'
+    10→import { Input } from '@/components/ui/input'
+    11→import { Label } from '@/components/ui/label'
+    12→import { Badge } from '@/components/ui/badge'
+    13→import { Textarea } from '@/components/ui/textarea'
+    14→import { Switch } from '@/components/ui/switch'
+    15→import { Skeleton } from '@/components/ui/skeleton'
+    16→import {
+    17→  Select,
+    18→  SelectContent,
+    19→  SelectItem,
+    20→  SelectTrigger,
+    21→  SelectValue,
+    22→} from '@/components/ui/select'
+    23→import {
+    24→  Dialog,
+    25→  DialogContent,
+    26→  DialogDescription,
+    27→  DialogFooter,
+    28→  DialogHeader,
+    29→  DialogTitle,
+    30→} from '@/components/ui/dialog'
+    31→import {
+    32→  Table,
+    33→  TableBody,
+    34→  TableCell,
+    35→  TableHead,
+    36→  TableHeader,
+    37→  TableRow,
+    38→} from '@/components/ui/table'
+    39→import { formatCurrency, formatDate } from '@/lib/format'
+    40→import {
+    41→  Store,
+    42→  CheckCircle2,
+    43→  DollarSign,
+    44→  Star,
+    45→  Plus,
+    46→  Pencil,
+    47→  Trash2,
+    48→  Search,
+    49→  Mail,
+    50→  Phone,
+    51→  Globe,
+    52→  ShoppingCart,
+    53→} from 'lucide-react'
+    54→import { toast } from 'sonner'
+    55→
+    56→// ---- Stat tile ----
+    57→interface StatTileProps {
+    58→  label: string
+    59→  value: string | number
+    60→  icon: React.ComponentType<{ className?: string }>
+    61→  color: string
+    62→  hint?: string
+    63→}
+    64→
+    65→function StatTile({ label, value, icon: Icon, color, hint }: StatTileProps) {
+    66→  return (
+    67→    <Card className="card-hover overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
+    68→      <CardContent className="p-4">
+    69→        <div className="flex items-center justify-between gap-3">
+    70→          <div className="min-w-0">
+    71→            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    72→              {label}
+    73→            </p>
+    74→            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+    75→            {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
+    76→          </div>
+    77→          <div
+    78→            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+    79→            style={{ backgroundColor: `${color}1a` }}
+    80→          >
+    81→            <Icon className="h-5 w-5" style={{ color }} />
+    82→          </div>
+    83→        </div>
+    84→      </CardContent>
+    85→    </Card>
+    86→  )
+    87→}
+    88→
+    89→// ---- Star rating ----
+    90→function StarRating({ value, size = 'h-3.5 w-3.5' }: { value: number; size?: string }) {
+    91→  return (
+    92→    <div className="flex items-center gap-0.5" aria-label={`Rating: ${value} of 5`}>
+    93→      {Array.from({ length: 5 }).map((_, i) => (
+    94→        <Star
+    95→          key={i}
+    96→          className={`${size} ${
+    97→            i < value
+    98→              ? 'fill-amber-400 text-amber-400'
+    99→              : 'text-muted-foreground/30'
+   100→          }`}
+   101→        />
+   102→      ))}
+   103→    </div>
+   104→  )
+   105→}
+   106→
+   107→// ---- Main view ----
+   108→export function VendorsView() {
+   109→  const qc = useQueryClient()
+   110→  const [search, setSearch] = useState('')
+   111→  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+   112→  const [showInactive, setShowInactive] = useState(false)
+   113→  const [showForm, setShowForm] = useState(false)
+   114→  const [editingId, setEditingId] = useState<string | null>(null)
+   115→  const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null)
+   116→
+   117→  const { data: vendors, isLoading } = useQuery({
+   118→    queryKey: ['vendors'],
+   119→    queryFn: () => vendorsApi.list(),
+   120→  })
+   121→
+   122→  // ---- Derived stats ----
+   123→  const stats = useMemo(() => {
+   124→    const list = vendors ?? []
+   125→    const total = list.length
+   126→    const active = list.filter((v) => v.isActive).length
+   127→    const totalSpent = list.reduce((sum, v) => sum + (v._sum?.totalSpent ?? 0), 0)
+   128→    const rated = list.filter((v) => v.rating > 0)
+   129→    const avgRating = rated.length
+   130→      ? rated.reduce((sum, v) => sum + v.rating, 0) / rated.length
+   131→      : 0
+   132→    return { total, active, totalSpent, avgRating }
+   133→  }, [vendors])
+   134→
+   135→  // ---- Filtering ----
+   136→  const filtered = useMemo(() => {
+   137→    if (!vendors) return []
+   138→    return vendors.filter((v) => {
+   139→      if (!showInactive && !v.isActive) return false
+   140→      if (categoryFilter !== 'all' && v.category !== categoryFilter) return false
+   141→      if (search) {
+   142→        const s = search.toLowerCase()
+   143→        const matches =
+   144→          v.name.toLowerCase().includes(s) ||
+   145→          (v.contactPerson || '').toLowerCase().includes(s) ||
+   146→          (v.email || '').toLowerCase().includes(s) ||
+   147→          (v.phone || '').toLowerCase().includes(s)
+   148→        if (!matches) return false
+   149→      }
+   150→      return true
+   151→    })
+   152→  }, [vendors, search, categoryFilter, showInactive])
+   153→
+   154→  function openNew() {
+   155→    setEditingId(null)
+   156→    setShowForm(true)
+   157→  }
+   158→
+   159→  function openEdit(id: string) {
+   160→    setEditingId(id)
+   161→    setShowForm(true)
+   162→  }
+   163→
+   164→  async function handleDelete() {
+   165→    if (!deleteTarget) return
+   166→    try {
+   167→      await vendorsApi.delete(deleteTarget.id)
+   168→      toast.success(`Vendor "${deleteTarget.name}" deleted`)
+   169→      qc.invalidateQueries({ queryKey: ['vendors'] })
+   170→      setDeleteTarget(null)
+   171→    } catch (e) {
+   172→      toast.error('Delete failed: ' + String(e))
+   173→    }
+   174→  }
+   175→
+   176→  return (
+   177→    <div className="space-y-5 animate-fade-in-up">
+   178→      {/* Header */}
+   179→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   180→        <div>
+   181→          <h2 className="text-xl font-bold tracking-tight">Vendors &amp; Suppliers</h2>
+   182→          <p className="text-sm text-muted-foreground">
+   183→            Manage vendor relationships, payment terms, ratings, and procurement spend.
+   184→          </p>
+   185→        </div>
+   186→        <Button onClick={openNew}>
+   187→          <Plus className="mr-1.5 h-4 w-4" /> Add Vendor
+   188→        </Button>
+   189→      </div>
+   190→
+   191→      {/* Stat tiles */}
+   192→      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+   193→        <StatTile
+   194→          label="Total Vendors"
+   195→          value={stats.total}
+   196→          icon={Store}
+   197→          color="#8b5cf6"
+   198→          hint="Registered suppliers"
+   199→        />
+   200→        <StatTile
+   201→          label="Active Vendors"
+   202→          value={stats.active}
+   203→          icon={CheckCircle2}
+   204→          color="#10b981"
+   205→          hint={`${stats.total - stats.active} inactive`}
+   206→        />
+   207→        <StatTile
+   208→          label="Total Spent"
+   209→          value={formatCurrency(stats.totalSpent)}
+   210→          icon={DollarSign}
+   211→          color="#0ea5e9"
+   212→          hint="Across all POs"
+   213→        />
+   214→        <StatTile
+   215→          label="Avg Rating"
+   216→          value={stats.avgRating.toFixed(1)}
+   217→          icon={Star}
+   218→          color="#f59e0b"
+   219→          hint="Out of 5.0"
+   220→        />
+   221→      </div>
+   222→
+   223→      {/* Search + filter bar */}
+   224→      <Card>
+   225→        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+   226→          <div className="flex-1 space-y-1.5">
+   227→            <Label className="text-xs">Search</Label>
+   228→            <div className="relative">
+   229→              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+   230→              <Input
+   231→                placeholder="Search by name, contact, email, or phone..."
+   232→                value={search}
+   233→                onChange={(e) => setSearch(e.target.value)}
+   234→                className="h-9 pl-8"
+   235→              />
+   236→            </div>
+   237→          </div>
+   238→          <div className="flex-1 space-y-1.5">
+   239→            <Label className="text-xs">Category</Label>
+   240→            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+   241→              <SelectTrigger className="h-9">
+   242→                <SelectValue />
+   243→              </SelectTrigger>
+   244→              <SelectContent>
+   245→                <SelectItem value="all">All Categories</SelectItem>
+   246→                {VENDOR_CATEGORIES.map((c) => (
+   247→                  <SelectItem key={c} value={c}>
+   248→                    {c}
+   249→                  </SelectItem>
+   250→                ))}
+   251→              </SelectContent>
+   252→            </Select>
+   253→          </div>
+   254→          <div className="flex items-center gap-2 pb-0.5">
+   255→            <Switch
+   256→              id="show-inactive"
+   257→              checked={showInactive}
+   258→              onCheckedChange={setShowInactive}
+   259→            />
+   260→            <Label htmlFor="show-inactive" className="cursor-pointer text-xs">
+   261→              Show inactive
+   262→            </Label>
+   263→          </div>
+   264→        </CardContent>
+   265→      </Card>
+   266→
+   267→      {/* Vendors table */}
+   268→      <Card>
+   269→        <CardHeader className="pb-2">
+   270→          <CardTitle className="text-base">All Vendors</CardTitle>
+   271→          <CardDescription>
+   272→            {filtered.length} of {vendors?.length ?? 0} vendors
+   273→          </CardDescription>
+   274→        </CardHeader>
+   275→        <div className="overflow-x-auto scrollbar-thin">
+   276→          <Table>
+   277→            <TableHeader>
+   278→              <TableRow>
+   279→                <TableHead>Name</TableHead>
+   280→                <TableHead>Contact Person</TableHead>
+   281→                <TableHead>Category</TableHead>
+   282→                <TableHead>Payment Terms</TableHead>
+   283→                <TableHead>Rating</TableHead>
+   284→                <TableHead className="text-center">POs</TableHead>
+   285→                <TableHead className="text-right">Total Spent</TableHead>
+   286→                <TableHead>Status</TableHead>
+   287→                <TableHead className="text-right">Actions</TableHead>
+   288→              </TableRow>
+   289→            </TableHeader>
+   290→            <TableBody>
+   291→              {isLoading ? (
+   292→                Array.from({ length: 5 }).map((_, i) => (
+   293→                  <TableRow key={i}>
+   294→                    {Array.from({ length: 9 }).map((__, j) => (
+   295→                      <TableCell key={j}>
+   296→                        <Skeleton className="h-5 w-full" />
+   297→                      </TableCell>
+   298→                    ))}
+   299→                  </TableRow>
+   300→                ))
+   301→              ) : filtered.length === 0 ? (
+   302→                <TableRow>
+   303→                  <TableCell colSpan={9} className="h-32 text-center">
+   304→                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+   305→                      <Store className="h-8 w-8" />
+   306→                      <p className="font-medium">No vendors found</p>
+   307→                      <p className="text-xs">
+   308→                        Try adjusting your filters, or add a new vendor to get started.
+   309→                      </p>
+   310→                      <Button size="sm" variant="outline" className="mt-1" onClick={openNew}>
+   311→                        <Plus className="mr-1.5 h-4 w-4" /> Add your first vendor
+   312→                      </Button>
+   313→                    </div>
+   314→                  </TableCell>
+   315→                </TableRow>
+   316→              ) : (
+   317→                filtered.map((v) => (
+   318→                  <TableRow
+   319→                    key={v.id}
+   320→                    className="cursor-pointer hover:bg-muted/40"
+   321→                    onClick={() => openEdit(v.id)}
+   322→                  >
+   323→                    <TableCell>
+   324→                      <div className="flex items-center gap-2">
+   325→                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10">
+   326→                          <Store className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+   327→                        </div>
+   328→                        <div className="min-w-0">
+   329→                          <div className="font-medium leading-tight">{v.name}</div>
+   330→                          {v.website && (
+   331→                            <a
+   332→                              href={v.website}
+   333→                              target="_blank"
+   334→                              rel="noopener noreferrer"
+   335→                              onClick={(e) => e.stopPropagation()}
+   336→                              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary"
+   337→                            >
+   338→                              <Globe className="h-2.5 w-2.5" />
+   339→                              {v.website.replace(/^https?:\/\//, '')}
+   340→                            </a>
+   341→                          )}
+   342→                        </div>
+   343→                      </div>
+   344→                    </TableCell>
+   345→                    <TableCell>
+   346→                      {v.contactPerson ? (
+   347→                        <div className="flex flex-col text-xs">
+   348→                          <span className="font-medium text-foreground">{v.contactPerson}</span>
+   349→                          <div className="mt-0.5 flex flex-col gap-0.5 text-muted-foreground">
+   350→                            {v.email && (
+   351→                              <span className="flex items-center gap-1">
+   352→                                <Mail className="h-2.5 w-2.5" />
+   353→                                {v.email}
+   354→                              </span>
+   355→                            )}
+   356→                            {v.phone && (
+   357→                              <span className="flex items-center gap-1">
+   358→                                <Phone className="h-2.5 w-2.5" />
+   359→                                {v.phone}
+   360→                              </span>
+   361→                            )}
+   362→                          </div>
+   363→                        </div>
+   364→                      ) : (
+   365→                        <span className="text-xs text-muted-foreground">—</span>
+   366→                      )}
+   367→                    </TableCell>
+   368→                    <TableCell>
+   369→                      {v.category ? (
+   370→                        <Badge variant="outline" className="text-[11px]">
+   371→                          {v.category}
+   372→                        </Badge>
+   373→                      ) : (
+   374→                        <span className="text-xs text-muted-foreground">—</span>
+   375→                      )}
+   376→                    </TableCell>
+   377→                    <TableCell className="text-xs">
+   378→                      {v.paymentTerms || <span className="text-muted-foreground">—</span>}
+   379→                    </TableCell>
+   380→                    <TableCell>
+   381→                      <StarRating value={v.rating} />
+   382→                    </TableCell>
+   383→                    <TableCell className="text-center">
+   384→                      <span className="inline-flex items-center gap-1 text-sm tabular-nums">
+   385→                        <ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" />
+   386→                        {v._count?.purchaseOrders ?? 0}
+   387→                      </span>
+   388→                    </TableCell>
+   389→                    <TableCell className="text-right tabular-nums">
+   390→                      {v._sum?.totalSpent
+   391→                        ? formatCurrency(v._sum.totalSpent)
+   392→                        : <span className="text-muted-foreground">—</span>}
+   393→                    </TableCell>
+   394→                    <TableCell>
+   395→                      {v.isActive ? (
+   396→                        <Badge
+   397→                          variant="outline"
+   398→                          className="border-0 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400"
+   399→                        >
+   400→                          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   401→                          Active
+   402→                        </Badge>
+   403→                      ) : (
+   404→                        <Badge
+   405→                          variant="outline"
+   406→                          className="border-0 bg-slate-500/10 text-[11px] text-slate-600 dark:text-slate-400"
+   407→                        >
+   408→                          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-slate-400" />
+   409→                          Inactive
+   410→                        </Badge>
+   411→                      )}
+   412→                    </TableCell>
+   413→                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+   414→                      <div className="flex items-center justify-end gap-1">
+   415→                        <Button
+   416→                          size="icon"
+   417→                          variant="ghost"
+   418→                          className="h-7 w-7"
+   419→                          onClick={() => openEdit(v.id)}
+   420→                          aria-label={`Edit ${v.name}`}
+   421→                        >
+   422→                          <Pencil className="h-3.5 w-3.5" />
+   423→                        </Button>
+   424→                        <Button
+   425→                          size="icon"
+   426→                          variant="ghost"
+   427→                          className="h-7 w-7 text-destructive"
+   428→                          onClick={() => setDeleteTarget(v)}
+   429→                          aria-label={`Delete ${v.name}`}
+   430→                        >
+   431→                          <Trash2 className="h-3.5 w-3.5" />
+   432→                        </Button>
+   433→                      </div>
+   434→                    </TableCell>
+   435→                  </TableRow>
+   436→                ))
+   437→              )}
+   438→            </TableBody>
+   439→          </Table>
+   440→        </div>
+   441→      </Card>
+   442→
+   443→      {/* Add/Edit dialog */}
+   444→      <VendorFormDialog
+   445→        open={showForm}
+   446→        onOpenChange={setShowForm}
+   447→        editingId={editingId}
+   448→      />
+   449→
+   450→      {/* Delete confirmation */}
+   451→      <Dialog
+   452→        open={!!deleteTarget}
+   453→        onOpenChange={(v) => !v && setDeleteTarget(null)}
+   454→      >
+   455→        <DialogContent className="max-w-sm">
+   456→          <DialogHeader>
+   457→            <DialogTitle>Delete Vendor</DialogTitle>
+   458→            <DialogDescription>
+   459→              Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+   460→              This action cannot be undone.
+   461→            </DialogDescription>
+   462→          </DialogHeader>
+   463→          {deleteTarget && (deleteTarget._count?.purchaseOrders ?? 0) > 0 && (
+   464→            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+   465→              This vendor has <strong>{deleteTarget._count?.purchaseOrders}</strong> associated
+   466→              purchase order(s). Deletion may affect historical reporting.
+   467→            </div>
+   468→          )}
+   469→          <DialogFooter>
+   470→            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+   471→              Cancel
+   472→            </Button>
+   473→            <Button variant="destructive" onClick={handleDelete}>
+   474→              <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+   475→            </Button>
+   476→          </DialogFooter>
+   477→        </DialogContent>
+   478→      </Dialog>
+   479→    </div>
+   480→  )
+   481→}
+   482→
+   483→// ---- Form dialog ----
+   484→interface VendorFormDialogProps {
+   485→  open: boolean
+   486→  onOpenChange: (v: boolean) => void
+   487→  editingId: string | null
+   488→}
+   489→
+   490→function VendorFormDialog({ open, onOpenChange, editingId }: VendorFormDialogProps) {
+   491→  const qc = useQueryClient()
+   492→  const { data: vendors } = useQuery({
+   493→    queryKey: ['vendors'],
+   494→    queryFn: () => vendorsApi.list(),
+   495→  })
+   496→  const editing = vendors?.find((v) => v.id === editingId)
+   497→
+   498→  const [form, setForm] = useState<Record<string, unknown>>({})
+   499→  const [saving, setSaving] = useState(false)
+   500→
+   501→  // Initialize form whenever dialog opens or editing target changes
+   502→  useMemo(() => {
+   503→    if (open) {
+   504→      setForm({
+   505→        name: editing?.name || '',
+   506→        category: editing?.category || 'Hardware',
+   507→        contactPerson: editing?.contactPerson || '',
+   508→        email: editing?.email || '',
+   509→        phone: editing?.phone || '',
+   510→        website: editing?.website || '',
+   511→        address: editing?.address || '',
+   512→        taxId: editing?.taxId || '',
+   513→        paymentTerms: editing?.paymentTerms || '',
+   514→        rating: editing?.rating ?? 3,
+   515→        isActive: editing?.isActive ?? true,
+   516→        notes: editing?.notes || '',
+   517→      })
+   518→    }
+   519→  }, [open, editing])
+   520→
+   521→  function setField(key: string, value: unknown) {
+   522→    setForm((prev) => ({ ...prev, [key]: value }))
+   523→  }
+   524→
+   525→  async function save() {
+   526→    if (!String(form.name || '').trim()) {
+   527→      toast.error('Name is required')
+   528→      return
+   529→    }
+   530→    setSaving(true)
+   531→    try {
+   532→      const payload = {
+   533→        name: String(form.name).trim(),
+   534→        category: String(form.category || 'Other'),
+   535→        contactPerson: form.contactPerson ? String(form.contactPerson).trim() : null,
+   536→        email: form.email ? String(form.email).trim() : null,
+   537→        phone: form.phone ? String(form.phone).trim() : null,
+   538→        website: form.website ? String(form.website).trim() : null,
+   539→        address: form.address ? String(form.address).trim() : null,
+   540→        taxId: form.taxId ? String(form.taxId).trim() : null,
+   541→        paymentTerms: form.paymentTerms ? String(form.paymentTerms).trim() : null,
+   542→        rating: Number(form.rating) || 0,
+   543→        isActive: Boolean(form.isActive),
+   544→        notes: form.notes ? String(form.notes).trim() : null,
+   545→      }
+   546→      if (editingId) {
+   547→        await vendorsApi.update(editingId, payload)
+   548→        toast.success('Vendor updated')
+   549→      } else {
+   550→        await vendorsApi.create(payload)
+   551→        toast.success('Vendor created')
+   552→      }
+   553→      qc.invalidateQueries({ queryKey: ['vendors'] })
+   554→      onOpenChange(false)
+   555→    } catch (e) {
+   556→      toast.error('Save failed: ' + String(e))
+   557→    } finally {
+   558→      setSaving(false)
+   559→    }
+   560→  }
+   561→
+   562→  return (
+   563→    <Dialog open={open} onOpenChange={onOpenChange}>
+   564→      <DialogContent className="max-w-2xl">
+   565→        <DialogHeader>
+   566→          <DialogTitle>{editingId ? 'Edit Vendor' : 'Add Vendor'}</DialogTitle>
+   567→          <DialogDescription>
+   568→            {editingId
+   569→              ? 'Update vendor information and contact details.'
+   570→              : 'Register a new vendor or supplier in your directory.'}
+   571→          </DialogDescription>
+   572→        </DialogHeader>
+   573→        <div className="max-h-[60vh] space-y-3 overflow-y-auto scrollbar-thin pr-1">
+   574→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   575→            <div className="space-y-1.5 sm:col-span-2">
+   576→              <Label className="text-xs">Name *</Label>
+   577→              <Input
+   578→                value={String(form.name || '')}
+   579→                onChange={(e) => setField('name', e.target.value)}
+   580→                placeholder="e.g., Dell Technologies, CDW, Insight"
+   581→              />
+   582→            </div>
+   583→            <div className="space-y-1.5">
+   584→              <Label className="text-xs">Category</Label>
+   585→              <Select
+   586→                value={String(form.category || 'Hardware')}
+   587→                onValueChange={(v) => setField('category', v)}
+   588→              >
+   589→                <SelectTrigger>
+   590→                  <SelectValue />
+   591→                </SelectTrigger>
+   592→                <SelectContent>
+   593→                  {VENDOR_CATEGORIES.map((c) => (
+   594→                    <SelectItem key={c} value={c}>
+   595→                      {c}
+   596→                    </SelectItem>
+   597→                  ))}
+   598→                </SelectContent>
+   599→              </Select>
+   600→            </div>
+   601→            <div className="space-y-1.5">
+   602→              <Label className="text-xs">Payment Terms</Label>
+   603→              <Input
+   604→                value={String(form.paymentTerms || '')}
+   605→                onChange={(e) => setField('paymentTerms', e.target.value)}
+   606→                placeholder="Net 30, Net 60, COD..."
+   607→              />
+   608→            </div>
+   609→          </div>
+   610→
+   611→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   612→            <div className="space-y-1.5">
+   613→              <Label className="text-xs">Contact Person</Label>
+   614→              <Input
+   615→                value={String(form.contactPerson || '')}
+   616→                onChange={(e) => setField('contactPerson', e.target.value)}
+   617→                placeholder="Account manager name"
+   618→              />
+   619→            </div>
+   620→            <div className="space-y-1.5">
+   621→              <Label className="text-xs">Tax ID</Label>
+   622→              <Input
+   623→                value={String(form.taxId || '')}
+   624→                onChange={(e) => setField('taxId', e.target.value)}
+   625→                placeholder="EIN / VAT / GST number"
+   626→                className="font-mono"
+   627→              />
+   628→            </div>
+   629→          </div>
+   630→
+   631→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   632→            <div className="space-y-1.5">
+   633→              <Label className="text-xs">Email</Label>
+   634→              <Input
+   635→                type="email"
+   636→                value={String(form.email || '')}
+   637→                onChange={(e) => setField('email', e.target.value)}
+   638→                placeholder="sales@vendor.com"
+   639→              />
+   640→            </div>
+   641→            <div className="space-y-1.5">
+   642→              <Label className="text-xs">Phone</Label>
+   643→              <Input
+   644→                value={String(form.phone || '')}
+   645→                onChange={(e) => setField('phone', e.target.value)}
+   646→                placeholder="+1 (555) 000-0000"
+   647→              />
+   648→            </div>
+   649→          </div>
+   650→
+   651→          <div className="space-y-1.5">
+   652→            <Label className="text-xs">Website</Label>
+   653→            <Input
+   654→              value={String(form.website || '')}
+   655→              onChange={(e) => setField('website', e.target.value)}
+   656→              placeholder="https://www.vendor.com"
+   657→            />
+   658→          </div>
+   659→
+   660→          <div className="space-y-1.5">
+   661→            <Label className="text-xs">Address</Label>
+   662→            <Textarea
+   663→              rows={2}
+   664→              value={String(form.address || '')}
+   665→              onChange={(e) => setField('address', e.target.value)}
+   666→              placeholder="Street, City, State, ZIP, Country"
+   667→            />
+   668→          </div>
+   669→
+   670→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   671→            <div className="space-y-1.5">
+   672→              <Label className="text-xs">Rating (1-5)</Label>
+   673→              <Select
+   674→                value={String(form.rating ?? 3)}
+   675→                onValueChange={(v) => setField('rating', Number(v))}
+   676→              >
+   677→                <SelectTrigger>
+   678→                  <SelectValue />
+   679→                </SelectTrigger>
+   680→                <SelectContent>
+   681→                  {[1, 2, 3, 4, 5].map((n) => (
+   682→                    <SelectItem key={n} value={String(n)}>
+   683→                      {n} {n === 1 ? 'Star' : 'Stars'}
+   684→                    </SelectItem>
+   685→                  ))}
+   686→                </SelectContent>
+   687→              </Select>
+   688→            </div>
+   689→            <div className="flex items-end pb-1">
+   690→              <div className="flex items-center gap-2">
+   691→                <Switch
+   692→                  id="vendor-active"
+   693→                  checked={Boolean(form.isActive)}
+   694→                  onCheckedChange={(v) => setField('isActive', v)}
+   695→                />
+   696→                <Label htmlFor="vendor-active" className="cursor-pointer text-xs">
+   697→                  Active vendor
+   698→                </Label>
+   699→              </div>
+   700→            </div>
+   701→          </div>
+   702→
+   703→          <div className="space-y-1.5">
+   704→            <Label className="text-xs">Notes</Label>
+   705→            <Textarea
+   706→              rows={2}
+   707→              value={String(form.notes || '')}
+   708→              onChange={(e) => setField('notes', e.target.value)}
+   709→              placeholder="Internal notes about this vendor (relationship, contract, SLAs...)"
+   710→            />
+   711→          </div>
+   712→
+   713→          {editing && (
+   714→            <p className="text-[10px] text-muted-foreground">
+   715→              Last updated {formatDate(editing.updatedAt, 'MMM d, yyyy h:mm a')}
+   716→            </p>
+   717→          )}
+   718→        </div>
+   719→        <DialogFooter>
+   720→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   721→            Cancel
+   722→          </Button>
+   723→          <Button onClick={save} disabled={saving}>
+   724→            {saving ? 'Saving...' : editingId ? 'Update Vendor' : 'Create Vendor'}
+   725→          </Button>
+   726→        </DialogFooter>
+   727→      </DialogContent>
+   728→    </Dialog>
+   729→  )
+   730→}
+   731→

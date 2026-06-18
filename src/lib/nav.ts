@@ -24,6 +24,8 @@ export type ViewName =
   | 'vendors'
   | 'purchase-orders'
   | 'disposals'
+  | 'tags'
+  | 'bookings'
 
 interface NavState {
   view: ViewName

@@ -30,6 +30,8 @@ import {
   Store,
   ShoppingCart,
   Trash2,
+  Tag,
+  CalendarClock,
 } from 'lucide-react'
 import type { ViewName } from '@/lib/nav'
 
@@ -56,6 +58,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Depreciation', view: 'depreciation', icon: TrendingDown, group: 'Manage', badge: 'new' },
   { label: 'Software Licenses', view: 'licenses', icon: KeyRound, group: 'Manage', badge: 'new' },
   { label: 'Asset Disposals', view: 'disposals', icon: Trash2, group: 'Manage', badge: 'new' },
+  { label: 'Asset Tags', view: 'tags', icon: Tag, group: 'Manage', badge: 'new' },
+  { label: 'Asset Bookings', view: 'bookings', icon: CalendarClock, group: 'Manage', badge: 'new' },
   { label: 'Vendors', view: 'vendors', icon: Store, group: 'Procurement', badge: 'new' },
   { label: 'Purchase Orders', view: 'purchase-orders', icon: ShoppingCart, group: 'Procurement', badge: 'new' },
   { label: 'Departments', view: 'departments', icon: Building2, group: 'Manage' },

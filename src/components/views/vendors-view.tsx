@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { vendorsApi } from '@/lib/api'
+import { vendorsApi, exportApi } from '@/lib/api'
 import { VENDOR_CATEGORIES } from '@/lib/types'
 import type { Vendor } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,6 +50,7 @@ import {
   Phone,
   Globe,
   ShoppingCart,
+  Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -183,9 +184,14 @@ export function VendorsView() {
             Manage vendor relationships, payment terms, ratings, and procurement spend.
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="mr-1.5 h-4 w-4" /> Add Vendor
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportApi.download(exportApi.vendors())}>
+            <Download className="mr-1.5 h-4 w-4" /> Export CSV
+          </Button>
+          <Button onClick={openNew}>
+            <Plus className="mr-1.5 h-4 w-4" /> Add Vendor
+          </Button>
+        </div>
       </div>
 
       {/* Stat tiles */}

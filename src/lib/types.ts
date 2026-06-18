@@ -145,6 +145,7 @@ export interface Asset {
   location?: Location | null
   images?: AssetImage[]
   history?: AssignmentHistory[]
+  tags?: AssetTag[]
   _count?: { images: number; history: number }
 }
 
@@ -247,6 +248,18 @@ export interface DashboardStats {
     totalRecovered: number
     totalCost: number
     pendingApproval: number
+  }
+  bookings?: {
+    total: number
+    pending: number
+    active: number
+    approved: number
+    upcoming: number
+  }
+  tags?: {
+    totalTags: number
+    totalLinks: number
+    topTags: { name: string; color: string; c: number }[]
   }
 }
 
@@ -680,4 +693,90 @@ export interface AssetDisposal {
   updatedAt: string
   asset?: Asset
   approvedBy?: Person | null
+}
+
+// ============ Asset Tags ============
+export type TagColor =
+  | 'slate' | 'emerald' | 'amber' | 'rose' | 'violet'
+  | 'sky' | 'orange' | 'pink' | 'lime' | 'cyan'
+
+export const TAG_COLORS: { value: TagColor; label: string; bg: string; text: string; dot: string; border: string }[] = [
+  { value: 'slate', label: 'Slate', bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-300', dot: 'bg-slate-500', border: 'border-slate-500/30' },
+  { value: 'emerald', label: 'Emerald', bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500', border: 'border-emerald-500/30' },
+  { value: 'amber', label: 'Amber', bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500', border: 'border-amber-500/30' },
+  { value: 'rose', label: 'Rose', bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500', border: 'border-rose-500/30' },
+  { value: 'violet', label: 'Violet', bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500', border: 'border-violet-500/30' },
+  { value: 'sky', label: 'Sky', bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500', border: 'border-sky-500/30' },
+  { value: 'orange', label: 'Orange', bg: 'bg-orange-500/10', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', border: 'border-orange-500/30' },
+  { value: 'pink', label: 'Pink', bg: 'bg-pink-500/10', text: 'text-pink-700 dark:text-pink-300', dot: 'bg-pink-500', border: 'border-pink-500/30' },
+  { value: 'lime', label: 'Lime', bg: 'bg-lime-500/10', text: 'text-lime-700 dark:text-lime-300', dot: 'bg-lime-500', border: 'border-lime-500/30' },
+  { value: 'cyan', label: 'Cyan', bg: 'bg-cyan-500/10', text: 'text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500', border: 'border-cyan-500/30' },
+]
+
+export function getTagColorConfig(color: string) {
+  return TAG_COLORS.find((c) => c.value === color) || TAG_COLORS[0]
+}
+
+export interface AssetTag {
+  id: string
+  name: string
+  color: TagColor | string
+  description?: string | null
+  createdAt: string
+  updatedAt: string
+  _count?: { assets: number }
+}
+
+// ============ Asset Bookings ============
+export type BookingStatus =
+  | 'Pending'
+  | 'Approved'
+  | 'Rejected'
+  | 'Active'
+  | 'Completed'
+  | 'Cancelled'
+
+export const BOOKING_STATUSES: BookingStatus[] = [
+  'Pending',
+  'Approved',
+  'Rejected',
+  'Active',
+  'Completed',
+  'Cancelled',
+]
+
+export const BOOKING_STATUS_CONFIG: Record<
+  BookingStatus,
+  { bg: string; text: string; dot: string; label: string }
+> = {
+  Pending: { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500', label: 'Pending Approval' },
+  Approved: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500', label: 'Approved' },
+  Rejected: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500', label: 'Rejected' },
+  Active: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500', label: 'Active (Checked Out)' },
+  Completed: { bg: 'bg-zinc-500/10', text: 'text-zinc-700 dark:text-zinc-300', dot: 'bg-zinc-500', label: 'Completed' },
+  Cancelled: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', dot: 'bg-slate-500', label: 'Cancelled' },
+}
+
+export interface AssetBooking {
+  id: string
+  assetId: string
+  bookedById: string
+  title: string
+  purpose?: string | null
+  status: BookingStatus | string
+  startDate: string
+  endDate: string
+  requestedById?: string | null
+  approvedById?: string | null
+  approvedAt?: string | null
+  decisionNotes?: string | null
+  checkedOutAt?: string | null
+  checkedInAt?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  asset?: Asset
+  bookedBy?: Person | null
+  approvedBy?: Person | null
+  _conflicts?: AssetBooking[]
 }

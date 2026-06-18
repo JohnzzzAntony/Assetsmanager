@@ -21,6 +21,8 @@ import type {
   PurchaseOrder,
   PurchaseOrderItem,
   AssetDisposal,
+  AssetTag,
+  AssetBooking,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -287,6 +289,7 @@ function attachAssetRelations<T extends Asset>(asset: T): T {
   asset.department = depts.find((d) => d.id === asset.departmentId) || null
   asset.location = locs.find((l) => l.id === asset.locationId) || null
   asset.assignedTo = persons.find((p) => p.id === asset.assignedToId) || null
+  asset.tags = assetTagRepo.listForAsset(asset.id)
   return asset
 }
 
@@ -380,6 +383,7 @@ export const assetRepo = {
     attachAssetRelations(a)
     a.images = imageRepo.listForAsset(id)
     a.history = historyRepo.listForAsset(id)
+    a.tags = assetTagRepo.listForAsset(id)
     a._count = { images: a.images.length, history: a.history.length }
     return a
   },
@@ -734,6 +738,8 @@ export function getDashboardStats(): DashboardStats {
     vendors: vendorRepo.stats(),
     procurement: purchaseOrderRepo.stats(),
     disposals: disposalRepo.stats(),
+    bookings: assetBookingRepo.stats(),
+    tags: assetTagRepo.stats(),
   }
 }
 
@@ -1568,7 +1574,9 @@ export const vendorRepo = {
       data.paymentTerms ?? null, data.rating ?? 0, data.isActive === false ? 0 : 1,
       data.notes ?? null, now, now
     )
-    return this.get(id)!
+    const v = this.get(id)!
+    activityLogRepo.log('vendor.created', 'Vendor', id, `Created vendor "${v.name}" (${v.category || 'Uncategorized'})`)
+    return v
   },
   update(id: string, data: Partial<Vendor>): Vendor | null {
     ensure()
@@ -1583,11 +1591,20 @@ export const vendorRepo = {
       data.address ?? cur.address, data.taxId ?? cur.taxId, data.paymentTerms ?? cur.paymentTerms,
       data.rating ?? cur.rating, data.isActive === false ? 0 : 1, data.notes ?? cur.notes, now, id
     )
-    return this.get(id)
+    const updated = this.get(id)!
+    const changes: string[] = []
+    if (data.name && data.name !== cur.name) changes.push(`name "${cur.name}" → "${data.name}"`)
+    if (data.category !== undefined && data.category !== cur.category) changes.push(`category changed`)
+    if (data.isActive !== undefined && data.isActive !== cur.isActive) changes.push(`active: ${cur.isActive ? 'Yes' : 'No'} → ${data.isActive ? 'Yes' : 'No'}`)
+    if (data.rating !== undefined && Number(data.rating) !== cur.rating) changes.push(`rating ${cur.rating} → ${data.rating}`)
+    activityLogRepo.log('vendor.updated', 'Vendor', id, `Updated vendor "${updated.name}"${changes.length ? ': ' + changes.join(', ') : ''}`)
+    return updated
   },
   delete(id: string): void {
     ensure()
+    const cur = this.get(id)
     db.prepare('DELETE FROM Vendor WHERE id = ?').run(id)
+    if (cur) activityLogRepo.log('vendor.deleted', 'Vendor', id, `Deleted vendor "${cur.name}"`)
   },
   stats() {
     ensure()
@@ -1677,7 +1694,9 @@ export const purchaseOrderRepo = {
         )
       }
     }
-    return this.get(id)!
+    const po = this.get(id)!
+    activityLogRepo.log('po.created', 'PurchaseOrder', id, `Created PO ${po.poNumber} for ${po.vendor?.name || 'vendor'} — $${po.totalAmount.toFixed(2)} (${po.status})`)
+    return po
   },
   update(id: string, data: Partial<PurchaseOrder> & { items?: Partial<PurchaseOrderItem>[] }): PurchaseOrder | null {
     ensure()
@@ -1715,11 +1734,21 @@ export const purchaseOrderRepo = {
         )
       }
     }
-    return this.get(id)
+    const updated = this.get(id)
+    if (updated) {
+      const statusChanged = data.status && data.status !== cur.status
+      const detail = statusChanged
+        ? `PO ${updated.poNumber} status: ${cur.status} → ${data.status}`
+        : `Updated PO ${updated.poNumber}`
+      activityLogRepo.log('po.updated', 'PurchaseOrder', id, detail)
+    }
+    return updated
   },
   delete(id: string): void {
     ensure()
+    const cur = this.get(id)
     db.prepare('DELETE FROM PurchaseOrder WHERE id = ?').run(id)
+    if (cur) activityLogRepo.log('po.deleted', 'PurchaseOrder', id, `Deleted PO ${cur.poNumber}`)
   },
   listForVendor(vendorId: string): PurchaseOrder[] {
     ensure()
@@ -1806,7 +1835,10 @@ export const disposalRepo = {
     )
     // Mark asset as Retired
     db.prepare("UPDATE Asset SET status = 'Retired', updatedAt = ? WHERE id = ?").run(now, data.assetId!)
-    return this.get(id)!
+    const disposal = this.get(id)!
+    activityLogRepo.log('disposal.created', 'AssetDisposal', id, `Disposed asset via ${disposal.method} (net $${netProceeds.toFixed(2)}) — ${disposal.disposalNumber}`)
+    activityLogRepo.log('asset.retired', 'Asset', data.assetId!, `Asset retired via disposal ${disposal.disposalNumber} (${disposal.method})`)
+    return disposal
   },
   update(id: string, data: Partial<AssetDisposal>): AssetDisposal | null {
     ensure()
@@ -1826,11 +1858,18 @@ export const disposalRepo = {
       data.approvedById ?? cur.approvedById, data.approvedAt ?? cur.approvedAt,
       data.notes ?? cur.notes, now, id
     )
-    return this.get(id)
+    const updated = this.get(id)
+    if (updated) {
+      const methodChanged = data.method && data.method !== cur.method
+      activityLogRepo.log('disposal.updated', 'AssetDisposal', id, `${methodChanged ? `Method ${cur.method} → ${data.method} — ` : ''}Updated disposal ${updated.disposalNumber}`)
+    }
+    return updated
   },
   delete(id: string): void {
     ensure()
+    const cur = this.get(id)
     db.prepare('DELETE FROM AssetDisposal WHERE id = ?').run(id)
+    if (cur) activityLogRepo.log('disposal.deleted', 'AssetDisposal', id, `Deleted disposal ${cur.disposalNumber}`)
   },
   stats() {
     ensure()
@@ -1839,5 +1878,234 @@ export const disposalRepo = {
     const cost = (db.prepare(`SELECT COALESCE(SUM(disposalCost), 0) as s FROM AssetDisposal`).get() as { s: number }).s
     const pending = (db.prepare(`SELECT COUNT(*) as c FROM AssetDisposal WHERE approvedById IS NULL`).get() as { c: number }).c
     return { total, totalRecovered: recovered, totalCost: cost, pendingApproval: pending }
+  },
+}
+
+// ============ Asset Tags ============
+export const assetTagRepo = {
+  _attachCount(t: AssetTag): AssetTag {
+    const c = (db.prepare('SELECT COUNT(*) as c FROM AssetTagLink WHERE tagId = ?').get(t.id) as { c: number }).c
+    return { ...t, _count: { assets: c } }
+  },
+  list(): AssetTag[] {
+    ensure()
+    const r = rows<AssetTag>(db.prepare('SELECT * FROM AssetTag ORDER BY name COLLATE NOCASE').all())
+    return r.map((t) => this._attachCount(t))
+  },
+  get(id: string): AssetTag | null {
+    ensure()
+    const r = row<AssetTag>(db.prepare('SELECT * FROM AssetTag WHERE id = ?').get(id))
+    if (!r) return null
+    return this._attachCount(r)
+  },
+  getByName(name: string): AssetTag | null {
+    ensure()
+    const r = row<AssetTag>(db.prepare('SELECT * FROM AssetTag WHERE name = ? COLLATE NOCASE').get(name))
+    if (!r) return null
+    return this._attachCount(r)
+  },
+  create(data: Partial<AssetTag>): AssetTag {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO AssetTag (id, name, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, data.name, data.color || 'slate', data.description ?? null, now, now)
+    const t = this.get(id)!
+    activityLogRepo.log('tag.created', 'AssetTag', id, `Created tag "${t.name}"`)
+    return t
+  },
+  update(id: string, data: Partial<AssetTag>): AssetTag | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    db.prepare(`UPDATE AssetTag SET name = ?, color = ?, description = ?, updatedAt = ? WHERE id = ?`).run(
+      data.name ?? cur.name, data.color ?? cur.color, data.description ?? cur.description, now, id
+    )
+    const updated = this.get(id)!
+    activityLogRepo.log('tag.updated', 'AssetTag', id, `Updated tag "${updated.name}"`)
+    return updated
+  },
+  delete(id: string): void {
+    ensure()
+    const cur = this.get(id)
+    db.prepare('DELETE FROM AssetTag WHERE id = ?').run(id)
+    if (cur) activityLogRepo.log('tag.deleted', 'AssetTag', id, `Deleted tag "${cur.name}"`)
+  },
+  listForAsset(assetId: string): AssetTag[] {
+    ensure()
+    const r = rows<AssetTag>(
+      db.prepare(`
+        SELECT t.* FROM AssetTag t
+        JOIN AssetTagLink l ON l.tagId = t.id
+        WHERE l.assetId = ?
+        ORDER BY t.name COLLATE NOCASE
+      `).all(assetId)
+    )
+    return r
+  },
+  attachToAsset(assetId: string, tagId: string): void {
+    ensure()
+    const existing = db.prepare('SELECT id FROM AssetTagLink WHERE assetId = ? AND tagId = ?').get(assetId, tagId)
+    if (existing) return
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare('INSERT INTO AssetTagLink (id, assetId, tagId, createdAt) VALUES (?, ?, ?, ?)').run(id, assetId, tagId, now)
+    const tag = this.get(tagId)
+    if (tag) activityLogRepo.log('tag.attached', 'Asset', assetId, `Tagged asset with "${tag.name}"`)
+  },
+  detachFromAsset(assetId: string, tagId: string): void {
+    ensure()
+    const tag = this.get(tagId)
+    db.prepare('DELETE FROM AssetTagLink WHERE assetId = ? AND tagId = ?').run(assetId, tagId)
+    if (tag) activityLogRepo.log('tag.detached', 'Asset', assetId, `Removed tag "${tag.name}" from asset`)
+  },
+  setAssetTags(assetId: string, tagIds: string[]): void {
+    ensure()
+    db.prepare('DELETE FROM AssetTagLink WHERE assetId = ?').run(assetId)
+    const now = new Date().toISOString()
+    const ins = db.prepare('INSERT INTO AssetTagLink (id, assetId, tagId, createdAt) VALUES (?, ?, ?, ?)')
+    for (const tid of tagIds) {
+      ins.run(generateId(), assetId, tid, now)
+    }
+  },
+  stats() {
+    ensure()
+    const totalTags = (db.prepare('SELECT COUNT(*) as c FROM AssetTag').get() as { c: number }).c
+    const totalLinks = (db.prepare('SELECT COUNT(*) as c FROM AssetTagLink').get() as { c: number }).c
+    const topTags = rows<{ name: string; color: string; c: number }>(
+      db.prepare(`
+        SELECT t.name, t.color, COUNT(l.id) as c
+        FROM AssetTag t LEFT JOIN AssetTagLink l ON l.tagId = t.id
+        GROUP BY t.id ORDER BY c DESC LIMIT 5
+      `).all()
+    )
+    return { totalTags, totalLinks, topTags }
+  },
+}
+
+// ============ Asset Bookings ============
+export const assetBookingRepo = {
+  _attachRelations(b: AssetBooking): AssetBooking {
+    if (!b) return b
+    const asset = row<Asset>(
+      db.prepare(`
+        SELECT a.*, at.name as _at_name, at.icon as _at_icon
+        FROM Asset a LEFT JOIN AssetType at ON a.assetTypeId = at.id
+        WHERE a.id = ?
+      `).get(b.assetId)
+    ) as any
+    if (asset) {
+      asset.assetType = asset._at_name ? { id: asset.assetTypeId, name: asset._at_name, icon: asset._at_icon } : null
+    }
+    const bookedBy = row<Person>(db.prepare('SELECT * FROM Person WHERE id = ?').get(b.bookedById))
+    const approvedBy = b.approvedById
+      ? row<Person>(db.prepare('SELECT * FROM Person WHERE id = ?').get(b.approvedById))
+      : null
+    return { ...b, asset: asset || undefined, bookedBy: bookedBy || null, approvedBy }
+  },
+  list(opts: { assetId?: string; status?: string; bookedById?: string; from?: string; to?: string; limit?: number } = {}): AssetBooking[] {
+    ensure()
+    const limit = Math.min(opts.limit || 200, 1000)
+    const where: string[] = []
+    const params: unknown[] = []
+    if (opts.assetId) { where.push('assetId = ?'); params.push(opts.assetId) }
+    if (opts.status) { where.push('status = ?'); params.push(opts.status) }
+    if (opts.bookedById) { where.push('bookedById = ?'); params.push(opts.bookedById) }
+    if (opts.from) { where.push('endDate >= ?'); params.push(opts.from) }
+    if (opts.to) { where.push('startDate <= ?'); params.push(opts.to) }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const r = rows<AssetBooking>(
+      db.prepare(`SELECT * FROM AssetBooking ${whereSql} ORDER BY startDate DESC LIMIT ?`).all(...params, limit)
+    )
+    return r.map((b) => this._attachRelations(b))
+  },
+  get(id: string): AssetBooking | null {
+    ensure()
+    const b = row<AssetBooking>(db.prepare('SELECT * FROM AssetBooking WHERE id = ?').get(id))
+    if (!b) return null
+    return this._attachRelations(b)
+  },
+  listForAsset(assetId: string): AssetBooking[] {
+    return this.list({ assetId, limit: 100 })
+  },
+  // Check for overlapping active/approved bookings for the same asset
+  findConflicts(assetId: string, startDate: string, endDate: string, excludeId?: string): AssetBooking[] {
+    ensure()
+    const params: unknown[] = [assetId, endDate, startDate]
+    let excludeClause = ''
+    if (excludeId) {
+      excludeClause = ' AND id != ?'
+      params.push(excludeId)
+    }
+    const r = rows<AssetBooking>(
+      db.prepare(`
+        SELECT * FROM AssetBooking
+        WHERE assetId = ?
+          AND status IN ('Pending','Approved','Active')
+          AND endDate >= ?
+          AND startDate <= ?
+          ${excludeClause}
+        ORDER BY startDate
+      `).all(...params)
+    )
+    return r.map((b) => this._attachRelations(b))
+  },
+  create(data: Partial<AssetBooking>): AssetBooking {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO AssetBooking (id, assetId, bookedById, title, purpose, status, startDate, endDate, requestedById, approvedById, approvedAt, decisionNotes, checkedOutAt, checkedInAt, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id, data.assetId, data.bookedById, data.title, data.purpose ?? null,
+      data.status || 'Pending', data.startDate, data.endDate,
+      data.requestedById ?? null, data.approvedById ?? null, data.approvedAt ?? null,
+      data.decisionNotes ?? null, data.checkedOutAt ?? null, data.checkedInAt ?? null,
+      data.notes ?? null, now, now
+    )
+    const b = this.get(id)!
+    activityLogRepo.log('booking.created', 'AssetBooking', id, `Booking "${b.title}" for asset ${b.asset?.assetTag || b.assetId} (${b.startDate} → ${b.endDate})`)
+    return b
+  },
+  update(id: string, data: Partial<AssetBooking>): AssetBooking | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    const fields = ['title','purpose','status','startDate','endDate','approvedById','approvedAt','decisionNotes','checkedOutAt','checkedInAt','notes']
+    const sets: string[] = []
+    const params: unknown[] = []
+    for (const f of fields) {
+      if ((data as any)[f] !== undefined) {
+        sets.push(`${f} = ?`)
+        params.push((data as any)[f])
+      }
+    }
+    sets.push('updatedAt = ?')
+    params.push(now)
+    params.push(id)
+    db.prepare(`UPDATE AssetBooking SET ${sets.join(', ')} WHERE id = ?`).run(...params)
+    const updated = this.get(id)!
+    const statusChanged = data.status && data.status !== cur.status
+    activityLogRepo.log('booking.updated', 'AssetBooking', id, `${statusChanged ? `Status ${cur.status} → ${data.status} — ` : ''}Updated booking "${updated.title}"`)
+    return updated
+  },
+  delete(id: string): void {
+    ensure()
+    const cur = this.get(id)
+    db.prepare('DELETE FROM AssetBooking WHERE id = ?').run(id)
+    if (cur) activityLogRepo.log('booking.deleted', 'AssetBooking', id, `Deleted booking "${cur.title}"`)
+  },
+  stats() {
+    ensure()
+    const total = (db.prepare('SELECT COUNT(*) as c FROM AssetBooking').get() as { c: number }).c
+    const pending = (db.prepare(`SELECT COUNT(*) as c FROM AssetBooking WHERE status = 'Pending'`).get() as { c: number }).c
+    const active = (db.prepare(`SELECT COUNT(*) as c FROM AssetBooking WHERE status = 'Active'`).get() as { c: number }).c
+    const approved = (db.prepare(`SELECT COUNT(*) as c FROM AssetBooking WHERE status = 'Approved'`).get() as { c: number }).c
+    const upcoming = (db.prepare(`SELECT COUNT(*) as c FROM AssetBooking WHERE status IN ('Approved','Pending') AND startDate >= datetime('now')`).get() as { c: number }).c
+    return { total, pending, active, approved, upcoming }
   },
 }

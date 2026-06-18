@@ -95,7 +95,8 @@ export function seedDatabase(opts: { force?: boolean } = {}) {
       'AssetImage', 'AssignmentHistory', 'ActivityLog', 'MaintenanceSchedule',
       'AssetLicense', 'SoftwareLicense', 'CheckoutRequest', 'DepreciationRule',
       'Notification', 'PurchaseOrderItem', 'PurchaseOrder', 'Vendor',
-      'AssetDisposal', 'Asset', 'Person', 'Department', 'Location', 'AssetType',
+      'AssetDisposal', 'AssetTagLink', 'AssetTag', 'AssetBooking',
+      'Asset', 'Person', 'Department', 'Location', 'AssetType',
     ]
     for (const t of tableNames) {
       try { db.exec(`DELETE FROM ${t}`) } catch {}
@@ -563,8 +564,116 @@ export function seedDatabase(opts: { force?: boolean } = {}) {
     disposalCount++
   })
 
+  // ============ Asset Tags ============
+  const TAGS: { name: string; color: string; description: string }[] = [
+    { name: 'High-Value', color: 'rose', description: 'Assets valued above $1,000' },
+    { name: 'Remote-Only', color: 'sky', description: 'Assigned to remote workers only' },
+    { name: 'Project-Phoenix', color: 'violet', description: 'Allocated to Project Phoenix team' },
+    { name: 'Conference-Room', color: 'amber', description: 'Installed in conference rooms' },
+    { name: 'Demo-Unit', color: 'emerald', description: 'Used for sales demos and trials' },
+    { name: 'Needs-Review', color: 'orange', description: 'Pending review or audit' },
+    { name: 'BYOD', color: 'cyan', description: 'Bring Your Own Device (with stipend)' },
+    { name: 'Critical', color: 'pink', description: 'Mission-critical asset — SLA applies' },
+  ]
+  const insTag = db.prepare(
+    `INSERT INTO AssetTag (id, name, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
+  )
+  const tagIds: string[] = []
+  TAGS.forEach((t) => {
+    const id = generateId()
+    tagIds.push(id)
+    insTag.run(id, t.name, t.color, t.description, now, now)
+  })
+  // Link tags to assets in a meaningful pattern
+  const insTagLink = db.prepare(
+    `INSERT INTO AssetTagLink (id, assetId, tagId, createdAt) VALUES (?, ?, ?, ?)`
+  )
+  let tagLinkCount = 0
+  assetRows.forEach((a, i) => {
+    // High-Value tag for assets with cost > 1000
+    if ((a.cost || 0) > 1000) {
+      insTagLink.run(generateId(), a.id, tagIds[0], now)
+      tagLinkCount++
+    }
+    // Remote-Only for assets assigned to persons in remote locations (every 3rd)
+    if (i % 3 === 0) {
+      insTagLink.run(generateId(), a.id, tagIds[1], now)
+      tagLinkCount++
+    }
+    // Project-Phoenix for every 4th
+    if (i % 4 === 1) {
+      insTagLink.run(generateId(), a.id, tagIds[2], now)
+      tagLinkCount++
+    }
+    // Demo-Unit for every 5th
+    if (i % 5 === 2) {
+      insTagLink.run(generateId(), a.id, tagIds[4], now)
+      tagLinkCount++
+    }
+    // Critical for laptops above $1500
+    if ((a.cost || 0) > 1500) {
+      insTagLink.run(generateId(), a.id, tagIds[7], now)
+      tagLinkCount++
+    }
+  })
+
+  // ============ Asset Bookings ============
+  const today = new Date()
+  const fmt = (d: Date) => d.toISOString()
+  const addDays = (d: Date, days: number) => {
+    const r = new Date(d)
+    r.setDate(r.getDate() + days)
+    return r
+  }
+  const bookingSeeds: {
+    assetIdx: number
+    personIdx: number
+    title: string
+    purpose: string
+    status: string
+    startOffset: number
+    endOffset: number
+    notes?: string
+  }[] = [
+    { assetIdx: 1, personIdx: 2, title: 'Client demo — Acme Corp', purpose: 'On-site product demo for prospective client', status: 'Active', startOffset: -1, endOffset: 2 },
+    { assetIdx: 7, personIdx: 4, title: 'Conference travel — Mumbai TechSummit', purpose: 'Booth demo unit for 3-day conference', status: 'Approved', startOffset: 3, endOffset: 6 },
+    { assetIdx: 11, personIdx: 1, title: 'Project Phoenix kickoff', purpose: 'Temporary allocation for project onboarding', status: 'Pending', startOffset: 2, endOffset: 9 },
+    { assetIdx: 15, personIdx: 3, title: 'Training workshop', purpose: 'Hands-on training for new hires', status: 'Approved', startOffset: 5, endOffset: 7 },
+    { assetIdx: 5, personIdx: 5, title: 'Photo shoot — Marketing', purpose: 'Product photography for marketing assets', status: 'Completed', startOffset: -10, endOffset: -8 },
+    { assetIdx: 9, personIdx: 6, title: 'Remote work — Q4', purpose: 'Work-from-home setup for Q4', status: 'Active', startOffset: -5, endOffset: 25 },
+    { assetIdx: 13, personIdx: 0, title: 'QA testing cycle', purpose: 'Regression testing on staging build', status: 'Pending', startOffset: 7, endOffset: 14 },
+    { assetIdx: 17, personIdx: 2, title: 'Executive offsite', purpose: 'Live presentation at leadership offsite', status: 'Cancelled', startOffset: 10, endOffset: 11, notes: 'Cancelled due to event postponement' },
+  ]
+  const insBooking = db.prepare(
+    `INSERT INTO AssetBooking (id, assetId, bookedById, title, purpose, status, startDate, endDate, requestedById, approvedById, approvedAt, decisionNotes, checkedOutAt, checkedInAt, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  let bookingCount = 0
+  bookingSeeds.forEach((b) => {
+    const asset = assetRows[b.assetIdx]
+    const person = personRows[b.personIdx]
+    if (!asset || !person) return
+    const start = fmt(addDays(today, b.startOffset))
+    const end = fmt(addDays(today, b.endOffset))
+    const isActive = b.status === 'Active'
+    const isCompleted = b.status === 'Completed'
+    const isApproved = b.status === 'Approved' || isActive || isCompleted
+    insBooking.run(
+      generateId(), asset.id, person.id, b.title, b.purpose, b.status, start, end,
+      person.id,
+      isApproved ? personRows[0].id : null,
+      isApproved ? fmt(addDays(today, b.startOffset - 5)) : null,
+      isApproved ? 'Approved by IT Manager' : null,
+      isActive ? fmt(addDays(today, b.startOffset)) : null,
+      isCompleted ? fmt(addDays(today, b.endOffset)) : null,
+      b.notes || null,
+      fmt(addDays(today, b.startOffset - 7)),
+      now
+    )
+    bookingCount++
+  })
+
   return {
     success: true,
-    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries, ${depCount} depreciation rules, ${checkoutCount} checkout requests, ${notifCount} notifications, ${VENDORS.length} vendors, ${poCount} purchase orders, ${disposalCount} disposals`,
+    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries, ${depCount} depreciation rules, ${checkoutCount} checkout requests, ${notifCount} notifications, ${VENDORS.length} vendors, ${poCount} purchase orders, ${disposalCount} disposals, ${TAGS.length} tags (${tagLinkCount} links), ${bookingCount} bookings`,
   }
 }

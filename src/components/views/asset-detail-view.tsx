@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { assetsApi, assetActivityApi, disposalsApi } from '@/lib/api'
+import { assetsApi, assetActivityApi, disposalsApi, tagsApi, bookingsApi } from '@/lib/api'
 import { useNav } from '@/lib/nav'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDate, formatDateTime, formatCurrency, formatRelative, warrantyStatus, initials } from '@/lib/format'
-import { STATUS_CONFIG, MAINTENANCE_STATUS_CONFIG } from '@/lib/types'
+import { STATUS_CONFIG, MAINTENANCE_STATUS_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG } from '@/lib/types'
 import {
   Pencil,
   ArrowLeft,
@@ -46,6 +46,10 @@ import {
   Recycle,
   Gift,
   Undo2,
+  Tag,
+  CalendarClock,
+  Plus,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -129,6 +133,57 @@ export function AssetDetailView({ id }: { id: string }) {
     queryFn: () => disposalsApi.listForAsset(id),
     enabled: !!id,
   })
+
+  const { data: bookings } = useQuery({
+    queryKey: ['asset-bookings', id],
+    queryFn: () => bookingsApi.listForAsset(id),
+    enabled: !!id,
+  })
+
+  const { data: allTags } = useQuery({
+    queryKey: ['tags'],
+    queryFn: () => tagsApi.list(),
+  })
+
+  async function toggleTag(tagId: string, currentlyAttached: boolean) {
+    if (!asset) return
+    try {
+      if (currentlyAttached) {
+        await tagsApi.detachFromAsset(asset.id, tagId)
+        toast.success('Tag removed')
+      } else {
+        await tagsApi.attachToAsset(asset.id, tagId)
+        toast.success('Tag added')
+      }
+      qc.invalidateQueries({ queryKey: ['asset', id] })
+      qc.invalidateQueries({ queryKey: ['tags'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    } catch (e) {
+      toast.error('Tag update failed: ' + String(e))
+    }
+  }
+
+  async function cancelBooking(bookingId: string) {
+    try {
+      await bookingsApi.update(bookingId, { status: 'Cancelled' })
+      toast.success('Booking cancelled')
+      qc.invalidateQueries({ queryKey: ['asset-bookings', id] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    } catch (e) {
+      toast.error('Cancel failed: ' + String(e))
+    }
+  }
+
+  async function approveBooking(bookingId: string) {
+    try {
+      await bookingsApi.approve(bookingId)
+      toast.success('Booking approved')
+      qc.invalidateQueries({ queryKey: ['asset-bookings', id] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    } catch (e) {
+      toast.error('Approve failed: ' + String(e))
+    }
+  }
 
   // Helper to fetch licenses (workaround for missing direct call)
   async function licensesForAsset(assetId: string) {
@@ -259,7 +314,7 @@ export function AssetDetailView({ id }: { id: string }) {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-8 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-10 h-auto">
           <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
           <TabsTrigger value="hardware" className="text-xs">Hardware</TabsTrigger>
           {isMobile && <TabsTrigger value="mobile" className="text-xs">Mobile</TabsTrigger>}
@@ -268,6 +323,8 @@ export function AssetDetailView({ id }: { id: string }) {
           <TabsTrigger value="images" className="text-xs">Images ({asset._count?.images || 0})</TabsTrigger>
           <TabsTrigger value="history" className="text-xs">History ({asset._count?.history || 0})</TabsTrigger>
           <TabsTrigger value="disposals" className="text-xs">Disposals ({disposals?.length || 0})</TabsTrigger>
+          <TabsTrigger value="tags" className="text-xs">Tags ({asset.tags?.length || 0})</TabsTrigger>
+          <TabsTrigger value="bookings" className="text-xs">Bookings ({bookings?.length || 0})</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
@@ -611,6 +668,114 @@ export function AssetDetailView({ id }: { id: string }) {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </SectionCard>
+        </TabsContent>
+
+        {/* Tags */}
+        <TabsContent value="tags" className="mt-4 space-y-4">
+          <SectionCard title="Asset Tags" icon={Tag}>
+            {asset.tags && asset.tags.length > 0 ? (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {asset.tags.map((t) => {
+                  const cfg = getTagColorConfig(t.color)
+                  return (
+                    <span
+                      key={t.id}
+                      className={`inline-flex items-center gap-1.5 rounded-md border ${cfg.bg} ${cfg.text} ${cfg.border} px-2.5 py-1 text-xs font-medium`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                      {t.name}
+                      <button
+                        onClick={() => toggleTag(t.id, true)}
+                        className="ml-0.5 rounded-sm hover:bg-foreground/10 p-0.5"
+                        aria-label={`Remove ${t.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="mb-4 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                No tags assigned to this asset yet.
+              </div>
+            )}
+            <Separator className="my-3" />
+            <div>
+              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Available Tags</div>
+              <div className="flex flex-wrap gap-2">
+                {allTags?.filter((t) => !asset.tags?.some((at) => at.id === t.id)).map((t) => {
+                  const cfg = getTagColorConfig(t.color)
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => toggleTag(t.id, false)}
+                      className={`inline-flex items-center gap-1.5 rounded-md border border-dashed ${cfg.bg} ${cfg.text} ${cfg.border} px-2.5 py-1 text-xs font-medium transition-colors hover:bg-foreground/5`}
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                      {t.name}
+                    </button>
+                  )
+                })}
+                {allTags?.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No tags exist yet. Create some in the Tags view.</p>
+                )}
+              </div>
+            </div>
+          </SectionCard>
+        </TabsContent>
+
+        {/* Bookings */}
+        <TabsContent value="bookings" className="mt-4 space-y-4">
+          <SectionCard title="Booking History" icon={CalendarClock}>
+            {bookings && bookings.length > 0 ? (
+              <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-thin">
+                {bookings.map((b) => {
+                  const cfg = BOOKING_STATUS_CONFIG[b.status as keyof typeof BOOKING_STATUS_CONFIG] || BOOKING_STATUS_CONFIG.Pending
+                  return (
+                    <div key={b.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
+                            <span className="text-sm font-medium truncate">{b.title}</span>
+                          </div>
+                          {b.purpose && <p className="text-xs text-muted-foreground mb-1.5 line-clamp-2">{b.purpose}</p>}
+                          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                            <span><Calendar className="inline h-3 w-3 mr-1" />{formatDate(b.startDate)} → {formatDate(b.endDate)}</span>
+                            {b.bookedBy && <span><User className="inline h-3 w-3 mr-1" />{b.bookedBy.fullName}</span>}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={`${cfg.bg} ${cfg.text} text-[10px]`}>{b.status}</Badge>
+                      </div>
+                      {b.status === 'Pending' && (
+                        <div className="mt-2 flex gap-2">
+                          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => approveBooking(b.id)}>
+                            <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => cancelBooking(b.id)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                      {(b.status === 'Approved' || b.status === 'Active') && (
+                        <div className="mt-2">
+                          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => cancelBooking(b.id)}>
+                            Cancel Booking
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                No bookings for this asset.
               </div>
             )}
           </SectionCard>

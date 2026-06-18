@@ -21,6 +21,8 @@ import type {
   PurchaseOrder,
   PurchaseOrderItem,
   AssetDisposal,
+  AssetTag,
+  AssetBooking,
 } from './types'
 
 class ApiError extends Error {
@@ -35,12 +37,16 @@ async function request<T>(
   url: string,
   options?: RequestInit
 ): Promise<T> {
+  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
+  const headers: Record<string, string> = { ...(options?.headers as Record<string, string> | undefined) }
+  // Only set Content-Type: application/json for non-FormData requests that don't already specify one.
+  // For FormData, the browser must set the multipart boundary automatically — do NOT override.
+  if (!isFormData && !headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json'
+  }
   const res = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {}),
-    },
+    headers,
   })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
@@ -339,4 +345,73 @@ export const disposalsApi = {
     request<AssetDisposal>(`/api/disposals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/api/disposals/${id}`, { method: 'DELETE' }),
   listForAsset: (assetId: string) => request<AssetDisposal[]>(`/api/assets/${assetId}/disposals`),
+}
+
+// ---- Asset Tags ----
+export const tagsApi = {
+  list: () => request<AssetTag[]>('/api/tags'),
+  get: (id: string) => request<AssetTag>(`/api/tags/${id}`),
+  create: (data: { name: string; color?: string; description?: string }) =>
+    request<AssetTag>('/api/tags', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<AssetTag>) =>
+    request<AssetTag>(`/api/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/tags/${id}`, { method: 'DELETE' }),
+  listForAsset: (assetId: string) => request<AssetTag[]>(`/api/assets/${assetId}/tags`),
+  setAssetTags: (assetId: string, tagIds: string[]) =>
+    request<{ success: boolean; tags: AssetTag[] }>(`/api/assets/${assetId}/tags`, {
+      method: 'PUT',
+      body: JSON.stringify({ tagIds }),
+    }),
+  attachToAsset: (assetId: string, tagId: string) =>
+    request<{ success: boolean; tags: AssetTag[] }>(`/api/assets/${assetId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ tagId }),
+    }),
+  detachFromAsset: (assetId: string, tagId: string) =>
+    request<{ success: boolean; tags: AssetTag[] }>(`/api/assets/${assetId}/tags?tagId=${tagId}`, {
+      method: 'DELETE',
+    }),
+}
+
+// ---- Asset Bookings ----
+export const bookingsApi = {
+  list: (query?: { assetId?: string; status?: string; bookedById?: string; from?: string; to?: string; limit?: number }) => {
+    const params = new URLSearchParams()
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+      })
+    }
+    const qs = params.toString()
+    return request<AssetBooking[]>(`/api/bookings${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: string) => request<AssetBooking>(`/api/bookings/${id}`),
+  create: (data: Partial<AssetBooking>) =>
+    request<AssetBooking>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<AssetBooking>) =>
+    request<AssetBooking>(`/api/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/bookings/${id}`, { method: 'DELETE' }),
+  approve: (id: string, data?: { approvedById?: string; decisionNotes?: string }) =>
+    request<AssetBooking>(`/api/bookings/${id}/approve`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  reject: (id: string, data?: { approvedById?: string; decisionNotes?: string }) =>
+    request<AssetBooking>(`/api/bookings/${id}/reject`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  checkOut: (id: string) =>
+    request<AssetBooking>(`/api/bookings/${id}/check-out`, { method: 'POST' }),
+  checkIn: (id: string, notes?: string) =>
+    request<AssetBooking>(`/api/bookings/${id}/check-in`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  listForAsset: (assetId: string) => request<AssetBooking[]>(`/api/assets/${assetId}/bookings`),
+}
+
+// ---- Export ----
+export const exportApi = {
+  assets: () => `/api/export/assets`,
+  vendors: () => `/api/export/vendors`,
+  purchaseOrders: () => `/api/export/purchase-orders`,
+  disposals: () => `/api/export/disposals`,
+  bookings: () => `/api/export/bookings`,
+  download: (url: string) => {
+    const a = document.createElement('a')
+    a.href = url
+    a.click()
+  },
 }

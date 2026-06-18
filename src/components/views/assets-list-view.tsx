@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { assetsApi, departmentsApi, locationsApi, assetTypesApi } from '@/lib/api'
+import { assetsApi, departmentsApi, locationsApi, assetTypesApi, exportApi } from '@/lib/api'
 import { useNav } from '@/lib/nav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,7 +27,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import { STATUS_CONFIG, ASSET_STATUSES } from '@/lib/types'
-import { formatDate, formatCurrency } from '@/lib/format'
+import { formatCurrency } from '@/lib/format'
 import {
   Search,
   Plus,
@@ -122,30 +122,8 @@ export function AssetsListView() {
   }
 
   function exportCsv() {
-    if (!data) return
-    const headers = ['Asset Tag', 'Type', 'Make', 'Model', 'Serial', 'Status', 'User', 'Department', 'Location', 'Cost', 'Purchase Date']
-    const rows = data.data.map((a) => [
-      a.assetTag || '',
-      a.assetType?.name || '',
-      a.make || '',
-      a.model || '',
-      a.serialNumber || '',
-      a.status,
-      a.assignedTo?.fullName || '',
-      a.department?.name || '',
-      a.location?.name || '',
-      a.cost?.toString() || '',
-      formatDate(a.purchaseDate),
-    ])
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `assets-export-${Date.now()}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Exported CSV')
+    exportApi.download(exportApi.assets())
+    toast.success('Exporting CSV...')
   }
 
   function clearFilters() {

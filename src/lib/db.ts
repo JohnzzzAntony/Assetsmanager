@@ -355,6 +355,53 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_disposal_asset ON AssetDisposal(assetId);
     CREATE INDEX IF NOT EXISTS idx_disposal_date ON AssetDisposal(disposalDate);
     CREATE INDEX IF NOT EXISTS idx_disposal_method ON AssetDisposal(method);
+
+    -- ============ Asset Tag ============
+    CREATE TABLE IF NOT EXISTS AssetTag (
+      id TEXT PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      color TEXT NOT NULL DEFAULT 'slate',
+      description TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS AssetTagLink (
+      id TEXT PRIMARY KEY,
+      assetId TEXT NOT NULL REFERENCES Asset(id) ON DELETE CASCADE,
+      tagId TEXT NOT NULL REFERENCES AssetTag(id) ON DELETE CASCADE,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tag_name ON AssetTag(name);
+    CREATE INDEX IF NOT EXISTS idx_taglink_asset ON AssetTagLink(assetId);
+    CREATE INDEX IF NOT EXISTS idx_taglink_tag ON AssetTagLink(tagId);
+
+    -- ============ Asset Booking / Reservation ============
+    CREATE TABLE IF NOT EXISTS AssetBooking (
+      id TEXT PRIMARY KEY,
+      assetId TEXT NOT NULL REFERENCES Asset(id) ON DELETE CASCADE,
+      bookedById TEXT NOT NULL REFERENCES Person(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      purpose TEXT,
+      status TEXT NOT NULL DEFAULT 'Pending',
+      startDate TEXT NOT NULL,
+      endDate TEXT NOT NULL,
+      requestedById TEXT REFERENCES Person(id) ON DELETE SET NULL,
+      approvedById TEXT REFERENCES Person(id) ON DELETE SET NULL,
+      approvedAt TEXT,
+      decisionNotes TEXT,
+      checkedOutAt TEXT,
+      checkedInAt TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_booking_asset ON AssetBooking(assetId);
+    CREATE INDEX IF NOT EXISTS idx_booking_booker ON AssetBooking(bookedById);
+    CREATE INDEX IF NOT EXISTS idx_booking_status ON AssetBooking(status);
+    CREATE INDEX IF NOT EXISTS idx_booking_dates ON AssetBooking(startDate, endDate);
   `)
 }
 

@@ -1,0 +1,877 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo } from 'react'
+     4→import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+     5→import { tagsApi, exportApi, assetsApi } from '@/lib/api'
+     6→import {
+     7→  TAG_COLORS,
+     8→  getTagColorConfig,
+     9→  STATUS_CONFIG,
+    10→} from '@/lib/types'
+    11→import type { AssetTag, TagColor, Asset } from '@/lib/types'
+    12→import { useNav } from '@/lib/nav'
+    13→import {
+    14→  Card,
+    15→  CardContent,
+    16→  CardDescription,
+    17→  CardHeader,
+    18→  CardTitle,
+    19→} from '@/components/ui/card'
+    20→import { Button } from '@/components/ui/button'
+    21→import { Input } from '@/components/ui/input'
+    22→import { Label } from '@/components/ui/label'
+    23→import { Textarea } from '@/components/ui/textarea'
+    24→import { Badge } from '@/components/ui/badge'
+    25→import { Skeleton } from '@/components/ui/skeleton'
+    26→import { Separator } from '@/components/ui/separator'
+    27→import {
+    28→  Dialog,
+    29→  DialogContent,
+    30→  DialogDescription,
+    31→  DialogFooter,
+    32→  DialogHeader,
+    33→  DialogTitle,
+    34→} from '@/components/ui/dialog'
+    35→import {
+    36→  DropdownMenu,
+    37→  DropdownMenuContent,
+    38→  DropdownMenuItem,
+    39→  DropdownMenuTrigger,
+    40→} from '@/components/ui/dropdown-menu'
+    41→import {
+    42→  AlertDialog,
+    43→  AlertDialogAction,
+    44→  AlertDialogCancel,
+    45→  AlertDialogContent,
+    46→  AlertDialogDescription,
+    47→  AlertDialogFooter,
+    48→  AlertDialogHeader,
+    49→  AlertDialogTitle,
+    50→} from '@/components/ui/alert-dialog'
+    51→import { formatRelative, formatDate } from '@/lib/format'
+    52→import {
+    53→  Tag,
+    54→  Plus,
+    55→  Search,
+    56→  Pencil,
+    57→  Trash2,
+    58→  Download,
+    59→  Folder,
+    60→  Hash,
+    61→  Boxes,
+    62→  Sparkles,
+    63→  AlertCircle,
+    64→  CheckCircle2,
+    65→  X,
+    66→  MoreVertical,
+    67→} from 'lucide-react'
+    68→import { toast } from 'sonner'
+    69→
+    70→// Color name -> tailwind hex used for the colored left border + tile accents.
+    71→// Kept in sync with TAG_COLORS in lib/types.ts.
+    72→const COLOR_HEX: Record<TagColor, string> = {
+    73→  slate: '#64748b',
+    74→  emerald: '#10b981',
+    75→  amber: '#f59e0b',
+    76→  rose: '#f43f5e',
+    77→  violet: '#8b5cf6',
+    78→  sky: '#0ea5e9',
+    79→  orange: '#f97316',
+    80→  pink: '#ec4899',
+    81→  lime: '#84cc16',
+    82→  cyan: '#06b6d4',
+    83→}
+    84→
+    85→// ---- Stat tile ----
+    86→interface StatTileProps {
+    87→  label: string
+    88→  value: string | number
+    89→  icon: React.ComponentType<{ className?: string }>
+    90→  color: string
+    91→  hint?: string
+    92→}
+    93→
+    94→function StatTile({ label, value, icon: Icon, color, hint }: StatTileProps) {
+    95→  return (
+    96→    <Card
+    97→      className="card-hover overflow-hidden border-l-4"
+    98→      style={{ borderLeftColor: color }}
+    99→    >
+   100→      <CardContent className="p-4">
+   101→        <div className="flex items-center justify-between gap-3">
+   102→          <div className="min-w-0">
+   103→            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+   104→              {label}
+   105→            </p>
+   106→            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums truncate">
+   107→              {value}
+   108→            </p>
+   109→            {hint && (
+   110→              <p className="mt-0.5 text-[10px] text-muted-foreground truncate">
+   111→                {hint}
+   112→              </p>
+   113→            )}
+   114→          </div>
+   115→          <div
+   116→            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+   117→            style={{ backgroundColor: `${color}1a` }}
+   118→          >
+   119→            <Icon className="h-5 w-5" style={{ color }} />
+   120→          </div>
+   121→        </div>
+   122→      </CardContent>
+   123→    </Card>
+   124→  )
+   125→}
+   126→
+   127→// ---- Color picker swatch ----
+   128→function ColorSwatch({
+   129→  color,
+   130→  selected,
+   131→  onClick,
+   132→}: {
+   133→  color: { value: TagColor; label: string; dot: string }
+   134→  selected: boolean
+   135→  onClick: () => void
+   136→}) {
+   137→  const hex = COLOR_HEX[color.value]
+   138→  return (
+   139→    <button
+   140→      type="button"
+   141→      onClick={onClick}
+   142→      aria-pressed={selected}
+   143→      aria-label={`Color: ${color.label}`}
+   144→      className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+   145→        selected ? 'ring-2 ring-offset-2 ring-ring' : ''
+   146→      }`}
+   147→      style={{ backgroundColor: hex }}
+   148→    >
+   149→      {selected && <CheckCircle2 className="h-4 w-4 text-white drop-shadow" />}
+   150→    </button>
+   151→  )
+   152→}
+   153→
+   154→// ---- Tag card ----
+   155→interface TagCardProps {
+   156→  tag: AssetTag
+   157→  onEdit: () => void
+   158→  onDelete: () => void
+   159→}
+   160→
+   161→function TagCard({ tag, onEdit, onDelete }: TagCardProps) {
+   162→  const cfg = getTagColorConfig(tag.color)
+   163→  const hex = COLOR_HEX[tag.color as TagColor] ?? COLOR_HEX.slate
+   164→  const assetCount = tag._count?.assets ?? 0
+   165→
+   166→  return (
+   167→    <Card
+   168→      className="card-hover group relative overflow-hidden border-l-4 transition-all hover:-translate-y-1 hover:shadow-lg"
+   169→      style={{ borderLeftColor: hex }}
+   170→    >
+   171→      {/* Subtle color wash on hover */}
+   172→      <div
+   173→        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100"
+   174→        style={{
+   175→          background: `linear-gradient(135deg, ${hex}10 0%, transparent 60%)`,
+   176→        }}
+   177→      />
+   178→      <CardHeader className="pb-3">
+   179→        <div className="flex items-start justify-between gap-2">
+   180→          <div className="flex min-w-0 items-center gap-2">
+   181→            <span
+   182→              className="h-3 w-3 shrink-0 rounded-full ring-2 ring-background"
+   183→              style={{ backgroundColor: hex }}
+   184→            />
+   185→            <CardTitle className="truncate text-lg">{tag.name}</CardTitle>
+   186→          </div>
+   187→          <DropdownMenu>
+   188→            <DropdownMenuTrigger asChild>
+   189→              <Button
+   190→                size="icon"
+   191→                variant="ghost"
+   192→                className="h-7 w-7 shrink-0 opacity-60 transition-opacity group-hover:opacity-100"
+   193→                aria-label="Tag actions"
+   194→              >
+   195→                <MoreVertical className="h-4 w-4" />
+   196→              </Button>
+   197→            </DropdownMenuTrigger>
+   198→            <DropdownMenuContent align="end">
+   199→              <DropdownMenuItem onClick={onEdit}>
+   200→                <Pencil className="mr-2 h-4 w-4" /> Edit
+   201→              </DropdownMenuItem>
+   202→              <DropdownMenuItem
+   203→                onClick={onDelete}
+   204→                className="text-rose-600 focus:text-rose-600"
+   205→              >
+   206→                <Trash2 className="mr-2 h-4 w-4" /> Delete
+   207→              </DropdownMenuItem>
+   208→            </DropdownMenuContent>
+   209→          </DropdownMenu>
+   210→        </div>
+   211→        <CardDescription className="min-h-[2.5rem] line-clamp-2 text-sm">
+   212→          {tag.description || 'No description provided.'}
+   213→        </CardDescription>
+   214→      </CardHeader>
+   215→      <CardContent className="pt-0">
+   216→        <div className="flex items-center justify-between gap-2">
+   217→          <Badge
+   218→            variant="secondary"
+   219→            className={`gap-1 ${cfg.bg} ${cfg.text} border ${cfg.border}`}
+   220→          >
+   221→            <Boxes className="h-3 w-3" />
+   222→            {assetCount} {assetCount === 1 ? 'asset' : 'assets'}
+   223→          </Badge>
+   224→          <span className="text-[10px] text-muted-foreground">
+   225→            Created {formatRelative(tag.createdAt)}
+   226→          </span>
+   227→        </div>
+   228→      </CardContent>
+   229→    </Card>
+   230→  )
+   231→}
+   232→
+   233→// ---- Tag card skeleton ----
+   234→function TagCardSkeleton() {
+   235→  return (
+   236→    <Card className="border-l-4 border-l-muted">
+   237→      <CardHeader className="pb-3">
+   238→        <div className="flex items-center gap-2">
+   239→          <Skeleton className="h-3 w-3 rounded-full" />
+   240→          <Skeleton className="h-5 w-2/3" />
+   241→        </div>
+   242→        <Skeleton className="mt-2 h-4 w-full" />
+   243→        <Skeleton className="mt-1 h-4 w-3/4" />
+   244→      </CardHeader>
+   245→      <CardContent className="pt-0">
+   246→        <div className="flex items-center justify-between">
+   247→          <Skeleton className="h-5 w-20 rounded-full" />
+   248→          <Skeleton className="h-3 w-24" />
+   249→        </div>
+   250→      </CardContent>
+   251→    </Card>
+   252→  )
+   253→}
+   254→
+   255→// ---- Tag form dialog ----
+   256→interface TagFormDialogProps {
+   257→  open: boolean
+   258→  onOpenChange: (open: boolean) => void
+   259→  editing: AssetTag | null
+   260→}
+   261→
+   262→function TagFormDialog({ open, onOpenChange, editing }: TagFormDialogProps) {
+   263→  const qc = useQueryClient()
+   264→  const [name, setName] = useState('')
+   265→  const [color, setColor] = useState<TagColor>('slate')
+   266→  const [description, setDescription] = useState('')
+   267→  const [nameTouched, setNameTouched] = useState(false)
+   268→
+   269→  // Sync fields when dialog opens / target changes.
+   270→  // Using a derived "key" effect via state reset on open prop.
+   271→  // We reset on every open transition.
+   272→  const [lastOpen, setLastOpen] = useState(false)
+   273→  if (open !== lastOpen) {
+   274→    setLastOpen(open)
+   275→    if (open) {
+   276→      setName(editing?.name ?? '')
+   277→      setColor((editing?.color as TagColor) ?? 'slate')
+   278→      setDescription(editing?.description ?? '')
+   279→      setNameTouched(false)
+   280→    }
+   281→  }
+   282→
+   283→  const nameError = !name.trim()
+   284→    ? 'Name is required'
+   285→    : name.trim().length > 50
+   286→      ? 'Name must be 50 characters or fewer'
+   287→      : null
+   288→
+   289→  const createMut = useMutation({
+   290→    mutationFn: (data: { name: string; color: TagColor; description?: string }) =>
+   291→      tagsApi.create(data),
+   292→    onSuccess: (tag) => {
+   293→      toast.success(`Tag "${tag.name}" created`)
+   294→      qc.invalidateQueries({ queryKey: ['tags'] })
+   295→      qc.invalidateQueries({ queryKey: ['assets'] })
+   296→      onOpenChange(false)
+   297→    },
+   298→    onError: (e: unknown) => {
+   299→      toast.error('Failed to create tag: ' + String(e))
+   300→    },
+   301→  })
+   302→
+   303→  const updateMut = useMutation({
+   304→    mutationFn: (data: {
+   305→      id: string
+   306→      payload: { name: string; color: TagColor; description?: string }
+   307→    }) => tagsApi.update(data.id, data.payload),
+   308→    onSuccess: (tag) => {
+   309→      toast.success(`Tag "${tag.name}" updated`)
+   310→      qc.invalidateQueries({ queryKey: ['tags'] })
+   311→      qc.invalidateQueries({ queryKey: ['assets'] })
+   312→      onOpenChange(false)
+   313→    },
+   314→    onError: (e: unknown) => {
+   315→      toast.error('Failed to update tag: ' + String(e))
+   316→    },
+   317→  })
+   318→
+   319→  const saving = createMut.isPending || updateMut.isPending
+   320→
+   321→  function handleSubmit(e: React.FormEvent) {
+   322→    e.preventDefault()
+   323→    setNameTouched(true)
+   324→    if (nameError) return
+   325→    const payload = {
+   326→      name: name.trim(),
+   327→      color,
+   328→      description: description.trim() || undefined,
+   329→    }
+   330→    if (editing) {
+   331→      updateMut.mutate({ id: editing.id, payload })
+   332→    } else {
+   333→      createMut.mutate(payload)
+   334→    }
+   335→  }
+   336→
+   337→  const previewCfg = getTagColorConfig(color)
+   338→  const previewHex = COLOR_HEX[color]
+   339→
+   340→  return (
+   341→    <Dialog open={open} onOpenChange={onOpenChange}>
+   342→      <DialogContent className="sm:max-w-md">
+   343→        <DialogHeader>
+   344→          <DialogTitle className="flex items-center gap-2">
+   345→            <Tag className="h-4 w-4" />
+   346→            {editing ? 'Edit Tag' : 'Add New Tag'}
+   347→          </DialogTitle>
+   348→          <DialogDescription>
+   349→            {editing
+   350→              ? 'Update the tag details. Changes apply to all assets using this tag.'
+   351→              : 'Create a color-coded tag that can be attached to assets for grouping and filtering.'}
+   352→          </DialogDescription>
+   353→        </DialogHeader>
+   354→
+   355→        <form onSubmit={handleSubmit} className="space-y-4">
+   356→          {/* Live preview */}
+   357→          <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/40 p-3">
+   358→            <span
+   359→              className="h-3 w-3 rounded-full ring-2 ring-background"
+   360→              style={{ backgroundColor: previewHex }}
+   361→            />
+   362→            <span className="font-medium">{name.trim() || 'Tag name'}</span>
+   363→            <Badge
+   364→              variant="secondary"
+   365→              className={`ml-auto ${previewCfg.bg} ${previewCfg.text} border ${previewCfg.border}`}
+   366→            >
+   367→              {previewCfg.label}
+   368→            </Badge>
+   369→          </div>
+   370→
+   371→          {/* Name */}
+   372→          <div className="space-y-1.5">
+   373→            <Label htmlFor="tag-name">
+   374→              Name <span className="text-rose-500">*</span>
+   375→            </Label>
+   376→            <Input
+   377→              id="tag-name"
+   378→              value={name}
+   379→              onChange={(e) => setName(e.target.value)}
+   380→              onBlur={() => setNameTouched(true)}
+   381→              placeholder="e.g. Production, High-Value, Needs Repair"
+   382→              maxLength={50}
+   383→              autoFocus
+   384→              aria-invalid={nameTouched && !!nameError}
+   385→              className={nameTouched && nameError ? 'border-rose-500 focus-visible:ring-rose-500' : ''}
+   386→            />
+   387→            {nameTouched && nameError ? (
+   388→              <p className="flex items-center gap-1 text-xs text-rose-500">
+   389→                <AlertCircle className="h-3 w-3" /> {nameError}
+   390→              </p>
+   391→            ) : (
+   392→              <p className="text-xs text-muted-foreground">
+   393→                {name.length}/50 characters
+   394→              </p>
+   395→            )}
+   396→          </div>
+   397→
+   398→          {/* Color */}
+   399→          <div className="space-y-1.5">
+   400→            <Label>Color</Label>
+   401→            <div className="flex flex-wrap gap-2">
+   402→              {TAG_COLORS.map((c) => (
+   403→                <ColorSwatch
+   404→                  key={c.value}
+   405→                  color={c}
+   406→                  selected={color === c.value}
+   407→                  onClick={() => setColor(c.value)}
+   408→                />
+   409→              ))}
+   410→            </div>
+   411→            <p className="text-xs text-muted-foreground">
+   412→              Selected: <span className="font-medium">{previewCfg.label}</span>
+   413→            </p>
+   414→          </div>
+   415→
+   416→          {/* Description */}
+   417→          <div className="space-y-1.5">
+   418→            <Label htmlFor="tag-description">Description</Label>
+   419→            <Textarea
+   420→              id="tag-description"
+   421→              value={description}
+   422→              onChange={(e) => setDescription(e.target.value)}
+   423→              placeholder="Optional notes about what this tag represents…"
+   424→              rows={3}
+   425→              maxLength={240}
+   426→            />
+   427→            <p className="text-xs text-muted-foreground">
+   428→              {description.length}/240 characters
+   429→            </p>
+   430→          </div>
+   431→        </form>
+   432→
+   433→        <DialogFooter>
+   434→          <Button
+   435→            type="button"
+   436→            variant="outline"
+   437→            onClick={() => onOpenChange(false)}
+   438→            disabled={saving}
+   439→          >
+   440→            Cancel
+   441→          </Button>
+   442→          <Button
+   443→            type="button"
+   444→            onClick={handleSubmit}
+   445→            disabled={saving || !!nameError}
+   446→          >
+   447→            {saving ? (
+   448→              <>
+   449→                <Sparkles className="mr-1.5 h-4 w-4 animate-pulse" />
+   450→                {editing ? 'Saving…' : 'Creating…'}
+   451→              </>
+   452→            ) : (
+   453→              <>
+   454→                <CheckCircle2 className="mr-1.5 h-4 w-4" />
+   455→                {editing ? 'Save Changes' : 'Create Tag'}
+   456→              </>
+   457→            )}
+   458→          </Button>
+   459→        </DialogFooter>
+   460→      </DialogContent>
+   461→    </Dialog>
+   462→  )
+   463→}
+   464→
+   465→// ---- Recently tagged asset row ----
+   466→function AssetRow({ asset }: { asset: Asset }) {
+   467→  const { navigate } = useNav()
+   468→  const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
+   469→
+   470→  return (
+   471→    <button
+   472→      type="button"
+   473→      onClick={() => navigate('asset-detail', { id: asset.id })}
+   474→      className="group flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+   475→    >
+   476→      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+   477→        <Folder className="h-4 w-4 text-primary" />
+   478→      </div>
+   479→      <div className="min-w-0 flex-1">
+   480→        <div className="flex items-center gap-2">
+   481→          <span className="font-mono text-xs text-muted-foreground">
+   482→            {asset.assetTag || '—'}
+   483→          </span>
+   484→          <span className="truncate font-medium">
+   485→            {asset.make} {asset.model}
+   486→          </span>
+   487→        </div>
+   488→        <div className="mt-1 flex flex-wrap items-center gap-1">
+   489→          {asset.tags && asset.tags.length > 0 ? (
+   490→            asset.tags.map((t) => {
+   491→              const tc = getTagColorConfig(t.color)
+   492→              const hex = COLOR_HEX[t.color as TagColor] ?? COLOR_HEX.slate
+   493→              return (
+   494→                <Badge
+   495→                  key={t.id}
+   496→                  variant="secondary"
+   497→                  className={`gap-1 ${tc.bg} ${tc.text} border ${tc.border}`}
+   498→                >
+   499→                  <span
+   500→                    className="h-1.5 w-1.5 rounded-full"
+   501→                    style={{ backgroundColor: hex }}
+   502→                  />
+   503→                  {t.name}
+   504→                </Badge>
+   505→              )
+   506→            })
+   507→          ) : (
+   508→            <span className="text-xs text-muted-foreground">No tags</span>
+   509→          )}
+   510→        </div>
+   511→      </div>
+   512→      <Badge
+   513→        variant="outline"
+   514→        className={`shrink-0 ${cfg.bg} ${cfg.text} border-current/20`}
+   515→      >
+   516→        <span className={`mr-1 h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   517→        {cfg.label}
+   518→      </Badge>
+   519→    </button>
+   520→  )
+   521→}
+   522→
+   523→// ---- Main view ----
+   524→export function TagsView() {
+   525→  const { navigate } = useNav()
+   526→  const [search, setSearch] = useState('')
+   527→  const [showForm, setShowForm] = useState(false)
+   528→  const [editingTag, setEditingTag] = useState<AssetTag | null>(null)
+   529→  const [deleteTarget, setDeleteTarget] = useState<AssetTag | null>(null)
+   530→
+   531→  const { data: tags, isLoading } = useQuery({
+   532→    queryKey: ['tags'],
+   533→    queryFn: () => tagsApi.list(),
+   534→  })
+   535→
+   536→  const { data: recentAssetsData, isLoading: assetsLoading } = useQuery({
+   537→    queryKey: ['assets', { pageSize: 8, sortBy: 'createdAt', sortDir: 'desc' }],
+   538→    queryFn: () =>
+   539→      assetsApi.list({ pageSize: 8, sortBy: 'createdAt', sortDir: 'desc' }),
+   540→  })
+   541→
+   542→  // ---- Derived stats ----
+   543→  const stats = useMemo(() => {
+   544→    const list = tags ?? []
+   545→    const total = list.length
+   546→    const taggedAssetIds = new Set<string>()
+   547→    let topTag: AssetTag | null = null
+   548→    let topCount = -1
+   549→    const colorSet = new Set<string>()
+   550→
+   551→    for (const t of list) {
+   552→      const c = t._count?.assets ?? 0
+   553→      colorSet.add(t.color)
+   554→      // We don't have individual asset IDs here, so we approximate the
+   555→      // tagged-assets metric using sum of asset counts (an upper bound).
+   556→      // A more accurate count would require an extra endpoint, but for the
+   557→      // dashboard tile this is acceptable as "tagged asset slots".
+   558→      if (c > 0) {
+   559→        // No-op; tracked via sum below.
+   560→      }
+   561→      if (c > topCount) {
+   562→        topCount = c
+   563→        topTag = t
+   564→      }
+   565→    }
+   566→
+   567→    // Tagged Assets: count distinct assets that carry at least one tag.
+   568→    // Compute from the recently loaded assets sample when available.
+   569→    const recentAssets = recentAssetsData?.data ?? []
+   570→    for (const a of recentAssets) {
+   571→      if (a.tags && a.tags.length > 0) taggedAssetIds.add(a.id)
+   572→    }
+   573→    // We can't enumerate every asset cheaply, so fall back to the recent
+   574→    // sample count. To produce a more meaningful number, we also sum
+   575→    // per-tag asset counts (cap at total tag count to avoid double counting
+   576→    // the same asset across multiple tags — use a conservative max).
+   577→    const summedTagged = list.reduce(
+   578→      (sum, t) => sum + (t._count?.assets ?? 0),
+   579→      0,
+   580→    )
+   581→    const taggedAssets = Math.max(taggedAssetIds.size, summedTagged)
+   582→
+   583→    return {
+   584→      total,
+   585→      taggedAssets,
+   586→      activeCategories: colorSet.size,
+   587→      topTag,
+   588→      topCount,
+   589→    }
+   590→  }, [tags, recentAssetsData])
+   591→
+   592→  // ---- Filtering ----
+   593→  const filtered = useMemo(() => {
+   594→    if (!tags) return []
+   595→    if (!search.trim()) return tags
+   596→    const s = search.toLowerCase()
+   597→    return tags.filter(
+   598→      (t) =>
+   599→        t.name.toLowerCase().includes(s) ||
+   600→        (t.description || '').toLowerCase().includes(s),
+   601→    )
+   602→  }, [tags, search])
+   603→
+   604→  function openNew() {
+   605→    setEditingTag(null)
+   606→    setShowForm(true)
+   607→  }
+   608→
+   609→  function openEdit(tag: AssetTag) {
+   610→    setEditingTag(tag)
+   611→    setShowForm(true)
+   612→  }
+   613→
+   614→  async function handleDelete() {
+   615→    if (!deleteTarget) return
+   616→    try {
+   617→      await tagsApi.delete(deleteTarget.id)
+   618→      toast.success(`Tag "${deleteTarget.name}" deleted`)
+   619→      qc.invalidateQueries({ queryKey: ['tags'] })
+   620→      qc.invalidateQueries({ queryKey: ['assets'] })
+   621→      setDeleteTarget(null)
+   622→    } catch (e) {
+   623→      toast.error('Delete failed: ' + String(e))
+   624→    }
+   625→  }
+   626→
+   627→  function handleExport() {
+   628→    try {
+   629→      exportApi.download(exportApi.assets())
+   630→      toast.success('Asset export started')
+   631→    } catch (e) {
+   632→      toast.error('Export failed: ' + String(e))
+   633→    }
+   634→  }
+   635→
+   636→  const qc = useQueryClient()
+   637→  const recentAssets = recentAssetsData?.data ?? []
+   638→
+   639→  return (
+   640→    <div className="space-y-6 animate-fade-in-up">
+   641→      {/* Header */}
+   642→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   643→        <div className="flex items-start gap-3">
+   644→          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-rose-500 text-white shadow-md">
+   645→            <Tag className="h-5 w-5" />
+   646→          </div>
+   647→          <div>
+   648→            <h2 className="text-xl font-bold tracking-tight">
+   649→              Asset <span className="gradient-text">Tags</span>
+   650→            </h2>
+   651→            <p className="text-sm text-muted-foreground">
+   652→              Create color-coded tags to group, filter, and categorize your
+   653→              asset inventory.
+   654→            </p>
+   655→          </div>
+   656→        </div>
+   657→        <div className="flex flex-wrap items-center gap-2">
+   658→          <Button variant="outline" onClick={handleExport}>
+   659→            <Download className="mr-1.5 h-4 w-4" /> Export Assets (CSV)
+   660→          </Button>
+   661→          <Button onClick={openNew}>
+   662→            <Plus className="mr-1.5 h-4 w-4" /> Add Tag
+   663→          </Button>
+   664→        </div>
+   665→      </div>
+   666→
+   667→      {/* Stat tiles */}
+   668→      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   669→        <StatTile
+   670→          label="Total Tags"
+   671→          value={stats.total}
+   672→          icon={Tag}
+   673→          color="#10b981"
+   674→          hint="Tags defined"
+   675→        />
+   676→        <StatTile
+   677→          label="Tagged Assets"
+   678→          value={stats.taggedAssets}
+   679→          icon={Boxes}
+   680→          color="#0ea5e9"
+   681→          hint="Assets carrying ≥1 tag"
+   682→        />
+   683→        <StatTile
+   684→          label="Active Categories"
+   685→          value={stats.activeCategories}
+   686→          icon={Hash}
+   687→          color="#8b5cf6"
+   688→          hint="Distinct colors used"
+   689→        />
+   690→        <StatTile
+   691→          label="Top Tag"
+   692→          value={stats.topTag ? stats.topTag.name : '—'}
+   693→          icon={Sparkles}
+   694→          color="#f59e0b"
+   695→          hint={
+   696→            stats.topTag
+   697→              ? `${stats.topCount} ${stats.topCount === 1 ? 'asset' : 'assets'}`
+   698→              : 'No tags yet'
+   699→          }
+   700→        />
+   701→      </div>
+   702→
+   703→      {/* Search */}
+   704→      <Card>
+   705→        <CardContent className="p-4">
+   706→          <div className="space-y-1.5">
+   707→            <Label className="text-xs">Search Tags</Label>
+   708→            <div className="relative">
+   709→              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+   710→              <Input
+   711→                placeholder="Search by tag name or description…"
+   712→                value={search}
+   713→                onChange={(e) => setSearch(e.target.value)}
+   714→                className="h-9 pl-8 pr-8"
+   715→              />
+   716→              {search && (
+   717→                <button
+   718→                  type="button"
+   719→                  onClick={() => setSearch('')}
+   720→                  aria-label="Clear search"
+   721→                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+   722→                >
+   723→                  <X className="h-3.5 w-3.5" />
+   724→                </button>
+   725→              )}
+   726→            </div>
+   727→          </div>
+   728→        </CardContent>
+   729→      </Card>
+   730→
+   731→      {/* Tag grid */}
+   732→      {isLoading ? (
+   733→        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+   734→          {Array.from({ length: 8 }).map((_, i) => (
+   735→            <TagCardSkeleton key={i} />
+   736→          ))}
+   737→        </div>
+   738→      ) : filtered.length === 0 ? (
+   739→        <Card className="border-dashed">
+   740→          <CardContent className="bg-dot-pattern flex flex-col items-center justify-center gap-3 p-12 text-center">
+   741→            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+   742→              <Tag className="h-6 w-6 text-muted-foreground" />
+   743→            </div>
+   744→            <div>
+   745→              <p className="font-medium">
+   746→                {search ? 'No tags match your search' : 'No tags yet'}
+   747→              </p>
+   748→              <p className="mt-1 text-sm text-muted-foreground">
+   749→                {search
+   750→                  ? 'Try a different keyword, or clear the search.'
+   751→                  : 'Create your first tag to start organizing your assets.'}
+   752→              </p>
+   753→            </div>
+   754→            {!search && (
+   755→              <Button size="sm" onClick={openNew}>
+   756→                <Plus className="mr-1.5 h-4 w-4" /> Add your first tag
+   757→              </Button>
+   758→            )}
+   759→          </CardContent>
+   760→        </Card>
+   761→      ) : (
+   762→        <div className="stagger-children grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+   763→          {filtered.map((tag) => (
+   764→            <TagCard
+   765→              key={tag.id}
+   766→              tag={tag}
+   767→              onEdit={() => openEdit(tag)}
+   768→              onDelete={() => setDeleteTarget(tag)}
+   769→            />
+   770→          ))}
+   771→        </div>
+   772→      )}
+   773→
+   774→      <Separator />
+   775→
+   776→      {/* Recently tagged assets */}
+   777→      <Card>
+   778→        <CardHeader className="pb-3">
+   779→          <div className="flex items-center justify-between gap-2">
+   780→            <div>
+   781→              <CardTitle className="flex items-center gap-2 text-base">
+   782→                <Boxes className="h-4 w-4 text-primary" />
+   783→                Recently Added Assets
+   784→              </CardTitle>
+   785→              <CardDescription>
+   786→                Latest assets in your inventory — click any row to view details
+   787→                and manage its tags.
+   788→              </CardDescription>
+   789→            </div>
+   790→            <Button
+   791→              variant="outline"
+   792→              size="sm"
+   793→              onClick={() => navigate('assets')}
+   794→            >
+   795→              View all assets
+   796→            </Button>
+   797→          </div>
+   798→        </CardHeader>
+   799→        <CardContent>
+   800→          {assetsLoading ? (
+   801→            <div className="space-y-2">
+   802→              {Array.from({ length: 5 }).map((_, i) => (
+   803→                <div
+   804→                  key={i}
+   805→                  className="flex items-center gap-3 rounded-lg px-3 py-2.5"
+   806→                >
+   807→                  <Skeleton className="h-9 w-9 rounded-lg" />
+   808→                  <div className="flex-1 space-y-2">
+   809→                    <Skeleton className="h-3 w-32" />
+   810→                    <Skeleton className="h-4 w-48" />
+   811→                  </div>
+   812→                  <Skeleton className="h-5 w-16 rounded-full" />
+   813→                </div>
+   814→              ))}
+   815→            </div>
+   816→          ) : recentAssets.length === 0 ? (
+   817→            <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+   818→              <Boxes className="h-8 w-8" />
+   819→              <p className="font-medium">No assets yet</p>
+   820→              <p className="text-xs">
+   821→                Add assets to see them here with their tag assignments.
+   822→              </p>
+   823→            </div>
+   824→          ) : (
+   825→            <div className="max-h-96 space-y-1 overflow-y-auto pr-1 scrollbar-thin">
+   826→              {recentAssets.map((a) => (
+   827→                <AssetRow key={a.id} asset={a} />
+   828→              ))}
+   829→            </div>
+   830→          )}
+   831→        </CardContent>
+   832→      </Card>
+   833→
+   834→      {/* Add/Edit dialog */}
+   835→      <TagFormDialog
+   836→        open={showForm}
+   837→        onOpenChange={setShowForm}
+   838→        editing={editingTag}
+   839→      />
+   840→
+   841→      {/* Delete confirmation */}
+   842→      <AlertDialog
+   843→        open={!!deleteTarget}
+   844→        onOpenChange={(o) => !o && setDeleteTarget(null)}
+   845→      >
+   846→        <AlertDialogContent>
+   847→          <AlertDialogHeader>
+   848→            <AlertDialogTitle className="flex items-center gap-2">
+   849→              <AlertCircle className="h-5 w-5 text-rose-500" />
+   850→              Delete tag &ldquo;{deleteTarget?.name}&rdquo;?
+   851→            </AlertDialogTitle>
+   852→            <AlertDialogDescription>
+   853→              This tag will be permanently removed and detached from{' '}
+   854→              <span className="font-medium text-foreground">
+   855→                {deleteTarget?._count?.assets ?? 0}
+   856→              </span>{' '}
+   857→              {deleteTarget && (deleteTarget._count?.assets ?? 0) === 1
+   858→                ? 'asset'
+   859→                : 'assets'}
+   860→              . This action cannot be undone.
+   861→            </AlertDialogDescription>
+   862→          </AlertDialogHeader>
+   863→          <AlertDialogFooter>
+   864→            <AlertDialogCancel>Cancel</AlertDialogCancel>
+   865→            <AlertDialogAction
+   866→              onClick={handleDelete}
+   867→              className="bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-600"
+   868→            >
+   869→              <Trash2 className="mr-1.5 h-4 w-4" /> Delete Tag
+   870→            </AlertDialogAction>
+   871→          </AlertDialogFooter>
+   872→        </AlertDialogContent>
+   873→      </AlertDialog>
+   874→    </div>
+   875→  )
+   876→}
+   877→

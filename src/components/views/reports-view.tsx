@@ -1,17 +1,17 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi } from '@/lib/api'
+import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi, bookingsApi, tagsApi, exportApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/format'
-import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG } from '@/lib/types'
+import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES } from '@/lib/types'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend,
 } from 'recharts'
-import { Download, TrendingUp, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart } from 'lucide-react'
+import { Download, TrendingUp, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock } from 'lucide-react'
 import { toast } from 'sonner'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -29,25 +29,12 @@ export function ReportsView() {
   const { data: purchaseOrders } = useQuery({ queryKey: ['pos-report'], queryFn: () => purchaseOrdersApi.list() })
   const { data: disposals } = useQuery({ queryKey: ['disposals-report'], queryFn: () => disposalsApi.list() })
   const { data: deprStats } = useQuery({ queryKey: ['depr-stats-report'], queryFn: () => depreciationApi.stats() })
+  const { data: bookings } = useQuery({ queryKey: ['bookings-report'], queryFn: () => bookingsApi.list({ limit: 500 }) })
+  const { data: tags } = useQuery({ queryKey: ['tags-report'], queryFn: () => tagsApi.list() })
 
   function exportFull() {
-    if (!assetsAll) return
-    const headers = ['Asset Tag', 'Type', 'Make', 'Model', 'Serial', 'Status', 'User', 'Dept', 'Loc', 'Cost', 'Purchase', 'Warranty', 'OS', 'CPU', 'RAM', 'Storage']
-    const rows = assetsAll.data.map((a) => [
-      a.assetTag || '', a.assetType?.name || '', a.make || '', a.model || '', a.serialNumber || '',
-      a.status, a.assignedTo?.fullName || '', a.department?.name || '', a.location?.name || '',
-      a.cost?.toString() || '', a.purchaseDate?.slice(0, 10) || '', a.warrantyExpiry?.slice(0, 10) || '',
-      a.os || '', a.cpu || '', a.ram || '', a.storage || '',
-    ])
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `full-asset-report-${Date.now()}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Full report exported')
+    exportApi.download(exportApi.assets())
+    toast.success('Exporting full asset report...')
   }
 
   if (!stats) {
@@ -472,6 +459,116 @@ export function ReportsView() {
                   </div>
                 </div>
               </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Bookings & Tags Analytics */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Booking Status Distribution */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-cyan-600" /> Booking Status Distribution
+            </CardTitle>
+            <CardDescription>Active, pending, and historical reservations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {bookings && bookings.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={BOOKING_STATUSES.map((s) => ({ name: s, count: bookings.filter((b) => b.status === s).length }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-15} textAnchor="end" height={50} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="Bookings" radius={[6, 6, 0, 0]}>
+                      {BOOKING_STATUSES.map((s) => {
+                        const cfg = BOOKING_STATUS_CONFIG[s]
+                        // Map text class to a hex color
+                        const colorMap: Record<string, string> = {
+                          amber: '#f59e0b', sky: '#0ea5e9', rose: '#f43f5e',
+                          emerald: '#10b981', zinc: '#71717a', slate: '#64748b',
+                        }
+                        const m = cfg.dot.match(/bg-(\w+)-500/)
+                        const color = m ? colorMap[m[1]] || '#94a3b8' : '#94a3b8'
+                        return <Cell key={s} fill={color} />
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-md border bg-muted/30 p-1.5">
+                    <div className="text-[10px] text-muted-foreground uppercase">Active</div>
+                    <div className="text-sm font-semibold text-emerald-600">{bookings.filter((b) => b.status === 'Active').length}</div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-1.5">
+                    <div className="text-[10px] text-muted-foreground uppercase">Pending</div>
+                    <div className="text-sm font-semibold text-amber-600">{bookings.filter((b) => b.status === 'Pending').length}</div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-1.5">
+                    <div className="text-[10px] text-muted-foreground uppercase">Completed</div>
+                    <div className="text-sm font-semibold text-zinc-600">{bookings.filter((b) => b.status === 'Completed').length}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                No bookings to display
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tag Distribution */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Tag className="h-4 w-4 text-pink-600" /> Tag Distribution
+            </CardTitle>
+            <CardDescription>Asset count per tag</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tags && tags.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={tags.map((t) => ({ name: t.name, count: t._count?.assets || 0, color: t.color }))} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="Assets" radius={[0, 6, 6, 0]}>
+                      {tags.map((t) => {
+                        const cfg = getTagColorConfig(t.color)
+                        const m = cfg.dot.match(/bg-(\w+)-500/)
+                        const colorMap: Record<string, string> = {
+                          slate: '#64748b', emerald: '#10b981', amber: '#f59e0b', rose: '#f43f5e',
+                          violet: '#8b5cf6', sky: '#0ea5e9', orange: '#f97316', pink: '#ec4899',
+                          lime: '#84cc16', cyan: '#06b6d4',
+                        }
+                        const color = m ? colorMap[m[1]] || '#94a3b8' : '#94a3b8'
+                        return <Cell key={t.id} fill={color} />
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {tags.slice(0, 6).map((t) => {
+                    const cfg = getTagColorConfig(t.color)
+                    return (
+                      <span key={t.id} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${cfg.bg} ${cfg.text}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                        {t.name} ({t._count?.assets || 0})
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                No tags to display
+              </div>
             )}
           </CardContent>
         </Card>

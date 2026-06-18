@@ -7,6 +7,7 @@ import {
   vendorsApi,
   personsApi,
   assetTypesApi,
+  exportApi,
 } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -79,6 +80,7 @@ import {
   Package,
   X,
   Filter,
+  Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -229,14 +231,19 @@ export function PurchaseOrdersView() {
             Create, track, and manage purchase orders with vendor line items and approval workflow.
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setEditingId(null)
-            setShowForm(true)
-          }}
-        >
-          <Plus className="h-4 w-4 mr-1.5" /> New Purchase Order
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportApi.download(exportApi.purchaseOrders())}>
+            <Download className="h-4 w-4 mr-1.5" /> Export CSV
+          </Button>
+          <Button
+            onClick={() => {
+              setEditingId(null)
+              setShowForm(true)
+            }}
+          >
+            <Plus className="h-4 w-4 mr-1.5" /> New Purchase Order
+          </Button>
+        </div>
       </div>
 
       {/* Stat tiles */}
