@@ -1,0 +1,904 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo } from 'react'
+     4→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     5→import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi, bookingsApi, tagsApi, exportApi, reportsApi } from '@/lib/api'
+     6→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     7→import { Button } from '@/components/ui/button'
+     8→import { Badge } from '@/components/ui/badge'
+     9→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    10→import { formatCurrency } from '@/lib/format'
+    11→import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES } from '@/lib/types'
+    12→import {
+    13→  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+    14→  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend,
+    15→} from 'recharts'
+    16→import { Download, TrendingUp, TrendingDown, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock, LineChart as LineChartIcon, RefreshCw, CalendarRange } from 'lucide-react'
+    17→import { toast } from 'sonner'
+    18→
+    19→const STATUS_COLORS: Record<string, string> = {
+    20→  'In Use': '#10b981', 'In Stock': '#64748b', Repair: '#f59e0b', Retired: '#f43f5e', Lost: '#ef4444',
+    21→}
+    22→const CHART_COLORS = ['#0f172a', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+    23→
+    24→// Format a YYYY-MM month string as "MMM yy" (e.g. "2026-04" -> "Apr 26")
+    25→function fmtMonth(m: string): string {
+    26→  if (!m || m.length < 7) return m ?? ''
+    27→  const [y, mo] = m.split('-')
+    28→  const mi = parseInt(mo, 10) - 1
+    29→  const yi = parseInt(y, 10)
+    30→  if (isNaN(mi) || isNaN(yi)) return m
+    31→  return new Date(yi, mi, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    32→}
+    33→
+    34→// Compact Y-axis currency formatter: $1.5k, $12k, $0
+    35→function fmtCompactCurrency(v: number): string {
+    36→  if (v >= 1000) return `$${Math.round(v / 1000)}k`
+    37→  return `$${Math.round(v)}`
+    38→}
+    39→
+    40→export function ReportsView() {
+    41→  const { data: stats } = useQuery({ queryKey: ['dashboard'], queryFn: () => dashboardApi.get() })
+    42→  const { data: assetsAll } = useQuery({
+    43→    queryKey: ['all-assets-report'],
+    44→    queryFn: () => assetsApi.list({ pageSize: 100, sortBy: 'purchaseDate', sortDir: 'asc' }),
+    45→  })
+    46→  const { data: vendors } = useQuery({ queryKey: ['vendors-report'], queryFn: () => vendorsApi.list() })
+    47→  const { data: purchaseOrders } = useQuery({ queryKey: ['pos-report'], queryFn: () => purchaseOrdersApi.list() })
+    48→  const { data: disposals } = useQuery({ queryKey: ['disposals-report'], queryFn: () => disposalsApi.list() })
+    49→  const { data: deprStats } = useQuery({ queryKey: ['depr-stats-report'], queryFn: () => depreciationApi.stats() })
+    50→  const { data: bookings } = useQuery({ queryKey: ['bookings-report'], queryFn: () => bookingsApi.list({ limit: 500 }) })
+    51→  const { data: tags } = useQuery({ queryKey: ['tags-report'], queryFn: () => tagsApi.list() })
+    52→  const qc = useQueryClient()
+    53→
+    54→  // Date Range filter state (affects Acquisition Trend + Cost Trend)
+    55→  const [range, setRange] = useState<'all' | '30d' | '90d' | '365d' | 'custom'>('all')
+    56→  const [customStart, setCustomStart] = useState<string>('')
+    57→  const [customEnd, setCustomEnd] = useState<string>('')
+    58→
+    59→  // Map the selected date range to a number of months for the cost-trend query
+    60→  const months = useMemo(() => {
+    61→    if (range === '30d') return 1
+    62→    if (range === '90d') return 3
+    63→    if (range === '365d') return 12
+    64→    if (range === 'custom' && customStart && customEnd) {
+    65→      const s = new Date(customStart)
+    66→      const e = new Date(customEnd)
+    67→      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+    68→        const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)))
+    69→        return Math.max(1, Math.min(60, Math.ceil(days / 30)))
+    70→      }
+    71→    }
+    72→    return 24 // All Time (24 months back max)
+    73→  }, [range, customStart, customEnd])
+    74→
+    75→  const rangeLabel = useMemo(() => {
+    76→    if (range === '30d') return 'Last 30 days'
+    77→    if (range === '90d') return 'Last 90 days'
+    78→    if (range === '365d') return 'Last 365 days'
+    79→    if (range === 'custom') return 'Custom Range'
+    80→    return 'All Time'
+    81→  }, [range])
+    82→
+    83→  const { data: costTrend } = useQuery({
+    84→    queryKey: ['cost-trend', months],
+    85→    queryFn: () => reportsApi.costTrend(months),
+    86→  })
+    87→
+    88→  const { data: lifecycle } = useQuery({
+    89→    queryKey: ['lifecycle-report'],
+    90→    queryFn: () => reportsApi.lifecycle(),
+    91→  })
+    92→
+    93→  function refreshAll() {
+    94→    qc.invalidateQueries()
+    95→    toast.success('Refreshing all reports...')
+    96→  }
+    97→
+    98→  function exportFull() {
+    99→    exportApi.download(exportApi.assets())
+   100→    toast.success('Exporting full asset report...')
+   101→  }
+   102→
+   103→  if (!stats) {
+   104→    return <div className="h-64 shimmer rounded-lg" />
+   105→  }
+   106→
+   107→  // Build acquisition trend by month
+   108→  const trend: Record<string, number> = {}
+   109→  if (assetsAll) {
+   110→    assetsAll.data.forEach((a) => {
+   111→      if (a.purchaseDate) {
+   112→        const m = a.purchaseDate.slice(0, 7)
+   113→        trend[m] = (trend[m] || 0) + 1
+   114→      }
+   115→    })
+   116→  }
+   117→  const trendData = Object.entries(trend)
+   118→    .sort(([a], [b]) => a.localeCompare(b))
+   119→    .slice(-months)
+   120→    .map(([month, count]) => ({ month, count }))
+   121→
+   122→  // Value by type
+   123→  const valueByType = assetsAll
+   124→    ? Object.entries(
+   125→        assetsAll.data.reduce<Record<string, number>>((acc, a) => {
+   126→          const t = a.assetType?.name || 'Unknown'
+   127→          acc[t] = (acc[t] || 0) + (a.cost || 0)
+   128→          return acc
+   129→        }, {})
+   130→      ).map(([name, value]) => ({ name, value }))
+   131→    : []
+   132→
+   133→  const statusData = stats.byStatus.map((s) => ({
+   134→    name: s.status, value: s.count, fill: STATUS_COLORS[s.status] || '#94a3b8',
+   135→  }))
+   136→
+   137→  const utilization = stats.totalAssets > 0 ? Math.round((stats.inUse / stats.totalAssets) * 100) : 0
+   138→
+   139→  return (
+   140→    <div className="space-y-5 animate-fade-in-up">
+   141→      <div className="flex items-center justify-between">
+   142→        <div>
+   143→          <h2 className="text-lg font-bold flex items-center gap-2">
+   144→            <Activity className="h-5 w-5" /> Reports & Analytics
+   145→            <Badge variant="secondary" className="text-xs font-normal">{rangeLabel}</Badge>
+   146→          </h2>
+   147→          <p className="text-sm text-muted-foreground">Insights and exportable reports</p>
+   148→        </div>
+   149→        <div className="flex items-center gap-2">
+   150→          <Button variant="outline" size="icon" onClick={refreshAll} title="Refresh reports">
+   151→            <RefreshCw className="h-4 w-4" />
+   152→          </Button>
+   153→          <Button onClick={exportFull} disabled={!assetsAll}>
+   154→            <Download className="h-4 w-4 mr-1.5" /> Export Full Report
+   155→          </Button>
+   156→        </div>
+   157→      </div>
+   158→
+   159→      {/* Date Range filter */}
+   160→      <Card>
+   161→        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+   162→          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+   163→            <CalendarRange className="h-4 w-4" />
+   164→            <span>Date Range:</span>
+   165→          </div>
+   166→          <Select value={range} onValueChange={(v) => setRange(v as typeof range)}>
+   167→            <SelectTrigger className="w-[180px]">
+   168→              <SelectValue placeholder="Select range" />
+   169→            </SelectTrigger>
+   170→            <SelectContent>
+   171→              <SelectItem value="all">All Time</SelectItem>
+   172→              <SelectItem value="30d">Last 30 days</SelectItem>
+   173→              <SelectItem value="90d">Last 90 days</SelectItem>
+   174→              <SelectItem value="365d">Last 365 days</SelectItem>
+   175→              <SelectItem value="custom">Custom Range</SelectItem>
+   176→            </SelectContent>
+   177→          </Select>
+   178→          {range === 'custom' && (
+   179→            <div className="flex items-center gap-2">
+   180→              <input
+   181→                type="date"
+   182→                aria-label="Start date"
+   183→                value={customStart}
+   184→                onChange={(e) => setCustomStart(e.target.value)}
+   185→                className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+   186→              />
+   187→              <span className="text-sm text-muted-foreground">to</span>
+   188→              <input
+   189→                type="date"
+   190→                aria-label="End date"
+   191→                value={customEnd}
+   192→                onChange={(e) => setCustomEnd(e.target.value)}
+   193→                className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+   194→              />
+   195→            </div>
+   196→          )}
+   197→          <Badge variant="outline" className="ml-auto">{range !== 'all' ? `${months} month${months === 1 ? '' : 's'}` : '24 months max'}</Badge>
+   198→        </CardContent>
+   199→      </Card>
+   200→
+   201→      {/* KPI cards */}
+   202→      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+   203→        <Card className="border-l-4" style={{ borderLeftColor: '#10b981' }}>
+   204→          <CardContent className="pt-5">
+   205→            <div className="flex items-center justify-between">
+   206→              <div>
+   207→                <p className="text-xs text-muted-foreground">Utilization Rate</p>
+   208→                <p className="text-2xl font-bold">{utilization}%</p>
+   209→              </div>
+   210→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+   211→                <TrendingUp className="h-5 w-5 text-emerald-600" />
+   212→              </div>
+   213→            </div>
+   214→          </CardContent>
+   215→        </Card>
+   216→        <Card className="border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+   217→          <CardContent className="pt-5">
+   218→            <div className="flex items-center justify-between">
+   219→              <div>
+   220→                <p className="text-xs text-muted-foreground">Total Asset Value</p>
+   221→                <p className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</p>
+   222→              </div>
+   223→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10">
+   224→                <DollarSign className="h-5 w-5 text-violet-600" />
+   225→              </div>
+   226→            </div>
+   227→          </CardContent>
+   228→        </Card>
+   229→        <Card className="border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+   230→          <CardContent className="pt-5">
+   231→            <div className="flex items-center justify-between">
+   232→              <div>
+   233→                <p className="text-xs text-muted-foreground">In Repair</p>
+   234→                <p className="text-2xl font-bold">{stats.repair}</p>
+   235→              </div>
+   236→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+   237→                <Wrench className="h-5 w-5 text-amber-600" />
+   238→              </div>
+   239→            </div>
+   240→          </CardContent>
+   241→        </Card>
+   242→        <Card className="border-l-4" style={{ borderLeftColor: '#06b6d4' }}>
+   243→          <CardContent className="pt-5">
+   244→            <div className="flex items-center justify-between">
+   245→              <div>
+   246→                <p className="text-xs text-muted-foreground">Warranty Expiring</p>
+   247→                <p className="text-2xl font-bold">{stats.warrantyExpiringSoon}</p>
+   248→              </div>
+   249→              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10">
+   250→                <AlertTriangle className="h-5 w-5 text-cyan-600" />
+   251→              </div>
+   252→            </div>
+   253→          </CardContent>
+   254→        </Card>
+   255→      </div>
+   256→
+   257→      <div className="grid gap-4 lg:grid-cols-2">
+   258→        {/* Acquisition trend */}
+   259→        <Card>
+   260→          <CardHeader className="pb-2">
+   261→            <CardTitle className="text-base">Asset Acquisition Trend</CardTitle>
+   262→            <CardDescription>Assets purchased per month (last 12 months)</CardDescription>
+   263→          </CardHeader>
+   264→          <CardContent>
+   265→            {trendData.length === 0 ? (
+   266→              <p className="py-12 text-center text-sm text-muted-foreground">No purchase date data</p>
+   267→            ) : (
+   268→              <ResponsiveContainer width="100%" height={240}>
+   269→                <AreaChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+   270→                  <defs>
+   271→                    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+   272→                      <stop offset="0%" stopColor="#0f172a" stopOpacity={0.3} />
+   273→                      <stop offset="100%" stopColor="#0f172a" stopOpacity={0} />
+   274→                    </linearGradient>
+   275→                  </defs>
+   276→                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   277→                  <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+   278→                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+   279→                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   280→                  <Area type="monotone" dataKey="count" stroke="#0f172a" strokeWidth={2} fill="url(#grad)" />
+   281→                </AreaChart>
+   282→              </ResponsiveContainer>
+   283→            )}
+   284→          </CardContent>
+   285→        </Card>
+   286→
+   287→        {/* Cost Trend Over Time */}
+   288→        <Card>
+   289→          <CardHeader className="pb-2">
+   290→            <CardTitle className="text-base flex items-center gap-2">
+   291→              <LineChartIcon className="h-4 w-4 text-violet-600" /> Cost Trend Over Time
+   292→            </CardTitle>
+   293→            <CardDescription>Monthly purchase, maintenance, and disposal costs</CardDescription>
+   294→          </CardHeader>
+   295→          <CardContent>
+   296→            {!costTrend || costTrend.data.length === 0 ||
+   297→             costTrend.data.every((p) => p.purchase === 0 && p.maintenance === 0 && p.disposal === 0) ? (
+   298→              <p className="py-12 text-center text-sm text-muted-foreground">No cost data in this range</p>
+   299→            ) : (
+   300→              <ResponsiveContainer width="100%" height={240}>
+   301→                <LineChart data={costTrend.data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+   302→                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   303→                  <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(m: string) => fmtMonth(m)} />
+   304→                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtCompactCurrency(v)} />
+   305→                  <Tooltip
+   306→                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+   307→                    formatter={(v: number) => formatCurrency(v)}
+   308→                  />
+   309→                  <Legend />
+   310→                  <Line type="monotone" dataKey="purchase" name="Purchase" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+   311→                  <Line type="monotone" dataKey="maintenance" name="Maintenance" stroke="#f59e0b" strokeWidth={2} dot={false} />
+   312→                  <Line type="monotone" dataKey="disposal" name="Disposal" stroke="#f43f5e" strokeWidth={2} dot={false} />
+   313→                </LineChart>
+   314→              </ResponsiveContainer>
+   315→            )}
+   316→          </CardContent>
+   317→        </Card>
+   318→
+   319→        {/* Status donut */}
+   320→        <Card>
+   321→          <CardHeader className="pb-2">
+   322→            <CardTitle className="text-base">Status Distribution</CardTitle>
+   323→            <CardDescription>Asset count by status</CardDescription>
+   324→          </CardHeader>
+   325→          <CardContent>
+   326→            <ResponsiveContainer width="100%" height={240}>
+   327→              <PieChart>
+   328→                <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3}>
+   329→                  {statusData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+   330→                </Pie>
+   331→                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   332→              </PieChart>
+   333→            </ResponsiveContainer>
+   334→            <div className="mt-2 grid grid-cols-3 gap-2">
+   335→              {statusData.map((s) => (
+   336→                <div key={s.name} className="flex items-center gap-1.5 text-xs">
+   337→                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.fill }} />
+   338→                  <span className="text-muted-foreground">{s.name}</span>
+   339→                  <span className="ml-auto font-medium">{s.value}</span>
+   340→                </div>
+   341→              ))}
+   342→            </div>
+   343→          </CardContent>
+   344→        </Card>
+   345→
+   346→        {/* Value by type */}
+   347→        <Card>
+   348→          <CardHeader className="pb-2">
+   349→            <CardTitle className="text-base">Asset Value by Type</CardTitle>
+   350→            <CardDescription>Total cost grouped by asset type</CardDescription>
+   351→          </CardHeader>
+   352→          <CardContent>
+   353→            {valueByType.length === 0 ? (
+   354→              <p className="py-12 text-center text-sm text-muted-foreground">No cost data</p>
+   355→            ) : (
+   356→              <ResponsiveContainer width="100%" height={240}>
+   357→                <BarChart data={valueByType} layout="vertical" margin={{ top: 5, right: 20, left: 50, bottom: 5 }}>
+   358→                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   359→                  <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+   360→                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+   361→                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} formatter={(v: number) => formatCurrency(v)} />
+   362→                  <Bar dataKey="value" radius={[0, 6, 6, 0]} fill="#8b5cf6" />
+   363→                </BarChart>
+   364→              </ResponsiveContainer>
+   365→            )}
+   366→          </CardContent>
+   367→        </Card>
+   368→
+   369→        {/* Department breakdown */}
+   370→        <Card>
+   371→          <CardHeader className="pb-2">
+   372→            <CardTitle className="text-base">Assets by Department</CardTitle>
+   373→            <CardDescription>Distribution across teams</CardDescription>
+   374→          </CardHeader>
+   375→          <CardContent>
+   376→            {stats.byDepartment.length === 0 ? (
+   377→              <p className="py-12 text-center text-sm text-muted-foreground">No data</p>
+   378→            ) : (
+   379→              <ResponsiveContainer width="100%" height={240}>
+   380→                <BarChart data={stats.byDepartment} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+   381→                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   382→                  <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+   383→                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+   384→                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   385→                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+   386→                    {stats.byDepartment.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+   387→                  </Bar>
+   388→                </BarChart>
+   389→              </ResponsiveContainer>
+   390→            )}
+   391→          </CardContent>
+   392→        </Card>
+   393→      </div>
+   394→
+   395→      {/* Procurement & Vendor Analytics */}
+   396→      <div className="grid gap-4 lg:grid-cols-2">
+   397→        {/* Vendor Spend */}
+   398→        <Card>
+   399→          <CardHeader className="pb-2">
+   400→            <CardTitle className="text-base flex items-center gap-2">
+   401→              <Store className="h-4 w-4 text-sky-600" /> Vendor Spend
+   402→            </CardTitle>
+   403→            <CardDescription>Total purchase value by vendor (excludes Draft/Cancelled POs)</CardDescription>
+   404→          </CardHeader>
+   405→          <CardContent>
+   406→            {!vendors || vendors.length === 0 ? (
+   407→              <p className="py-12 text-center text-sm text-muted-foreground">No vendor data</p>
+   408→            ) : (
+   409→              <ResponsiveContainer width="100%" height={260}>
+   410→                <BarChart
+   411→                  data={vendors
+   412→                    .map((v) => ({ name: v.name, value: v._sum?.totalSpent ?? 0, pos: v._count?.purchaseOrders ?? 0 }))
+   413→                    .filter((v) => v.value > 0)
+   414→                    .sort((a, b) => b.value - a.value)
+   415→                    .slice(0, 8)}
+   416→                  layout="vertical"
+   417→                  margin={{ top: 5, right: 20, left: 60, bottom: 5 }}
+   418→                >
+   419→                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   420→                  <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+   421→                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={100} />
+   422→                  <Tooltip
+   423→                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+   424→                    formatter={(v: number) => formatCurrency(v)}
+   425→                  />
+   426→                  <Bar dataKey="value" radius={[0, 6, 6, 0]} fill="#0ea5e9" />
+   427→                </BarChart>
+   428→              </ResponsiveContainer>
+   429→            )}
+   430→          </CardContent>
+   431→        </Card>
+   432→
+   433→        {/* PO Status Breakdown */}
+   434→        <Card>
+   435→          <CardHeader className="pb-2">
+   436→            <CardTitle className="text-base flex items-center gap-2">
+   437→              <ShoppingCart className="h-4 w-4 text-violet-600" /> Purchase Order Status
+   438→            </CardTitle>
+   439→            <CardDescription>Distribution of POs by status</CardDescription>
+   440→          </CardHeader>
+   441→          <CardContent>
+   442→            {!purchaseOrders || purchaseOrders.length === 0 ? (
+   443→              <p className="py-12 text-center text-sm text-muted-foreground">No purchase orders</p>
+   444→            ) : (
+   445→              <>
+   446→                <ResponsiveContainer width="100%" height={200}>
+   447→                  <PieChart>
+   448→                    <Pie
+   449→                      data={Object.entries(
+   450→                        purchaseOrders.reduce<Record<string, number>>((acc, po) => {
+   451→                          acc[po.status] = (acc[po.status] || 0) + 1
+   452→                          return acc
+   453→                        }, {})
+   454→                      ).map(([name, value]) => ({ name, value }))}
+   455→                      dataKey="value"
+   456→                      nameKey="name"
+   457→                      cx="50%"
+   458→                      cy="50%"
+   459→                      innerRadius={50}
+   460→                      outerRadius={80}
+   461→                      paddingAngle={3}
+   462→                    >
+   463→                      {Object.entries(
+   464→                        purchaseOrders.reduce<Record<string, number>>((acc, po) => {
+   465→                          acc[po.status] = (acc[po.status] || 0) + 1
+   466→                          return acc
+   467→                        }, {})
+   468→                      ).map(([name], i) => {
+   469→                        const colors: Record<string, string> = {
+   470→                          Draft: '#94a3b8', 'Pending Approval': '#f59e0b', Approved: '#0ea5e9',
+   471→                          Ordered: '#8b5cf6', 'Partially Received': '#06b6d4', Received: '#10b981',
+   472→                          Cancelled: '#f43f5e', Closed: '#71717a',
+   473→                        }
+   474→                        return <Cell key={i} fill={colors[name] || '#94a3b8'} />
+   475→                      })}
+   476→                    </Pie>
+   477→                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   478→                  </PieChart>
+   479→                </ResponsiveContainer>
+   480→                <div className="mt-2 grid grid-cols-2 gap-1.5">
+   481→                  {Object.entries(
+   482→                    purchaseOrders.reduce<Record<string, number>>((acc, po) => {
+   483→                      acc[po.status] = (acc[po.status] || 0) + 1
+   484→                      return acc
+   485→                    }, {})
+   486→                  ).map(([name, count]) => (
+   487→                    <div key={name} className="flex items-center justify-between text-xs">
+   488→                      <span className="text-muted-foreground truncate">{name}</span>
+   489→                      <span className="ml-2 font-medium tabular-nums">{count}</span>
+   490→                    </div>
+   491→                  ))}
+   492→                </div>
+   493→              </>
+   494→            )}
+   495→          </CardContent>
+   496→        </Card>
+   497→
+   498→        {/* Depreciation Summary */}
+   499→        <Card>
+   500→          <CardHeader className="pb-2">
+   501→            <CardTitle className="text-base flex items-center gap-2">
+   502→              <TrendingUp className="h-4 w-4 text-emerald-600" /> Depreciation Summary
+   503→            </CardTitle>
+   504→            <CardDescription>Purchase value vs current value</CardDescription>
+   505→          </CardHeader>
+   506→          <CardContent>
+   507→            {!deprStats ? (
+   508→              <p className="py-12 text-center text-sm text-muted-foreground">No depreciation data</p>
+   509→            ) : (
+   510→              <div className="space-y-4">
+   511→                <div className="grid grid-cols-2 gap-3">
+   512→                  <div className="rounded-lg bg-violet-500/10 p-3">
+   513→                    <p className="text-xs text-muted-foreground">Purchase Value</p>
+   514→                    <p className="text-lg font-bold tabular-nums text-violet-700 dark:text-violet-400">
+   515→                      {formatCurrency(deprStats.totalPurchaseValue)}
+   516→                    </p>
+   517→                  </div>
+   518→                  <div className="rounded-lg bg-emerald-500/10 p-3">
+   519→                    <p className="text-xs text-muted-foreground">Current Value</p>
+   520→                    <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+   521→                      {formatCurrency(deprStats.totalCurrentValue)}
+   522→                    </p>
+   523→                  </div>
+   524→                </div>
+   525→                <div>
+   526→                  <div className="flex items-center justify-between text-xs mb-1">
+   527→                    <span className="text-muted-foreground">Value Retained</span>
+   528→                    <span className="font-medium tabular-nums">
+   529→                      {deprStats.totalPurchaseValue > 0
+   530→                        ? Math.round((deprStats.totalCurrentValue / deprStats.totalPurchaseValue) * 100)
+   531→                        : 0}
+   532→                      %
+   533→                    </span>
+   534→                  </div>
+   535→                  <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+   536→                    <div
+   537→                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all"
+   538→                      style={{
+   539→                        width: `${deprStats.totalPurchaseValue > 0
+   540→                          ? Math.round((deprStats.totalCurrentValue / deprStats.totalPurchaseValue) * 100)
+   541→                          : 0}%`,
+   542→                      }}
+   543→                    />
+   544→                  </div>
+   545→                  <p className="mt-2 text-[11px] text-muted-foreground">
+   546→                    Total depreciation: <span className="font-medium text-rose-600">-{formatCurrency(deprStats.totalDepreciation)}</span>
+   547→                    {' · '}
+   548→                    <span className="font-medium text-amber-600">{deprStats.fullyDepreciatedCount} fully depreciated</span>
+   549→                  </p>
+   550→                </div>
+   551→              </div>
+   552→            )}
+   553→          </CardContent>
+   554→        </Card>
+   555→
+   556→        {/* Disposal Summary */}
+   557→        <Card>
+   558→          <CardHeader className="pb-2">
+   559→            <CardTitle className="text-base flex items-center gap-2">
+   560→              <Trash2 className="h-4 w-4 text-rose-600" /> Asset Disposals
+   561→            </CardTitle>
+   562→            <CardDescription>Disposals by method</CardDescription>
+   563→          </CardHeader>
+   564→          <CardContent>
+   565→            {!disposals || disposals.length === 0 ? (
+   566→              <p className="py-12 text-center text-sm text-muted-foreground">No disposal records</p>
+   567→            ) : (
+   568→              <>
+   569→                <ResponsiveContainer width="100%" height={180}>
+   570→                  <BarChart
+   571→                    data={Object.entries(
+   572→                      disposals.reduce<Record<string, number>>((acc, d) => {
+   573→                        acc[d.method] = (acc[d.method] || 0) + 1
+   574→                        return acc
+   575→                      }, {})
+   576→                    ).map(([name, count]) => ({ name, count }))}
+   577→                    margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+   578→                  >
+   579→                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   580→                    <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+   581→                    <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+   582→                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }} />
+   583→                    <Bar dataKey="count" radius={[6, 6, 0, 0]} fill="#f43f5e" />
+   584→                  </BarChart>
+   585→                </ResponsiveContainer>
+   586→                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+   587→                  <div className="rounded-md bg-emerald-500/10 p-2">
+   588→                    <p className="text-[10px] text-muted-foreground">Recovered</p>
+   589→                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+   590→                      {formatCurrency(disposals.reduce((s, d) => s + (d.method === 'Sold' || d.method === 'Trade-in' || d.method === 'Recycled' ? d.netProceeds : 0), 0))}
+   591→                    </p>
+   592→                  </div>
+   593→                  <div className="rounded-md bg-rose-500/10 p-2">
+   594→                    <p className="text-[10px] text-muted-foreground">Cost</p>
+   595→                    <p className="text-sm font-bold text-rose-700 dark:text-rose-400">
+   596→                      {formatCurrency(disposals.reduce((s, d) => s + d.disposalCost, 0))}
+   597→                    </p>
+   598→                  </div>
+   599→                  <div className="rounded-md bg-sky-500/10 p-2">
+   600→                    <p className="text-[10px] text-muted-foreground">Compliant</p>
+   601→                    <p className="text-sm font-bold text-sky-700 dark:text-sky-400">
+   602→                      {disposals.filter((d) => d.environmentalCompliant).length}/{disposals.length}
+   603→                    </p>
+   604→                  </div>
+   605→                </div>
+   606→              </>
+   607→            )}
+   608→          </CardContent>
+   609→        </Card>
+   610→      </div>
+   611→
+   612→      {/* Bookings & Tags Analytics */}
+   613→      <div className="grid gap-4 lg:grid-cols-2">
+   614→        {/* Booking Status Distribution */}
+   615→        <Card>
+   616→          <CardHeader className="pb-2">
+   617→            <CardTitle className="text-base flex items-center gap-2">
+   618→              <CalendarClock className="h-4 w-4 text-cyan-600" /> Booking Status Distribution
+   619→            </CardTitle>
+   620→            <CardDescription>Active, pending, and historical reservations</CardDescription>
+   621→          </CardHeader>
+   622→          <CardContent>
+   623→            {bookings && bookings.length > 0 ? (
+   624→              <div className="h-64">
+   625→                <ResponsiveContainer width="100%" height="100%">
+   626→                  <BarChart data={BOOKING_STATUSES.map((s) => ({ name: s, count: bookings.filter((b) => b.status === s).length }))}>
+   627→                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+   628→                    <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-15} textAnchor="end" height={50} />
+   629→                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+   630→                    <Tooltip />
+   631→                    <Bar dataKey="count" name="Bookings" radius={[6, 6, 0, 0]}>
+   632→                      {BOOKING_STATUSES.map((s) => {
+   633→                        const cfg = BOOKING_STATUS_CONFIG[s]
+   634→                        // Map text class to a hex color
+   635→                        const colorMap: Record<string, string> = {
+   636→                          amber: '#f59e0b', sky: '#0ea5e9', rose: '#f43f5e',
+   637→                          emerald: '#10b981', zinc: '#71717a', slate: '#64748b',
+   638→                        }
+   639→                        const m = cfg.dot.match(/bg-(\w+)-500/)
+   640→                        const color = m ? colorMap[m[1]] || '#94a3b8' : '#94a3b8'
+   641→                        return <Cell key={s} fill={color} />
+   642→                      })}
+   643→                    </Bar>
+   644→                  </BarChart>
+   645→                </ResponsiveContainer>
+   646→                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+   647→                  <div className="rounded-md border bg-muted/30 p-1.5">
+   648→                    <div className="text-[10px] text-muted-foreground uppercase">Active</div>
+   649→                    <div className="text-sm font-semibold text-emerald-600">{bookings.filter((b) => b.status === 'Active').length}</div>
+   650→                  </div>
+   651→                  <div className="rounded-md border bg-muted/30 p-1.5">
+   652→                    <div className="text-[10px] text-muted-foreground uppercase">Pending</div>
+   653→                    <div className="text-sm font-semibold text-amber-600">{bookings.filter((b) => b.status === 'Pending').length}</div>
+   654→                  </div>
+   655→                  <div className="rounded-md border bg-muted/30 p-1.5">
+   656→                    <div className="text-[10px] text-muted-foreground uppercase">Completed</div>
+   657→                    <div className="text-sm font-semibold text-zinc-600">{bookings.filter((b) => b.status === 'Completed').length}</div>
+   658→                  </div>
+   659→                </div>
+   660→              </div>
+   661→            ) : (
+   662→              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+   663→                No bookings to display
+   664→              </div>
+   665→            )}
+   666→          </CardContent>
+   667→        </Card>
+   668→
+   669→        {/* Tag Distribution */}
+   670→        <Card>
+   671→          <CardHeader className="pb-2">
+   672→            <CardTitle className="text-base flex items-center gap-2">
+   673→              <Tag className="h-4 w-4 text-pink-600" /> Tag Distribution
+   674→            </CardTitle>
+   675→            <CardDescription>Asset count per tag</CardDescription>
+   676→          </CardHeader>
+   677→          <CardContent>
+   678→            {tags && tags.length > 0 ? (
+   679→              <div className="h-64">
+   680→                <ResponsiveContainer width="100%" height="100%">
+   681→                  <BarChart data={tags.map((t) => ({ name: t.name, count: t._count?.assets || 0, color: t.color }))} layout="vertical">
+   682→                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+   683→                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+   684→                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
+   685→                    <Tooltip />
+   686→                    <Bar dataKey="count" name="Assets" radius={[0, 6, 6, 0]}>
+   687→                      {tags.map((t) => {
+   688→                        const cfg = getTagColorConfig(t.color)
+   689→                        const m = cfg.dot.match(/bg-(\w+)-500/)
+   690→                        const colorMap: Record<string, string> = {
+   691→                          slate: '#64748b', emerald: '#10b981', amber: '#f59e0b', rose: '#f43f5e',
+   692→                          violet: '#8b5cf6', sky: '#0ea5e9', orange: '#f97316', pink: '#ec4899',
+   693→                          lime: '#84cc16', cyan: '#06b6d4',
+   694→                        }
+   695→                        const color = m ? colorMap[m[1]] || '#94a3b8' : '#94a3b8'
+   696→                        return <Cell key={t.id} fill={color} />
+   697→                      })}
+   698→                    </Bar>
+   699→                  </BarChart>
+   700→                </ResponsiveContainer>
+   701→                <div className="mt-2 flex flex-wrap gap-1.5">
+   702→                  {tags.slice(0, 6).map((t) => {
+   703→                    const cfg = getTagColorConfig(t.color)
+   704→                    return (
+   705→                      <span key={t.id} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${cfg.bg} ${cfg.text}`}>
+   706→                        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   707→                        {t.name} ({t._count?.assets || 0})
+   708→                      </span>
+   709→                    )
+   710→                  })}
+   711→                </div>
+   712→              </div>
+   713→            ) : (
+   714→              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+   715→                No tags to display
+   716→              </div>
+   717→            )}
+   718→          </CardContent>
+   719→        </Card>
+   720→      </div>
+   721→
+   722→      {/* Asset Lifecycle Cost Analysis */}
+   723→      <div className="flex items-center gap-2 mt-2">
+   724→        <TrendingUp className="h-5 w-5 text-violet-600" />
+   725→        <h3 className="text-base font-semibold">Asset Lifecycle Cost Analysis</h3>
+   726→      </div>
+   727→      <p className="text-sm text-muted-foreground mt-1">Purchase + maintenance + disposal costs vs residual value, by asset type</p>
+   728→
+   729→      <div className="grid gap-4 lg:grid-cols-2">
+   730→        {/* Lifecycle Stacked Bar Chart */}
+   731→        <Card>
+   732→          <CardHeader className="pb-2">
+   733→            <CardTitle className="text-base flex items-center gap-2">
+   734→              <Package className="h-4 w-4 text-violet-600" /> Lifecycle Cost Breakdown
+   735→            </CardTitle>
+   736→            <CardDescription>Stacked purchase, maintenance, and disposal costs by asset type</CardDescription>
+   737→          </CardHeader>
+   738→          <CardContent>
+   739→            {!lifecycle || lifecycle.byType.length === 0 ? (
+   740→              <p className="py-12 text-center text-sm text-muted-foreground">No lifecycle cost data</p>
+   741→            ) : (
+   742→              <ResponsiveContainer width="100%" height={260}>
+   743→                <BarChart data={lifecycle.byType} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+   744→                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+   745→                  <XAxis dataKey="assetType" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+   746→                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtCompactCurrency(v)} />
+   747→                  <Tooltip
+   748→                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+   749→                    formatter={(v: number) => formatCurrency(v)}
+   750→                  />
+   751→                  <Legend />
+   752→                  <Bar dataKey="purchaseCost" name="Purchase" stackId="cost" fill="#8b5cf6" />
+   753→                  <Bar dataKey="maintenanceCost" name="Maintenance" stackId="cost" fill="#f59e0b" />
+   754→                  <Bar dataKey="disposalCost" name="Disposal" stackId="cost" fill="#f43f5e" radius={[6, 6, 0, 0]} />
+   755→                </BarChart>
+   756→              </ResponsiveContainer>
+   757→            )}
+   758→          </CardContent>
+   759→        </Card>
+   760→
+   761→        {/* Lifecycle Summary Table */}
+   762→        <Card>
+   763→          <CardHeader className="pb-2">
+   764→            <CardTitle className="text-base flex items-center gap-2">
+   765→              <DollarSign className="h-4 w-4 text-emerald-600" /> Cost Summary by Type
+   766→            </CardTitle>
+   767→            <CardDescription>Per-asset-type breakdown with totals</CardDescription>
+   768→          </CardHeader>
+   769→          <CardContent>
+   770→            {!lifecycle || lifecycle.byType.length === 0 ? (
+   771→              <p className="py-12 text-center text-sm text-muted-foreground">No lifecycle cost data</p>
+   772→            ) : (
+   773→              <div className="overflow-x-auto scrollbar-thin max-h-80 overflow-y-auto">
+   774→                <table className="w-full text-xs">
+   775→                  <thead className="sticky top-0 bg-background z-10">
+   776→                    <tr className="border-b text-left text-muted-foreground">
+   777→                      <th className="pb-2 pr-2 font-medium">Type</th>
+   778→                      <th className="pb-2 pr-2 font-medium text-right">Count</th>
+   779→                      <th className="pb-2 pr-2 font-medium text-right">Purchase</th>
+   780→                      <th className="pb-2 pr-2 font-medium text-right">Maint.</th>
+   781→                      <th className="pb-2 pr-2 font-medium text-right">Disposal</th>
+   782→                      <th className="pb-2 pr-2 font-medium text-right">Residual</th>
+   783→                      <th className="pb-2 font-medium text-right">Net</th>
+   784→                    </tr>
+   785→                  </thead>
+   786→                  <tbody>
+   787→                    {lifecycle.byType.map((row) => (
+   788→                      <tr key={row.assetType} className="border-b last:border-0">
+   789→                        <td className="py-1.5 pr-2 font-medium">{row.assetType}</td>
+   790→                        <td className="py-1.5 pr-2 text-right tabular-nums">{row.assetCount}</td>
+   791→                        <td className="py-1.5 pr-2 text-right tabular-nums text-violet-700 dark:text-violet-400">{formatCurrency(row.purchaseCost)}</td>
+   792→                        <td className="py-1.5 pr-2 text-right tabular-nums text-amber-700 dark:text-amber-400">{formatCurrency(row.maintenanceCost)}</td>
+   793→                        <td className="py-1.5 pr-2 text-right tabular-nums text-rose-700 dark:text-rose-400">{formatCurrency(row.disposalCost)}</td>
+   794→                        <td className="py-1.5 pr-2 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(row.residualValue)}</td>
+   795→                        <td className="py-1.5 text-right tabular-nums font-semibold">{formatCurrency(row.netCost)}</td>
+   796→                      </tr>
+   797→                    ))}
+   798→                    <tr className="border-t-2 bg-muted/40 font-bold">
+   799→                      <td className="py-2 pr-2">TOTAL</td>
+   800→                      <td className="py-2 pr-2 text-right tabular-nums">{lifecycle.totals.assetCount}</td>
+   801→                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.purchaseCost)}</td>
+   802→                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.maintenanceCost)}</td>
+   803→                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.disposalCost)}</td>
+   804→                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.residualValue)}</td>
+   805→                      <td className="py-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.netCost)}</td>
+   806→                    </tr>
+   807→                  </tbody>
+   808→                </table>
+   809→              </div>
+   810→            )}
+   811→          </CardContent>
+   812→        </Card>
+   813→      </div>
+   814→
+   815→      {/* Lifecycle KPI tiles */}
+   816→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   817→        <Card className="border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+   818→          <CardContent className="pt-4">
+   819→            <div className="flex items-center justify-between">
+   820→              <div>
+   821→                <p className="text-xs text-muted-foreground">Total Purchase Cost</p>
+   822→                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.purchaseCost)}</p>
+   823→              </div>
+   824→              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
+   825→                <DollarSign className="h-4 w-4 text-violet-600" />
+   826→              </div>
+   827→            </div>
+   828→          </CardContent>
+   829→        </Card>
+   830→        <Card className="border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+   831→          <CardContent className="pt-4">
+   832→            <div className="flex items-center justify-between">
+   833→              <div>
+   834→                <p className="text-xs text-muted-foreground">Total Maintenance Cost</p>
+   835→                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.maintenanceCost)}</p>
+   836→              </div>
+   837→              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+   838→                <Wrench className="h-4 w-4 text-amber-600" />
+   839→              </div>
+   840→            </div>
+   841→          </CardContent>
+   842→        </Card>
+   843→        <Card className="border-l-4" style={{ borderLeftColor: '#f43f5e' }}>
+   844→          <CardContent className="pt-4">
+   845→            <div className="flex items-center justify-between">
+   846→              <div>
+   847→                <p className="text-xs text-muted-foreground">Total Disposal Cost</p>
+   848→                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.disposalCost)}</p>
+   849→              </div>
+   850→              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/10">
+   851→                <Trash2 className="h-4 w-4 text-rose-600" />
+   852→              </div>
+   853→            </div>
+   854→          </CardContent>
+   855→        </Card>
+   856→        <Card className="border-l-4" style={{ borderLeftColor: '#10b981' }}>
+   857→          <CardContent className="pt-4">
+   858→            <div className="flex items-center justify-between">
+   859→              <div>
+   860→                <p className="text-xs text-muted-foreground">Net Cost (after residual)</p>
+   861→                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.netCost)}</p>
+   862→              </div>
+   863→              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+   864→                <TrendingDown className="h-4 w-4 text-emerald-600" />
+   865→              </div>
+   866→            </div>
+   867→          </CardContent>
+   868→        </Card>
+   869→      </div>
+   870→
+   871→      {/* Detailed tables */}
+   872→      <Card>
+   873→        <CardHeader className="pb-2">
+   874→          <CardTitle className="text-base">Summary by Type</CardTitle>
+   875→        </CardHeader>
+   876→        <CardContent>
+   877→          <div className="overflow-x-auto scrollbar-thin">
+   878→            <table className="w-full text-sm">
+   879→              <thead>
+   880→                <tr className="border-b text-left text-xs text-muted-foreground">
+   881→                  <th className="pb-2 font-medium">Type</th>
+   882→                  <th className="pb-2 font-medium text-right">Count</th>
+   883→                  <th className="pb-2 font-medium text-right">% of Total</th>
+   884→                </tr>
+   885→              </thead>
+   886→              <tbody>
+   887→                {stats.byType.map((t) => (
+   888→                  <tr key={t.name} className="border-b last:border-0">
+   889→                    <td className="py-2 font-medium">{t.name}</td>
+   890→                    <td className="py-2 text-right tabular-nums">{t.count}</td>
+   891→                    <td className="py-2 text-right tabular-nums text-muted-foreground">
+   892→                      {stats.totalAssets > 0 ? Math.round((t.count / stats.totalAssets) * 100) : 0}%
+   893→                    </td>
+   894→                  </tr>
+   895→                ))}
+   896→              </tbody>
+   897→            </table>
+   898→          </div>
+   899→        </CardContent>
+   900→      </Card>
+   901→    </div>
+   902→  )
+   903→}
+   904→

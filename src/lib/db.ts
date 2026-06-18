@@ -402,6 +402,21 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_booking_booker ON AssetBooking(bookedById);
     CREATE INDEX IF NOT EXISTS idx_booking_status ON AssetBooking(status);
     CREATE INDEX IF NOT EXISTS idx_booking_dates ON AssetBooking(startDate, endDate);
+
+    -- ============ Saved Reports (Round 5) ============
+    CREATE TABLE IF NOT EXISTS SavedReport (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      section TEXT,
+      config TEXT NOT NULL DEFAULT '{}',
+      createdBy TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_saved_report_name ON SavedReport(name);
+    CREATE INDEX IF NOT EXISTS idx_saved_report_section ON SavedReport(section);
   `)
 }
 

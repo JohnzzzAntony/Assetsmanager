@@ -34,7 +34,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/empty-state'
 import { MAINTENANCE_TYPES, MAINTENANCE_STATUSES, MAINTENANCE_STATUS_CONFIG } from '@/lib/types'
 import { formatDate, formatCurrency, formatRelative } from '@/lib/format'
 import {
@@ -49,8 +55,12 @@ import {
   Trash2,
   Filter,
   X,
+  Search,
+  LayoutGrid,
+  CalendarRange,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { MaintenanceCalendarView } from './maintenance-calendar-view'
 
 function StatTile({ label, value, icon: Icon, color, hint }: { label: string; value: number; icon: typeof Wrench; color: string; hint?: string }) {
   return (
@@ -76,6 +86,8 @@ export function MaintenanceView() {
   const { navigate } = useNav()
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
+  const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
 
@@ -94,6 +106,25 @@ export function MaintenanceView() {
   })
 
   const stats = upcoming?.stats
+
+  // Client-side search on top of the API-filtered data (applies to both list and calendar views)
+  const filtered = useMemo(() => {
+    if (!data) return []
+    const q = search.trim().toLowerCase()
+    if (!q) return data
+    return data.filter((m) => {
+      return (
+        m.title.toLowerCase().includes(q) ||
+        (m.description ?? '').toLowerCase().includes(q) ||
+        (m.notes ?? '').toLowerCase().includes(q) ||
+        (m.performedBy ?? '').toLowerCase().includes(q) ||
+        (m.type ?? '').toLowerCase().includes(q) ||
+        (m.asset?.assetTag ?? '').toLowerCase().includes(q) ||
+        (m.asset?.make ?? '').toLowerCase().includes(q) ||
+        (m.asset?.model ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [data, search])
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this maintenance schedule?')) return
@@ -130,7 +161,7 @@ export function MaintenanceView() {
             Plan and track preventive, corrective, and upgrade maintenance for assets.
           </p>
         </div>
-        <Button onClick={() => { setEditing(null); setShowForm(true) }}>
+        <Button className="btn-press" onClick={() => { setEditing(null); setShowForm(true) }}>
           <Plus className="h-4 w-4 mr-1.5" /> Schedule Maintenance
         </Button>
       </div>
@@ -147,6 +178,18 @@ export function MaintenanceView() {
       {/* Filters */}
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+          <div className="flex-[2] space-y-1.5">
+            <Label className="text-xs">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search title, asset, technician…"
+                className="h-9 pl-8"
+              />
+            </div>
+          </div>
           <div className="flex-1 space-y-1.5">
             <Label className="text-xs">Status</Label>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -171,18 +214,47 @@ export function MaintenanceView() {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => { setFilterStatus('all'); setFilterType('all') }}>
+          <Button variant="ghost" size="sm" onClick={() => { setFilterStatus('all'); setFilterType('all'); setSearch('') }}>
             <X className="h-3.5 w-3.5 mr-1" /> Reset
           </Button>
         </CardContent>
       </Card>
 
-      {/* Table */}
+      {/* ============ View Mode Toggle (List / Calendar) ============ */}
+      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'list' | 'calendar')}>
+        <TabsList className="flex h-auto gap-1 bg-transparent p-0">
+          <TabsTrigger
+            value="list"
+            className="gap-1.5 data-[state=active]:bg-sky-500/10 data-[state=active]:text-sky-700 dark:data-[state=active]:text-sky-300"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            List View
+          </TabsTrigger>
+          <TabsTrigger
+            value="calendar"
+            className="gap-1.5 data-[state=active]:bg-sky-500/10 data-[state=active]:text-sky-700 dark:data-[state=active]:text-sky-300"
+          >
+            <CalendarRange className="h-3.5 w-3.5" />
+            Calendar View
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {viewMode === 'calendar' ? (
+        /* ============ Calendar View ============ */
+        <MaintenanceCalendarView
+          maintenances={filtered}
+          isLoading={isLoading}
+          onEdit={(id) => { setEditing(id); setShowForm(true) }}
+          onDelete={(id) => handleDelete(id)}
+        />
+      ) : (
+      /* ============ List View (existing table) ============ */
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">All Maintenance Records</CardTitle>
           <CardDescription>
-            {data ? `${data.length} records` : 'Loading...'}
+            {isLoading ? 'Loading...' : `${filtered.length} record${filtered.length === 1 ? '' : 's'}`}
           </CardDescription>
         </CardHeader>
         <div className="overflow-x-auto scrollbar-thin">
@@ -203,24 +275,23 @@ export function MaintenanceView() {
                 Array.from({ length: 6 }).map((_, i) => (
                   <TableRow key={i}>
                     {Array.from({ length: 7 }).map((_, j) => (
-                      <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
+                      <TableCell key={j}><Skeleton className="h-5 w-full shimmer-bg" /></TableCell>
                     ))}
                   </TableRow>
                 ))
-              ) : !data || data.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-32 text-center">
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Wrench className="h-8 w-8" />
-                      <p>No maintenance records</p>
-                      <Button size="sm" onClick={() => { setEditing(null); setShowForm(true) }}>
-                        <Plus className="h-4 w-4 mr-1.5" /> Schedule first maintenance
-                      </Button>
-                    </div>
+                    <EmptyState
+                      icon={Wrench}
+                      title="No maintenance scheduled"
+                      description="Plan preventive maintenance to keep assets in top condition."
+                      action={{ label: 'Schedule Maintenance', onClick: () => { setEditing(null); setShowForm(true) }, icon: Plus }}
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
-                data.map((m) => {
+                filtered.map((m) => {
                   const cfg = MAINTENANCE_STATUS_CONFIG[m.status as keyof typeof MAINTENANCE_STATUS_CONFIG] || MAINTENANCE_STATUS_CONFIG.Scheduled
                   const isOverdue = m.status === 'Overdue' || (m.status === 'Scheduled' && new Date(m.scheduledFor) < new Date())
                   return (
@@ -282,6 +353,7 @@ export function MaintenanceView() {
           </Table>
         </div>
       </Card>
+      )}
 
       {/* Form dialog */}
       <MaintenanceFormDialog

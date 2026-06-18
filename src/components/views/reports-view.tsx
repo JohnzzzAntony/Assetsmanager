@@ -3,17 +3,37 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi, bookingsApi, tagsApi, exportApi, reportsApi } from '@/lib/api'
+import type { SavedReport, SavedReportConfig } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatCurrency } from '@/lib/format'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { formatCurrency, formatRelative } from '@/lib/format'
 import { STATUS_CONFIG, DISPOSAL_METHOD_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG, BOOKING_STATUSES } from '@/lib/types'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar, Legend,
 } from 'recharts'
-import { Download, TrendingUp, TrendingDown, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock, LineChart as LineChartIcon, RefreshCw, CalendarRange } from 'lucide-react'
+import { Download, TrendingUp, TrendingDown, DollarSign, Package, Wrench, AlertTriangle, Activity, Store, Trash2, ShoppingCart, Tag, CalendarClock, LineChart as LineChartIcon, RefreshCw, CalendarRange, Bookmark, ChevronDown, FileText, Inbox } from 'lucide-react'
 import { toast } from 'sonner'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -56,6 +76,25 @@ export function ReportsView() {
   const [customStart, setCustomStart] = useState<string>('')
   const [customEnd, setCustomEnd] = useState<string>('')
 
+  // ---- Saved Reports (Round 5) ----
+  // Tracks which saved report is currently "loaded" (for the badge next to the range badge).
+  // Cleared whenever the user manually changes the range / dates below.
+  const [loadedSavedId, setLoadedSavedId] = useState<string | null>(null)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [saveDesc, setSaveDesc] = useState('')
+  const [savingReport, setSavingReport] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const savedReportsQuery = useQuery({
+    queryKey: ['saved-reports'],
+    queryFn: () => reportsApi.savedList(),
+  })
+  const savedReports: SavedReport[] = savedReportsQuery.data?.data ?? []
+  const loadedSavedReport = loadedSavedId
+    ? savedReports.find((r) => r.id === loadedSavedId) ?? null
+    : null
+
   // Map the selected date range to a number of months for the cost-trend query
   const months = useMemo(() => {
     if (range === '30d') return 1
@@ -90,6 +129,12 @@ export function ReportsView() {
     queryFn: () => reportsApi.lifecycle(),
   })
 
+  // Year-over-year cost comparison (Round 5) — registered before early return to keep hook order stable
+  const { data: lifecycleYoY } = useQuery({
+    queryKey: ['lifecycle-yoy', 2],
+    queryFn: () => reportsApi.lifecycleYoY(2),
+  })
+
   function refreshAll() {
     qc.invalidateQueries()
     toast.success('Refreshing all reports...')
@@ -100,8 +145,85 @@ export function ReportsView() {
     toast.success('Exporting full asset report...')
   }
 
+  // ---- Saved Reports handlers (Round 5) ----
+  // When the user manually picks a new range / dates, clear the "loaded" indicator
+  // so the "Saved" badge disappears.
+  function handleManualRangeChange(v: string) {
+    setRange(v as typeof range)
+    setLoadedSavedId(null)
+  }
+  function handleManualCustomStart(v: string) {
+    setCustomStart(v)
+    setLoadedSavedId(null)
+  }
+  function handleManualCustomEnd(v: string) {
+    setCustomEnd(v)
+    setLoadedSavedId(null)
+  }
+
+  function openSaveDialog() {
+    setSaveName('')
+    setSaveDesc('')
+    setSaveDialogOpen(true)
+  }
+
+  async function submitSaveReport() {
+    const name = saveName.trim()
+    if (!name) {
+      toast.error('Please enter a name for the saved report.')
+      return
+    }
+    const config: SavedReportConfig = {
+      range,
+      customStart: customStart || null,
+      customEnd: customEnd || null,
+      months,
+    }
+    setSavingReport(true)
+    try {
+      const created = await reportsApi.savedCreate({
+        name,
+        description: saveDesc.trim() || undefined,
+        section: 'Reports & Analytics',
+        config,
+      })
+      await qc.invalidateQueries({ queryKey: ['saved-reports'] })
+      setLoadedSavedId(created.id)
+      setSaveDialogOpen(false)
+      toast.success(`Saved report "${created.name}"`)
+    } catch (err) {
+      toast.error('Failed to save report. ' + (err instanceof Error ? err.message : ''))
+    } finally {
+      setSavingReport(false)
+    }
+  }
+
+  function loadSavedReport(r: SavedReport) {
+    const cfg = r.config || {}
+    setRange((cfg.range as typeof range) || 'all')
+    setCustomStart(cfg.customStart || '')
+    setCustomEnd(cfg.customEnd || '')
+    setLoadedSavedId(r.id)
+    toast.success(`Loaded saved report: ${r.name}`)
+  }
+
+  async function deleteSavedReport(r: SavedReport) {
+    if (!window.confirm(`Delete saved report "${r.name}"? This cannot be undone.`)) return
+    setDeletingId(r.id)
+    try {
+      await reportsApi.savedDelete(r.id)
+      await qc.invalidateQueries({ queryKey: ['saved-reports'] })
+      if (loadedSavedId === r.id) setLoadedSavedId(null)
+      toast.success(`Deleted saved report "${r.name}"`)
+    } catch (err) {
+      toast.error('Failed to delete report. ' + (err instanceof Error ? err.message : ''))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   if (!stats) {
-    return <div className="h-64 shimmer rounded-lg" />
+    return <div className="h-64 shimmer shimmer-bg rounded-lg" />
   }
 
   // Build acquisition trend by month
@@ -143,6 +265,16 @@ export function ReportsView() {
           <h2 className="text-lg font-bold flex items-center gap-2">
             <Activity className="h-5 w-5" /> Reports & Analytics
             <Badge variant="secondary" className="text-xs font-normal">{rangeLabel}</Badge>
+            {loadedSavedReport && (
+              <Badge
+                variant="outline"
+                className="text-xs font-normal gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                title={loadedSavedReport.description || loadedSavedReport.name}
+              >
+                <Bookmark className="h-3 w-3" />
+                Saved: {loadedSavedReport.name}
+              </Badge>
+            )}
           </h2>
           <p className="text-sm text-muted-foreground">Insights and exportable reports</p>
         </div>
@@ -150,6 +282,85 @@ export function ReportsView() {
           <Button variant="outline" size="icon" onClick={refreshAll} title="Refresh reports">
             <RefreshCw className="h-4 w-4" />
           </Button>
+          {/* Saved Reports dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-1.5">
+                <Bookmark className="h-4 w-4" />
+                <span className="hidden sm:inline">Saved Reports</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="flex items-center gap-2 text-xs">
+                <Bookmark className="h-3.5 w-3.5" />
+                Saved Reports
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault()
+                  openSaveDialog()
+                }}
+                className="gap-2 cursor-pointer"
+              >
+                <FileText className="h-4 w-4 text-emerald-600" />
+                <span className="font-medium">Save Current View…</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {savedReports.length === 0 ? (
+                <div className="px-2 py-6 flex flex-col items-center gap-2 text-center text-xs text-muted-foreground">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+                    <Inbox className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <span>No saved reports yet</span>
+                  <span className="text-[10px] text-muted-foreground/80">
+                    Configure a date range, then “Save Current View…”
+                  </span>
+                </div>
+              ) : (
+                <div className="max-h-72 overflow-y-auto scrollbar-thin py-1">
+                  {savedReports.map((r) => (
+                    <div
+                      key={r.id}
+                      className="group flex items-center gap-1 rounded-sm px-1"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => loadSavedReport(r)}
+                        className="flex-1 min-w-0 text-left px-2 py-1.5 rounded-sm hover:bg-accent transition-colors"
+                        title={r.description || r.name}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Bookmark
+                            className={`h-3.5 w-3.5 shrink-0 ${loadedSavedId === r.id ? 'text-emerald-600' : 'text-muted-foreground'}`}
+                          />
+                          <span className="text-sm font-medium truncate">{r.name}</span>
+                        </div>
+                        <div className="pl-5 text-[10px] text-muted-foreground">
+                          Updated {formatRelative(r.updatedAt)}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (deletingId === r.id) return
+                          void deleteSavedReport(r)
+                        }}
+                        disabled={deletingId === r.id}
+                        className="shrink-0 p-1.5 rounded-sm text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                        title="Delete saved report"
+                        aria-label={`Delete ${r.name}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={exportFull} disabled={!assetsAll}>
             <Download className="h-4 w-4 mr-1.5" /> Export Full Report
           </Button>
@@ -163,7 +374,7 @@ export function ReportsView() {
             <CalendarRange className="h-4 w-4" />
             <span>Date Range:</span>
           </div>
-          <Select value={range} onValueChange={(v) => setRange(v as typeof range)}>
+          <Select value={range} onValueChange={handleManualRangeChange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select range" />
             </SelectTrigger>
@@ -181,7 +392,7 @@ export function ReportsView() {
                 type="date"
                 aria-label="Start date"
                 value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
+                onChange={(e) => handleManualCustomStart(e.target.value)}
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
               <span className="text-sm text-muted-foreground">to</span>
@@ -189,7 +400,7 @@ export function ReportsView() {
                 type="date"
                 aria-label="End date"
                 value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
+                onChange={(e) => handleManualCustomEnd(e.target.value)}
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
@@ -868,6 +1079,233 @@ export function ReportsView() {
         </Card>
       </div>
 
+      {/* Year-over-Year Cost Comparison */}
+      <div className="section-accent-bar mt-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold">
+          <TrendingUp className="h-5 w-5 text-violet-600" />
+          Year-over-Year Cost Comparison
+        </h3>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Purchase cost by asset type: current year vs previous year
+        </p>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* YoY Grouped Bar Chart */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4 text-violet-600" /> Cost by Asset Type (YoY)
+            </CardTitle>
+            <CardDescription>Current year vs previous year purchase cost</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!lifecycleYoY || lifecycleYoY.data.length === 0 ||
+             lifecycleYoY.data.every((p) => p.currentYear === 0 && p.previousYear === 0) ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">No YoY cost data</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={lifecycleYoY.data}
+                  margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+                  <XAxis dataKey="assetType" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: number) => fmtCompactCurrency(v)}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+                    formatter={(v: number) => formatCurrency(v)}
+                  />
+                  <Legend />
+                  <Bar dataKey="previousYear" name="Previous Year" fill="#64748b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="currentYear" name="Current Year" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* YoY Summary Table */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <DollarSign className="h-4 w-4 text-violet-600" /> YoY Summary by Type
+            </CardTitle>
+            <CardDescription>Per-type delta and percent change</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!lifecycleYoY || lifecycleYoY.data.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">No YoY cost data</p>
+            ) : (
+              <div className="scrollbar-thin max-h-80 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 z-10 bg-background">
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2 pr-2 font-medium">Asset Type</th>
+                      <th className="pb-2 pr-2 text-right font-medium">Previous Year</th>
+                      <th className="pb-2 pr-2 text-right font-medium">Current Year</th>
+                      <th className="pb-2 pr-2 text-right font-medium">Delta</th>
+                      <th className="pb-2 text-right font-medium">Delta %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lifecycleYoY.data.map((row) => {
+                      const isUp = row.delta > 0
+                      const isDown = row.delta < 0
+                      const deltaPctLabel =
+                        row.deltaPct === null
+                          ? '—'
+                          : `${row.deltaPct >= 0 ? '+' : ''}${(row.deltaPct * 100).toFixed(1)}%`
+                      return (
+                        <tr key={row.assetType} className="border-b last:border-0">
+                          <td className="py-1.5 pr-2 font-medium">{row.assetType}</td>
+                          <td className="py-1.5 pr-2 text-right tabular-nums text-muted-foreground">
+                            {formatCurrency(row.previousYear)}
+                          </td>
+                          <td className="py-1.5 pr-2 text-right tabular-nums">{formatCurrency(row.currentYear)}</td>
+                          <td
+                            className={`py-1.5 pr-2 text-right tabular-nums ${
+                              isUp ? 'tick-up' : isDown ? 'tick-down' : 'text-muted-foreground'
+                            }`}
+                          >
+                            <span className="inline-flex items-center justify-end gap-0.5">
+                              {isUp && <TrendingUp className="h-3 w-3" />}
+                              {isDown && <TrendingDown className="h-3 w-3" />}
+                              {formatCurrency(row.delta)}
+                            </span>
+                          </td>
+                          <td
+                            className={`py-1.5 text-right tabular-nums ${
+                              isUp ? 'tick-up' : isDown ? 'tick-down' : 'text-muted-foreground'
+                            }`}
+                          >
+                            {deltaPctLabel}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    <tr className="border-t-2 bg-muted/40 font-bold">
+                      <td className="py-2 pr-2">TOTAL</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">
+                        {formatCurrency(lifecycleYoY.totals.previousYear)}
+                      </td>
+                      <td className="py-2 pr-2 text-right tabular-nums">
+                        {formatCurrency(lifecycleYoY.totals.currentYear)}
+                      </td>
+                      <td
+                        className={`py-2 pr-2 text-right tabular-nums ${
+                          lifecycleYoY.totals.delta > 0
+                            ? 'tick-up'
+                            : lifecycleYoY.totals.delta < 0
+                            ? 'tick-down'
+                            : ''
+                        }`}
+                      >
+                        <span className="inline-flex items-center justify-end gap-0.5">
+                          {lifecycleYoY.totals.delta > 0 && <TrendingUp className="h-3 w-3" />}
+                          {lifecycleYoY.totals.delta < 0 && <TrendingDown className="h-3 w-3" />}
+                          {formatCurrency(lifecycleYoY.totals.delta)}
+                        </span>
+                      </td>
+                      <td
+                        className={`py-2 text-right tabular-nums ${
+                          lifecycleYoY.totals.delta > 0
+                            ? 'tick-up'
+                            : lifecycleYoY.totals.delta < 0
+                            ? 'tick-down'
+                            : ''
+                        }`}
+                      >
+                        {lifecycleYoY.totals.deltaPct === null
+                          ? '—'
+                          : `${lifecycleYoY.totals.deltaPct >= 0 ? '+' : ''}${(
+                              lifecycleYoY.totals.deltaPct * 100
+                            ).toFixed(1)}%`}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* YoY KPI tiles */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <Card className="border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Current Year Spend</p>
+                <p className="text-lg font-bold tabular-nums">
+                  {formatCurrency(lifecycleYoY?.totals.currentYear ?? 0)}
+                </p>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
+                <DollarSign className="h-4 w-4 text-violet-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4" style={{ borderLeftColor: '#64748b' }}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Previous Year Spend</p>
+                <p className="text-lg font-bold tabular-nums">
+                  {formatCurrency(lifecycleYoY?.totals.previousYear ?? 0)}
+                </p>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-500/10">
+                <DollarSign className="h-4 w-4 text-slate-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {(() => {
+          const delta = lifecycleYoY?.totals.delta ?? 0
+          const deltaPct = lifecycleYoY?.totals.deltaPct
+          const isUp = delta >= 0
+          return (
+            <Card className="border-l-4" style={{ borderLeftColor: isUp ? '#10b981' : '#f43f5e' }}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">YoY Change</p>
+                    <p className="text-lg font-bold tabular-nums">
+                      {isUp ? '+' : ''}
+                      {formatCurrency(delta)}
+                    </p>
+                    <p className={`text-[11px] ${isUp ? 'tick-up' : 'tick-down'}`}>
+                      {deltaPct === null || deltaPct === undefined
+                        ? '—'
+                        : `${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(1)}%`}
+                    </p>
+                  </div>
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      isUp ? 'bg-emerald-500/10' : 'bg-rose-500/10'
+                    }`}
+                  >
+                    {isUp ? (
+                      <TrendingUp className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-rose-600" />
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })()}
+      </div>
+
       {/* Detailed tables */}
       <Card>
         <CardHeader className="pb-2">
@@ -898,6 +1336,73 @@ export function ReportsView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Save Current View dialog (Round 5) */}
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bookmark className="h-4 w-4 text-emerald-600" />
+              Save Current View
+            </DialogTitle>
+            <DialogDescription>
+              Save the current date range configuration so you can return to it later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="sr-name">Name <span className="text-rose-500">*</span></Label>
+              <Input
+                id="sr-name"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="e.g. Q2 2026 IT budget review"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !savingReport) {
+                    e.preventDefault()
+                    void submitSaveReport()
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sr-desc">Description <span className="text-muted-foreground">(optional)</span></Label>
+              <Textarea
+                id="sr-desc"
+                value={saveDesc}
+                onChange={(e) => setSaveDesc(e.target.value)}
+                placeholder="What is this report for?"
+                rows={3}
+              />
+            </div>
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Snapshot:</span>{' '}
+              {rangeLabel}
+              {range === 'custom' && customStart && customEnd
+                ? ` · ${customStart} → ${customEnd}`
+                : ''}
+              {range !== 'all' ? ` · ${months} month${months === 1 ? '' : 's'}` : ' · 24 months max'}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setSaveDialogOpen(false)}
+              disabled={savingReport}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void submitSaveReport()}
+              disabled={savingReport || !saveName.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {savingReport ? 'Saving…' : 'Save Report'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

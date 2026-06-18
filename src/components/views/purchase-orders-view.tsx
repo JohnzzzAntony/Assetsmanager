@@ -236,6 +236,7 @@ export function PurchaseOrdersView() {
             <Download className="h-4 w-4 mr-1.5" /> Export CSV
           </Button>
           <Button
+            className="btn-press"
             onClick={() => {
               setEditingId(null)
               setShowForm(true)

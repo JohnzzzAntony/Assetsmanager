@@ -656,3 +656,190 @@
   transform: scaleY(1);
 }
 
+/* ============================================================
+   Round 5 — Additional styling utilities
+   ============================================================ */
+
+/* Shimmer background for loading skeletons */
+.shimmer-bg {
+  position: relative;
+  overflow: hidden;
+  background: oklch(0.94 0.005 240);
+}
+.shimmer-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(1 0 0 / 0.55) 50%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 1.6s infinite;
+}
+.dark .shimmer-bg {
+  background: oklch(0.28 0.01 240);
+}
+.dark .shimmer-bg::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(1 0 0 / 0.08) 50%,
+    transparent 100%
+  );
+}
+@keyframes shimmer-sweep {
+  100% { transform: translateX(100%); }
+}
+
+/* Press-down micro-interaction for buttons */
+.btn-press {
+  transition: transform 0.08s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.btn-press:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* Card hover lift — subtle translateY + shadow growth */
+.card-hover-lift {
+  transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+  will-change: transform;
+}
+.card-hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 14px 28px -12px oklch(0 0 0 / 0.18),
+    0 4px 8px -4px oklch(0 0 0 / 0.06);
+}
+.dark .card-hover-lift:hover {
+  box-shadow:
+    0 14px 28px -12px oklch(0 0 0 / 0.55),
+    0 4px 8px -4px oklch(0 0 0 / 0.3);
+}
+
+/* Glass card — translucent with backdrop blur */
+.glass-card {
+  background: oklch(1 0 0 / 0.7);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid oklch(1 0 0 / 0.4);
+}
+.dark .glass-card {
+  background: oklch(0.2 0.01 240 / 0.7);
+  border: 1px solid oklch(1 0 0 / 0.08);
+}
+
+/* Gradient text utilities */
+.gradient-text-emerald {
+  background: linear-gradient(135deg, oklch(0.7 0.15 162) 0%, oklch(0.55 0.13 200) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.gradient-text-violet {
+  background: linear-gradient(135deg, oklch(0.65 0.18 295) 0%, oklch(0.55 0.2 350) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* App background gradient — very subtle layered radial gradients */
+.app-bg-gradient {
+  background-image:
+    radial-gradient(at 8% 0%, oklch(0.95 0.02 250 / 0.6) 0px, transparent 50%),
+    radial-gradient(at 92% 4%, oklch(0.95 0.025 180 / 0.5) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, oklch(0.96 0.015 300 / 0.45) 0px, transparent 60%);
+  background-attachment: fixed;
+}
+.dark .app-bg-gradient {
+  background-image:
+    radial-gradient(at 8% 0%, oklch(0.25 0.03 250 / 0.55) 0px, transparent 50%),
+    radial-gradient(at 92% 4%, oklch(0.25 0.04 180 / 0.45) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, oklch(0.25 0.03 300 / 0.4) 0px, transparent 60%);
+}
+
+/* Empty-state icon container — gradient ring + soft glow */
+.empty-state-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, oklch(0.95 0.015 240), oklch(0.97 0.01 280));
+  box-shadow:
+    0 0 0 6px oklch(0.97 0.005 240),
+    0 8px 24px -8px oklch(0 0 0 / 0.12);
+}
+.dark .empty-state-icon {
+  background: linear-gradient(135deg, oklch(0.3 0.02 240), oklch(0.32 0.02 280));
+  box-shadow:
+    0 0 0 6px oklch(0.22 0.01 240),
+    0 8px 24px -8px oklch(0 0 0 / 0.5);
+}
+
+/* Pop-in entrance animation (for dialogs, cards appearing) */
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.94); }
+  60% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in {
+  animation: pop-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Soft pulse glow for badges / status indicators */
+@keyframes soft-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.7 0.15 162 / 0.6); }
+  50% { box-shadow: 0 0 0 6px oklch(0.7 0.15 162 / 0); }
+}
+.pulse-glow {
+  animation: soft-pulse-glow 2.4s ease-out infinite;
+}
+
+/* Conflict ring — for bookings calendar conflict visualization */
+.conflict-ring {
+  box-shadow:
+    0 0 0 2px oklch(0.65 0.22 25),
+    0 0 0 4px oklch(0.65 0.22 25 / 0.25);
+}
+
+/* Number tick — animated counting style for KPI deltas */
+.tick-up {
+  color: oklch(0.65 0.18 162);
+}
+.tick-down {
+  color: oklch(0.65 0.22 25);
+}
+
+/* Subtle divider with gradient fade */
+.gradient-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, oklch(0.85 0.005 240) 20%, oklch(0.85 0.005 240) 80%, transparent);
+}
+.dark .gradient-divider {
+  background: linear-gradient(to right, transparent, oklch(0.35 0.01 240) 20%, oklch(0.35 0.01 240) 80%, transparent);
+}
+
+/* Section header with left accent bar */
+.section-accent-bar {
+  position: relative;
+  padding-left: 0.75rem;
+}
+.section-accent-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  width: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(to bottom, oklch(0.55 0.18 295), oklch(0.6 0.18 162));
+}
+
+

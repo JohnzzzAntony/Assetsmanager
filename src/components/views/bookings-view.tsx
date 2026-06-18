@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/empty-state'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -439,19 +440,19 @@ function BookingCardSkeleton() {
       <CardContent className="p-4 pl-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
           <div className="flex-1 space-y-2">
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="h-3 w-1/2" />
-            <Skeleton className="h-5 w-40 rounded-md" />
+            <Skeleton className="h-5 w-2/3 shimmer-bg" />
+            <Skeleton className="h-3 w-1/2 shimmer-bg" />
+            <Skeleton className="h-5 w-40 rounded-md shimmer-bg" />
           </div>
           <div className="flex items-center gap-4">
-            <Skeleton className="h-8 w-8 rounded-full" />
+            <Skeleton className="h-8 w-8 rounded-full shimmer-bg" />
             <div className="space-y-1.5">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20 shimmer-bg" />
+              <Skeleton className="h-4 w-32 shimmer-bg" />
             </div>
           </div>
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-8 w-8 rounded-md" />
+          <Skeleton className="h-6 w-24 shimmer-bg" />
+          <Skeleton className="h-8 w-8 rounded-md shimmer-bg" />
         </div>
       </CardContent>
     </Card>
@@ -459,29 +460,8 @@ function BookingCardSkeleton() {
 }
 
 // ============================================================
-// Empty State
+// Empty State — uses shared <EmptyState /> component
 // ============================================================
-
-function EmptyState({ onCreate }: { onCreate: () => void }) {
-  return (
-    <Card className="bg-dot-pattern border-dashed border-2">
-      <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-500/10 border border-sky-500/20">
-          <CalendarClock className="h-7 w-7 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div>
-          <h3 className="text-base font-semibold">No bookings yet</h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-            Reserve a shared asset — like a laptop, projector, or camera — for an upcoming event, trip, or meeting.
-          </p>
-        </div>
-        <Button onClick={onCreate}>
-          <Plus className="h-4 w-4 mr-1.5" /> Create First Booking
-        </Button>
-      </CardContent>
-    </Card>
-  )
-}
 
 // ============================================================
 // Booking Form Dialog (create + edit)
@@ -1018,6 +998,7 @@ export function BookingsView() {
             <Download className="h-4 w-4 mr-1.5" /> Export CSV
           </Button>
           <Button
+            className="btn-press"
             onClick={() => {
               setEditing(null)
               setFormOpen(true)
@@ -1149,12 +1130,16 @@ export function BookingsView() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <EmptyState
-              onCreate={() => {
-                setEditing(null)
-                setFormOpen(true)
-              }}
-            />
+            <Card className="bg-dot-pattern border-dashed border-2">
+              <CardContent className="py-6">
+                <EmptyState
+                  icon={CalendarDays}
+                  title="No bookings yet"
+                  description="Schedule asset bookings for events, travel, or temporary use."
+                  action={{ label: 'New Booking', onClick: () => { setEditing(null); setFormOpen(true) }, icon: Plus }}
+                />
+              </CardContent>
+            </Card>
           ) : (
             <div
               key={tab}

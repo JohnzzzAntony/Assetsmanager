@@ -81,7 +81,7 @@ function StatCard({
 }) {
   return (
     <Card
-      className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift"
+      className="card-hover card-hover-lift group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift"
       style={{ borderLeftColor: color }}
       onClick={onClick}
     >
@@ -125,7 +125,7 @@ function QuickActionCard({
   return (
     <button
       onClick={onClick}
-      className="card-hover hover-lift group flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left relative overflow-hidden"
+      className="card-hover card-hover-lift hover-lift group flex flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left relative overflow-hidden"
     >
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{ background: `linear-gradient(135deg, ${color}10, transparent 70%)` }} />
       <div
@@ -165,7 +165,7 @@ export function DashboardView() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
           <Card key={i} className="h-32">
-            <CardContent className="h-full shimmer rounded-lg" />
+            <CardContent className="h-full shimmer shimmer-bg rounded-lg" />
           </Card>
         ))}
       </div>

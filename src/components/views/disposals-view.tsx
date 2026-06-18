@@ -211,7 +211,7 @@ export function DisposalsView() {
           <Button variant="outline" onClick={() => exportApi.download(exportApi.disposals())}>
             <Download className="h-4 w-4 mr-1.5" /> Export CSV
           </Button>
-          <Button onClick={() => { setEditingId(null); setShowForm(true) }}>
+          <Button className="btn-press" onClick={() => { setEditingId(null); setShowForm(true) }}>
             <Plus className="h-4 w-4 mr-1.5" /> Record Disposal
           </Button>
         </div>

@@ -453,7 +453,80 @@ export interface CostTrendPoint {
   disposal: number
 }
 
+// ---- Round 5: Saved reports ----
+export interface SavedReportConfig {
+  range?: 'all' | '30d' | '90d' | '365d' | 'custom'
+  customStart?: string | null
+  customEnd?: string | null
+  months?: number
+  filters?: Record<string, unknown>
+}
+export interface SavedReport {
+  id: string
+  name: string
+  description?: string | null
+  section?: string | null
+  config: SavedReportConfig
+  createdBy?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// ---- Round 5: Vendor performance ----
+export interface VendorPerformance {
+  vendorId: string
+  vendorName: string
+  category?: string | null
+  rating: number
+  isActive: boolean
+  totalPOs: number
+  activePOs: number
+  completedPOs: number
+  cancelledPOs: number
+  totalSpent: number
+  avgDeliveryDays: number | null
+  onTimeRate: number
+  lateDeliveries: number
+}
+export interface VendorPerformanceReport {
+  data: VendorPerformance[]
+  totals: {
+    vendorCount: number
+    activeVendors: number
+    totalSpent: number
+    totalPOs: number
+    avgOnTimeRate: number
+    avgRating: number
+  }
+}
+
+// ---- Round 5: Lifecycle YoY ----
+export interface LifecycleYoYPoint {
+  assetType: string
+  currentYear: number
+  previousYear: number
+  delta: number
+  deltaPct: number | null
+}
+export interface LifecycleYoYReport {
+  data: LifecycleYoYPoint[]
+  totals: {
+    currentYear: number
+    previousYear: number
+    delta: number
+    deltaPct: number | null
+  }
+}
+
 export const reportsApi = {
   lifecycle: () => request<LifecycleCostReport>('/api/reports/lifecycle'),
   costTrend: (months = 12) => request<{ data: CostTrendPoint[] }>(`/api/reports/cost-trend?months=${months}`),
+  // Round 5 additions
+  savedList: () => request<{ data: SavedReport[] }>(`/api/reports/saved`),
+  savedCreate: (payload: { name: string; description?: string; section?: string; config?: SavedReportConfig }) =>
+    request<SavedReport>('/api/reports/saved', { method: 'POST', body: JSON.stringify(payload) }),
+  savedDelete: (id: string) =>
+    request<{ success: boolean }>(`/api/reports/saved/${id}`, { method: 'DELETE' }),
+  vendorPerformance: () => request<VendorPerformanceReport>('/api/reports/vendor-performance'),
+  lifecycleYoY: (years = 2) => request<LifecycleYoYReport>(`/api/reports/lifecycle-yoy?years=${years}`),
 }

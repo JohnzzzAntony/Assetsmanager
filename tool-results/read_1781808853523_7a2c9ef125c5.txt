@@ -1,0 +1,737 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo } from 'react'
+     4→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     5→import { vendorsApi, exportApi } from '@/lib/api'
+     6→import { VENDOR_CATEGORIES } from '@/lib/types'
+     7→import type { Vendor } from '@/lib/types'
+     8→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     9→import { Button } from '@/components/ui/button'
+    10→import { Input } from '@/components/ui/input'
+    11→import { Label } from '@/components/ui/label'
+    12→import { Badge } from '@/components/ui/badge'
+    13→import { Textarea } from '@/components/ui/textarea'
+    14→import { Switch } from '@/components/ui/switch'
+    15→import { Skeleton } from '@/components/ui/skeleton'
+    16→import {
+    17→  Select,
+    18→  SelectContent,
+    19→  SelectItem,
+    20→  SelectTrigger,
+    21→  SelectValue,
+    22→} from '@/components/ui/select'
+    23→import {
+    24→  Dialog,
+    25→  DialogContent,
+    26→  DialogDescription,
+    27→  DialogFooter,
+    28→  DialogHeader,
+    29→  DialogTitle,
+    30→} from '@/components/ui/dialog'
+    31→import {
+    32→  Table,
+    33→  TableBody,
+    34→  TableCell,
+    35→  TableHead,
+    36→  TableHeader,
+    37→  TableRow,
+    38→} from '@/components/ui/table'
+    39→import { formatCurrency, formatDate } from '@/lib/format'
+    40→import {
+    41→  Store,
+    42→  CheckCircle2,
+    43→  DollarSign,
+    44→  Star,
+    45→  Plus,
+    46→  Pencil,
+    47→  Trash2,
+    48→  Search,
+    49→  Mail,
+    50→  Phone,
+    51→  Globe,
+    52→  ShoppingCart,
+    53→  Download,
+    54→} from 'lucide-react'
+    55→import { toast } from 'sonner'
+    56→
+    57→// ---- Stat tile ----
+    58→interface StatTileProps {
+    59→  label: string
+    60→  value: string | number
+    61→  icon: React.ComponentType<{ className?: string }>
+    62→  color: string
+    63→  hint?: string
+    64→}
+    65→
+    66→function StatTile({ label, value, icon: Icon, color, hint }: StatTileProps) {
+    67→  return (
+    68→    <Card className="card-hover overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
+    69→      <CardContent className="p-4">
+    70→        <div className="flex items-center justify-between gap-3">
+    71→          <div className="min-w-0">
+    72→            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    73→              {label}
+    74→            </p>
+    75→            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+    76→            {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
+    77→          </div>
+    78→          <div
+    79→            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+    80→            style={{ backgroundColor: `${color}1a` }}
+    81→          >
+    82→            <Icon className="h-5 w-5" style={{ color }} />
+    83→          </div>
+    84→        </div>
+    85→      </CardContent>
+    86→    </Card>
+    87→  )
+    88→}
+    89→
+    90→// ---- Star rating ----
+    91→function StarRating({ value, size = 'h-3.5 w-3.5' }: { value: number; size?: string }) {
+    92→  return (
+    93→    <div className="flex items-center gap-0.5" aria-label={`Rating: ${value} of 5`}>
+    94→      {Array.from({ length: 5 }).map((_, i) => (
+    95→        <Star
+    96→          key={i}
+    97→          className={`${size} ${
+    98→            i < value
+    99→              ? 'fill-amber-400 text-amber-400'
+   100→              : 'text-muted-foreground/30'
+   101→          }`}
+   102→        />
+   103→      ))}
+   104→    </div>
+   105→  )
+   106→}
+   107→
+   108→// ---- Main view ----
+   109→export function VendorsView() {
+   110→  const qc = useQueryClient()
+   111→  const [search, setSearch] = useState('')
+   112→  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+   113→  const [showInactive, setShowInactive] = useState(false)
+   114→  const [showForm, setShowForm] = useState(false)
+   115→  const [editingId, setEditingId] = useState<string | null>(null)
+   116→  const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null)
+   117→
+   118→  const { data: vendors, isLoading } = useQuery({
+   119→    queryKey: ['vendors'],
+   120→    queryFn: () => vendorsApi.list(),
+   121→  })
+   122→
+   123→  // ---- Derived stats ----
+   124→  const stats = useMemo(() => {
+   125→    const list = vendors ?? []
+   126→    const total = list.length
+   127→    const active = list.filter((v) => v.isActive).length
+   128→    const totalSpent = list.reduce((sum, v) => sum + (v._sum?.totalSpent ?? 0), 0)
+   129→    const rated = list.filter((v) => v.rating > 0)
+   130→    const avgRating = rated.length
+   131→      ? rated.reduce((sum, v) => sum + v.rating, 0) / rated.length
+   132→      : 0
+   133→    return { total, active, totalSpent, avgRating }
+   134→  }, [vendors])
+   135→
+   136→  // ---- Filtering ----
+   137→  const filtered = useMemo(() => {
+   138→    if (!vendors) return []
+   139→    return vendors.filter((v) => {
+   140→      if (!showInactive && !v.isActive) return false
+   141→      if (categoryFilter !== 'all' && v.category !== categoryFilter) return false
+   142→      if (search) {
+   143→        const s = search.toLowerCase()
+   144→        const matches =
+   145→          v.name.toLowerCase().includes(s) ||
+   146→          (v.contactPerson || '').toLowerCase().includes(s) ||
+   147→          (v.email || '').toLowerCase().includes(s) ||
+   148→          (v.phone || '').toLowerCase().includes(s)
+   149→        if (!matches) return false
+   150→      }
+   151→      return true
+   152→    })
+   153→  }, [vendors, search, categoryFilter, showInactive])
+   154→
+   155→  function openNew() {
+   156→    setEditingId(null)
+   157→    setShowForm(true)
+   158→  }
+   159→
+   160→  function openEdit(id: string) {
+   161→    setEditingId(id)
+   162→    setShowForm(true)
+   163→  }
+   164→
+   165→  async function handleDelete() {
+   166→    if (!deleteTarget) return
+   167→    try {
+   168→      await vendorsApi.delete(deleteTarget.id)
+   169→      toast.success(`Vendor "${deleteTarget.name}" deleted`)
+   170→      qc.invalidateQueries({ queryKey: ['vendors'] })
+   171→      setDeleteTarget(null)
+   172→    } catch (e) {
+   173→      toast.error('Delete failed: ' + String(e))
+   174→    }
+   175→  }
+   176→
+   177→  return (
+   178→    <div className="space-y-5 animate-fade-in-up">
+   179→      {/* Header */}
+   180→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   181→        <div>
+   182→          <h2 className="text-xl font-bold tracking-tight">Vendors &amp; Suppliers</h2>
+   183→          <p className="text-sm text-muted-foreground">
+   184→            Manage vendor relationships, payment terms, ratings, and procurement spend.
+   185→          </p>
+   186→        </div>
+   187→        <div className="flex gap-2">
+   188→          <Button variant="outline" onClick={() => exportApi.download(exportApi.vendors())}>
+   189→            <Download className="mr-1.5 h-4 w-4" /> Export CSV
+   190→          </Button>
+   191→          <Button onClick={openNew}>
+   192→            <Plus className="mr-1.5 h-4 w-4" /> Add Vendor
+   193→          </Button>
+   194→        </div>
+   195→      </div>
+   196→
+   197→      {/* Stat tiles */}
+   198→      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+   199→        <StatTile
+   200→          label="Total Vendors"
+   201→          value={stats.total}
+   202→          icon={Store}
+   203→          color="#8b5cf6"
+   204→          hint="Registered suppliers"
+   205→        />
+   206→        <StatTile
+   207→          label="Active Vendors"
+   208→          value={stats.active}
+   209→          icon={CheckCircle2}
+   210→          color="#10b981"
+   211→          hint={`${stats.total - stats.active} inactive`}
+   212→        />
+   213→        <StatTile
+   214→          label="Total Spent"
+   215→          value={formatCurrency(stats.totalSpent)}
+   216→          icon={DollarSign}
+   217→          color="#0ea5e9"
+   218→          hint="Across all POs"
+   219→        />
+   220→        <StatTile
+   221→          label="Avg Rating"
+   222→          value={stats.avgRating.toFixed(1)}
+   223→          icon={Star}
+   224→          color="#f59e0b"
+   225→          hint="Out of 5.0"
+   226→        />
+   227→      </div>
+   228→
+   229→      {/* Search + filter bar */}
+   230→      <Card>
+   231→        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+   232→          <div className="flex-1 space-y-1.5">
+   233→            <Label className="text-xs">Search</Label>
+   234→            <div className="relative">
+   235→              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+   236→              <Input
+   237→                placeholder="Search by name, contact, email, or phone..."
+   238→                value={search}
+   239→                onChange={(e) => setSearch(e.target.value)}
+   240→                className="h-9 pl-8"
+   241→              />
+   242→            </div>
+   243→          </div>
+   244→          <div className="flex-1 space-y-1.5">
+   245→            <Label className="text-xs">Category</Label>
+   246→            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+   247→              <SelectTrigger className="h-9">
+   248→                <SelectValue />
+   249→              </SelectTrigger>
+   250→              <SelectContent>
+   251→                <SelectItem value="all">All Categories</SelectItem>
+   252→                {VENDOR_CATEGORIES.map((c) => (
+   253→                  <SelectItem key={c} value={c}>
+   254→                    {c}
+   255→                  </SelectItem>
+   256→                ))}
+   257→              </SelectContent>
+   258→            </Select>
+   259→          </div>
+   260→          <div className="flex items-center gap-2 pb-0.5">
+   261→            <Switch
+   262→              id="show-inactive"
+   263→              checked={showInactive}
+   264→              onCheckedChange={setShowInactive}
+   265→            />
+   266→            <Label htmlFor="show-inactive" className="cursor-pointer text-xs">
+   267→              Show inactive
+   268→            </Label>
+   269→          </div>
+   270→        </CardContent>
+   271→      </Card>
+   272→
+   273→      {/* Vendors table */}
+   274→      <Card>
+   275→        <CardHeader className="pb-2">
+   276→          <CardTitle className="text-base">All Vendors</CardTitle>
+   277→          <CardDescription>
+   278→            {filtered.length} of {vendors?.length ?? 0} vendors
+   279→          </CardDescription>
+   280→        </CardHeader>
+   281→        <div className="overflow-x-auto scrollbar-thin">
+   282→          <Table>
+   283→            <TableHeader>
+   284→              <TableRow>
+   285→                <TableHead>Name</TableHead>
+   286→                <TableHead>Contact Person</TableHead>
+   287→                <TableHead>Category</TableHead>
+   288→                <TableHead>Payment Terms</TableHead>
+   289→                <TableHead>Rating</TableHead>
+   290→                <TableHead className="text-center">POs</TableHead>
+   291→                <TableHead className="text-right">Total Spent</TableHead>
+   292→                <TableHead>Status</TableHead>
+   293→                <TableHead className="text-right">Actions</TableHead>
+   294→              </TableRow>
+   295→            </TableHeader>
+   296→            <TableBody>
+   297→              {isLoading ? (
+   298→                Array.from({ length: 5 }).map((_, i) => (
+   299→                  <TableRow key={i}>
+   300→                    {Array.from({ length: 9 }).map((__, j) => (
+   301→                      <TableCell key={j}>
+   302→                        <Skeleton className="h-5 w-full" />
+   303→                      </TableCell>
+   304→                    ))}
+   305→                  </TableRow>
+   306→                ))
+   307→              ) : filtered.length === 0 ? (
+   308→                <TableRow>
+   309→                  <TableCell colSpan={9} className="h-32 text-center">
+   310→                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+   311→                      <Store className="h-8 w-8" />
+   312→                      <p className="font-medium">No vendors found</p>
+   313→                      <p className="text-xs">
+   314→                        Try adjusting your filters, or add a new vendor to get started.
+   315→                      </p>
+   316→                      <Button size="sm" variant="outline" className="mt-1" onClick={openNew}>
+   317→                        <Plus className="mr-1.5 h-4 w-4" /> Add your first vendor
+   318→                      </Button>
+   319→                    </div>
+   320→                  </TableCell>
+   321→                </TableRow>
+   322→              ) : (
+   323→                filtered.map((v) => (
+   324→                  <TableRow
+   325→                    key={v.id}
+   326→                    className="cursor-pointer hover:bg-muted/40"
+   327→                    onClick={() => openEdit(v.id)}
+   328→                  >
+   329→                    <TableCell>
+   330→                      <div className="flex items-center gap-2">
+   331→                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10">
+   332→                          <Store className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+   333→                        </div>
+   334→                        <div className="min-w-0">
+   335→                          <div className="font-medium leading-tight">{v.name}</div>
+   336→                          {v.website && (
+   337→                            <a
+   338→                              href={v.website}
+   339→                              target="_blank"
+   340→                              rel="noopener noreferrer"
+   341→                              onClick={(e) => e.stopPropagation()}
+   342→                              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary"
+   343→                            >
+   344→                              <Globe className="h-2.5 w-2.5" />
+   345→                              {v.website.replace(/^https?:\/\//, '')}
+   346→                            </a>
+   347→                          )}
+   348→                        </div>
+   349→                      </div>
+   350→                    </TableCell>
+   351→                    <TableCell>
+   352→                      {v.contactPerson ? (
+   353→                        <div className="flex flex-col text-xs">
+   354→                          <span className="font-medium text-foreground">{v.contactPerson}</span>
+   355→                          <div className="mt-0.5 flex flex-col gap-0.5 text-muted-foreground">
+   356→                            {v.email && (
+   357→                              <span className="flex items-center gap-1">
+   358→                                <Mail className="h-2.5 w-2.5" />
+   359→                                {v.email}
+   360→                              </span>
+   361→                            )}
+   362→                            {v.phone && (
+   363→                              <span className="flex items-center gap-1">
+   364→                                <Phone className="h-2.5 w-2.5" />
+   365→                                {v.phone}
+   366→                              </span>
+   367→                            )}
+   368→                          </div>
+   369→                        </div>
+   370→                      ) : (
+   371→                        <span className="text-xs text-muted-foreground">—</span>
+   372→                      )}
+   373→                    </TableCell>
+   374→                    <TableCell>
+   375→                      {v.category ? (
+   376→                        <Badge variant="outline" className="text-[11px]">
+   377→                          {v.category}
+   378→                        </Badge>
+   379→                      ) : (
+   380→                        <span className="text-xs text-muted-foreground">—</span>
+   381→                      )}
+   382→                    </TableCell>
+   383→                    <TableCell className="text-xs">
+   384→                      {v.paymentTerms || <span className="text-muted-foreground">—</span>}
+   385→                    </TableCell>
+   386→                    <TableCell>
+   387→                      <StarRating value={v.rating} />
+   388→                    </TableCell>
+   389→                    <TableCell className="text-center">
+   390→                      <span className="inline-flex items-center gap-1 text-sm tabular-nums">
+   391→                        <ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" />
+   392→                        {v._count?.purchaseOrders ?? 0}
+   393→                      </span>
+   394→                    </TableCell>
+   395→                    <TableCell className="text-right tabular-nums">
+   396→                      {v._sum?.totalSpent
+   397→                        ? formatCurrency(v._sum.totalSpent)
+   398→                        : <span className="text-muted-foreground">—</span>}
+   399→                    </TableCell>
+   400→                    <TableCell>
+   401→                      {v.isActive ? (
+   402→                        <Badge
+   403→                          variant="outline"
+   404→                          className="border-0 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400"
+   405→                        >
+   406→                          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   407→                          Active
+   408→                        </Badge>
+   409→                      ) : (
+   410→                        <Badge
+   411→                          variant="outline"
+   412→                          className="border-0 bg-slate-500/10 text-[11px] text-slate-600 dark:text-slate-400"
+   413→                        >
+   414→                          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-slate-400" />
+   415→                          Inactive
+   416→                        </Badge>
+   417→                      )}
+   418→                    </TableCell>
+   419→                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+   420→                      <div className="flex items-center justify-end gap-1">
+   421→                        <Button
+   422→                          size="icon"
+   423→                          variant="ghost"
+   424→                          className="h-7 w-7"
+   425→                          onClick={() => openEdit(v.id)}
+   426→                          aria-label={`Edit ${v.name}`}
+   427→                        >
+   428→                          <Pencil className="h-3.5 w-3.5" />
+   429→                        </Button>
+   430→                        <Button
+   431→                          size="icon"
+   432→                          variant="ghost"
+   433→                          className="h-7 w-7 text-destructive"
+   434→                          onClick={() => setDeleteTarget(v)}
+   435→                          aria-label={`Delete ${v.name}`}
+   436→                        >
+   437→                          <Trash2 className="h-3.5 w-3.5" />
+   438→                        </Button>
+   439→                      </div>
+   440→                    </TableCell>
+   441→                  </TableRow>
+   442→                ))
+   443→              )}
+   444→            </TableBody>
+   445→          </Table>
+   446→        </div>
+   447→      </Card>
+   448→
+   449→      {/* Add/Edit dialog */}
+   450→      <VendorFormDialog
+   451→        open={showForm}
+   452→        onOpenChange={setShowForm}
+   453→        editingId={editingId}
+   454→      />
+   455→
+   456→      {/* Delete confirmation */}
+   457→      <Dialog
+   458→        open={!!deleteTarget}
+   459→        onOpenChange={(v) => !v && setDeleteTarget(null)}
+   460→      >
+   461→        <DialogContent className="max-w-sm">
+   462→          <DialogHeader>
+   463→            <DialogTitle>Delete Vendor</DialogTitle>
+   464→            <DialogDescription>
+   465→              Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+   466→              This action cannot be undone.
+   467→            </DialogDescription>
+   468→          </DialogHeader>
+   469→          {deleteTarget && (deleteTarget._count?.purchaseOrders ?? 0) > 0 && (
+   470→            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+   471→              This vendor has <strong>{deleteTarget._count?.purchaseOrders}</strong> associated
+   472→              purchase order(s). Deletion may affect historical reporting.
+   473→            </div>
+   474→          )}
+   475→          <DialogFooter>
+   476→            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+   477→              Cancel
+   478→            </Button>
+   479→            <Button variant="destructive" onClick={handleDelete}>
+   480→              <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+   481→            </Button>
+   482→          </DialogFooter>
+   483→        </DialogContent>
+   484→      </Dialog>
+   485→    </div>
+   486→  )
+   487→}
+   488→
+   489→// ---- Form dialog ----
+   490→interface VendorFormDialogProps {
+   491→  open: boolean
+   492→  onOpenChange: (v: boolean) => void
+   493→  editingId: string | null
+   494→}
+   495→
+   496→function VendorFormDialog({ open, onOpenChange, editingId }: VendorFormDialogProps) {
+   497→  const qc = useQueryClient()
+   498→  const { data: vendors } = useQuery({
+   499→    queryKey: ['vendors'],
+   500→    queryFn: () => vendorsApi.list(),
+   501→  })
+   502→  const editing = vendors?.find((v) => v.id === editingId)
+   503→
+   504→  const [form, setForm] = useState<Record<string, unknown>>({})
+   505→  const [saving, setSaving] = useState(false)
+   506→
+   507→  // Initialize form whenever dialog opens or editing target changes
+   508→  useMemo(() => {
+   509→    if (open) {
+   510→      setForm({
+   511→        name: editing?.name || '',
+   512→        category: editing?.category || 'Hardware',
+   513→        contactPerson: editing?.contactPerson || '',
+   514→        email: editing?.email || '',
+   515→        phone: editing?.phone || '',
+   516→        website: editing?.website || '',
+   517→        address: editing?.address || '',
+   518→        taxId: editing?.taxId || '',
+   519→        paymentTerms: editing?.paymentTerms || '',
+   520→        rating: editing?.rating ?? 3,
+   521→        isActive: editing?.isActive ?? true,
+   522→        notes: editing?.notes || '',
+   523→      })
+   524→    }
+   525→  }, [open, editing])
+   526→
+   527→  function setField(key: string, value: unknown) {
+   528→    setForm((prev) => ({ ...prev, [key]: value }))
+   529→  }
+   530→
+   531→  async function save() {
+   532→    if (!String(form.name || '').trim()) {
+   533→      toast.error('Name is required')
+   534→      return
+   535→    }
+   536→    setSaving(true)
+   537→    try {
+   538→      const payload = {
+   539→        name: String(form.name).trim(),
+   540→        category: String(form.category || 'Other'),
+   541→        contactPerson: form.contactPerson ? String(form.contactPerson).trim() : null,
+   542→        email: form.email ? String(form.email).trim() : null,
+   543→        phone: form.phone ? String(form.phone).trim() : null,
+   544→        website: form.website ? String(form.website).trim() : null,
+   545→        address: form.address ? String(form.address).trim() : null,
+   546→        taxId: form.taxId ? String(form.taxId).trim() : null,
+   547→        paymentTerms: form.paymentTerms ? String(form.paymentTerms).trim() : null,
+   548→        rating: Number(form.rating) || 0,
+   549→        isActive: Boolean(form.isActive),
+   550→        notes: form.notes ? String(form.notes).trim() : null,
+   551→      }
+   552→      if (editingId) {
+   553→        await vendorsApi.update(editingId, payload)
+   554→        toast.success('Vendor updated')
+   555→      } else {
+   556→        await vendorsApi.create(payload)
+   557→        toast.success('Vendor created')
+   558→      }
+   559→      qc.invalidateQueries({ queryKey: ['vendors'] })
+   560→      onOpenChange(false)
+   561→    } catch (e) {
+   562→      toast.error('Save failed: ' + String(e))
+   563→    } finally {
+   564→      setSaving(false)
+   565→    }
+   566→  }
+   567→
+   568→  return (
+   569→    <Dialog open={open} onOpenChange={onOpenChange}>
+   570→      <DialogContent className="max-w-2xl">
+   571→        <DialogHeader>
+   572→          <DialogTitle>{editingId ? 'Edit Vendor' : 'Add Vendor'}</DialogTitle>
+   573→          <DialogDescription>
+   574→            {editingId
+   575→              ? 'Update vendor information and contact details.'
+   576→              : 'Register a new vendor or supplier in your directory.'}
+   577→          </DialogDescription>
+   578→        </DialogHeader>
+   579→        <div className="max-h-[60vh] space-y-3 overflow-y-auto scrollbar-thin pr-1">
+   580→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   581→            <div className="space-y-1.5 sm:col-span-2">
+   582→              <Label className="text-xs">Name *</Label>
+   583→              <Input
+   584→                value={String(form.name || '')}
+   585→                onChange={(e) => setField('name', e.target.value)}
+   586→                placeholder="e.g., Dell Technologies, CDW, Insight"
+   587→              />
+   588→            </div>
+   589→            <div className="space-y-1.5">
+   590→              <Label className="text-xs">Category</Label>
+   591→              <Select
+   592→                value={String(form.category || 'Hardware')}
+   593→                onValueChange={(v) => setField('category', v)}
+   594→              >
+   595→                <SelectTrigger>
+   596→                  <SelectValue />
+   597→                </SelectTrigger>
+   598→                <SelectContent>
+   599→                  {VENDOR_CATEGORIES.map((c) => (
+   600→                    <SelectItem key={c} value={c}>
+   601→                      {c}
+   602→                    </SelectItem>
+   603→                  ))}
+   604→                </SelectContent>
+   605→              </Select>
+   606→            </div>
+   607→            <div className="space-y-1.5">
+   608→              <Label className="text-xs">Payment Terms</Label>
+   609→              <Input
+   610→                value={String(form.paymentTerms || '')}
+   611→                onChange={(e) => setField('paymentTerms', e.target.value)}
+   612→                placeholder="Net 30, Net 60, COD..."
+   613→              />
+   614→            </div>
+   615→          </div>
+   616→
+   617→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   618→            <div className="space-y-1.5">
+   619→              <Label className="text-xs">Contact Person</Label>
+   620→              <Input
+   621→                value={String(form.contactPerson || '')}
+   622→                onChange={(e) => setField('contactPerson', e.target.value)}
+   623→                placeholder="Account manager name"
+   624→              />
+   625→            </div>
+   626→            <div className="space-y-1.5">
+   627→              <Label className="text-xs">Tax ID</Label>
+   628→              <Input
+   629→                value={String(form.taxId || '')}
+   630→                onChange={(e) => setField('taxId', e.target.value)}
+   631→                placeholder="EIN / VAT / GST number"
+   632→                className="font-mono"
+   633→              />
+   634→            </div>
+   635→          </div>
+   636→
+   637→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   638→            <div className="space-y-1.5">
+   639→              <Label className="text-xs">Email</Label>
+   640→              <Input
+   641→                type="email"
+   642→                value={String(form.email || '')}
+   643→                onChange={(e) => setField('email', e.target.value)}
+   644→                placeholder="sales@vendor.com"
+   645→              />
+   646→            </div>
+   647→            <div className="space-y-1.5">
+   648→              <Label className="text-xs">Phone</Label>
+   649→              <Input
+   650→                value={String(form.phone || '')}
+   651→                onChange={(e) => setField('phone', e.target.value)}
+   652→                placeholder="+1 (555) 000-0000"
+   653→              />
+   654→            </div>
+   655→          </div>
+   656→
+   657→          <div className="space-y-1.5">
+   658→            <Label className="text-xs">Website</Label>
+   659→            <Input
+   660→              value={String(form.website || '')}
+   661→              onChange={(e) => setField('website', e.target.value)}
+   662→              placeholder="https://www.vendor.com"
+   663→            />
+   664→          </div>
+   665→
+   666→          <div className="space-y-1.5">
+   667→            <Label className="text-xs">Address</Label>
+   668→            <Textarea
+   669→              rows={2}
+   670→              value={String(form.address || '')}
+   671→              onChange={(e) => setField('address', e.target.value)}
+   672→              placeholder="Street, City, State, ZIP, Country"
+   673→            />
+   674→          </div>
+   675→
+   676→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   677→            <div className="space-y-1.5">
+   678→              <Label className="text-xs">Rating (1-5)</Label>
+   679→              <Select
+   680→                value={String(form.rating ?? 3)}
+   681→                onValueChange={(v) => setField('rating', Number(v))}
+   682→              >
+   683→                <SelectTrigger>
+   684→                  <SelectValue />
+   685→                </SelectTrigger>
+   686→                <SelectContent>
+   687→                  {[1, 2, 3, 4, 5].map((n) => (
+   688→                    <SelectItem key={n} value={String(n)}>
+   689→                      {n} {n === 1 ? 'Star' : 'Stars'}
+   690→                    </SelectItem>
+   691→                  ))}
+   692→                </SelectContent>
+   693→              </Select>
+   694→            </div>
+   695→            <div className="flex items-end pb-1">
+   696→              <div className="flex items-center gap-2">
+   697→                <Switch
+   698→                  id="vendor-active"
+   699→                  checked={Boolean(form.isActive)}
+   700→                  onCheckedChange={(v) => setField('isActive', v)}
+   701→                />
+   702→                <Label htmlFor="vendor-active" className="cursor-pointer text-xs">
+   703→                  Active vendor
+   704→                </Label>
+   705→              </div>
+   706→            </div>
+   707→          </div>
+   708→
+   709→          <div className="space-y-1.5">
+   710→            <Label className="text-xs">Notes</Label>
+   711→            <Textarea
+   712→              rows={2}
+   713→              value={String(form.notes || '')}
+   714→              onChange={(e) => setField('notes', e.target.value)}
+   715→              placeholder="Internal notes about this vendor (relationship, contract, SLAs...)"
+   716→            />
+   717→          </div>
+   718→
+   719→          {editing && (
+   720→            <p className="text-[10px] text-muted-foreground">
+   721→              Last updated {formatDate(editing.updatedAt, 'MMM d, yyyy h:mm a')}
+   722→            </p>
+   723→          )}
+   724→        </div>
+   725→        <DialogFooter>
+   726→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   727→            Cancel
+   728→          </Button>
+   729→          <Button onClick={save} disabled={saving}>
+   730→            {saving ? 'Saving...' : editingId ? 'Update Vendor' : 'Create Vendor'}
+   731→          </Button>
+   732→        </DialogFooter>
+   733→      </DialogContent>
+   734→    </Dialog>
+   735→  )
+   736→}
+   737→

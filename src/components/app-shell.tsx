@@ -114,7 +114,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const unreadCount = Array.isArray(notifData) ? notifData.length : 0
 
   return (
-    <div className="flex min-h-screen w-full bg-background theme-transition">
+    <div className="flex min-h-screen w-full bg-background app-bg-gradient theme-transition">
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0">
         <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md lg:px-6 sticky-elevated">

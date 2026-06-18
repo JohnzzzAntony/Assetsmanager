@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { vendorsApi, exportApi } from '@/lib/api'
+import { vendorsApi, exportApi, reportsApi } from '@/lib/api'
 import { VENDOR_CATEGORIES } from '@/lib/types'
 import type { Vendor } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/empty-state'
 import {
   Select,
   SelectContent,
@@ -36,10 +37,24 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts'
 import { formatCurrency, formatDate } from '@/lib/format'
 import {
   Store,
   CheckCircle2,
+  Clock,
   DollarSign,
   Star,
   Plus,
@@ -53,6 +68,15 @@ import {
   Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+// Vendor performance chart palette
+const VENDOR_CHART_COLORS = ['#0f172a', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4']
+
+// Compact currency formatter for chart axes: $1.5k, $12k, $0
+function fmtCompactCurrency(v: number): string {
+  if (Math.abs(v) >= 1000) return `$${Math.round(v / 1000)}k`
+  return `$${Math.round(v)}`
+}
 
 // ---- Stat tile ----
 interface StatTileProps {
@@ -188,7 +212,7 @@ export function VendorsView() {
           <Button variant="outline" onClick={() => exportApi.download(exportApi.vendors())}>
             <Download className="mr-1.5 h-4 w-4" /> Export CSV
           </Button>
-          <Button onClick={openNew}>
+          <Button className="btn-press" onClick={openNew}>
             <Plus className="mr-1.5 h-4 w-4" /> Add Vendor
           </Button>
         </div>
@@ -299,7 +323,7 @@ export function VendorsView() {
                   <TableRow key={i}>
                     {Array.from({ length: 9 }).map((__, j) => (
                       <TableCell key={j}>
-                        <Skeleton className="h-5 w-full" />
+                        <Skeleton className="h-5 w-full shimmer-bg" />
                       </TableCell>
                     ))}
                   </TableRow>
@@ -307,16 +331,12 @@ export function VendorsView() {
               ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="h-32 text-center">
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Store className="h-8 w-8" />
-                      <p className="font-medium">No vendors found</p>
-                      <p className="text-xs">
-                        Try adjusting your filters, or add a new vendor to get started.
-                      </p>
-                      <Button size="sm" variant="outline" className="mt-1" onClick={openNew}>
-                        <Plus className="mr-1.5 h-4 w-4" /> Add your first vendor
-                      </Button>
-                    </div>
+                    <EmptyState
+                      icon={Store}
+                      title="No vendors yet"
+                      description="Add suppliers to track purchase orders and performance."
+                      action={{ label: 'Add Vendor', onClick: () => openNew(), icon: Plus }}
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -446,6 +466,9 @@ export function VendorsView() {
         </div>
       </Card>
 
+      {/* Vendor Performance Analytics */}
+      <VendorPerformanceSection />
+
       {/* Add/Edit dialog */}
       <VendorFormDialog
         open={showForm}
@@ -482,6 +505,351 @@ export function VendorsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// ---- Vendor Performance Analytics ----
+function VendorPerformanceSection() {
+  const { data: perf, isLoading } = useQuery({
+    queryKey: ['vendor-performance'],
+    queryFn: () => reportsApi.vendorPerformance(),
+  })
+
+  // Rating distribution buckets
+  const ratingBuckets = useMemo(() => {
+    if (!perf) return []
+    const buckets = [
+      { name: '5 Stars', value: 0, fill: '#10b981' },
+      { name: '4 Stars', value: 0, fill: '#06b6d4' },
+      { name: '3 Stars', value: 0, fill: '#f59e0b' },
+      { name: '2 Stars', value: 0, fill: '#f97316' },
+      { name: '1 Star', value: 0, fill: '#f43f5e' },
+      { name: 'No Rating', value: 0, fill: '#94a3b8' },
+    ]
+    perf.data.forEach((v) => {
+      const idx =
+        v.rating >= 5 ? 0 : v.rating === 4 ? 1 : v.rating === 3 ? 2 : v.rating === 2 ? 3 : v.rating === 1 ? 4 : 5
+      buckets[idx].value++
+    })
+    return buckets.filter((b) => b.value > 0)
+  }, [perf])
+
+  const topSpend = useMemo(() => {
+    if (!perf) return []
+    return [...perf.data].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5)
+  }, [perf])
+
+  const topByPOs = useMemo(() => {
+    if (!perf) return []
+    return [...perf.data].sort((a, b) => b.totalPOs - a.totalPOs).slice(0, 5)
+  }, [perf])
+
+  // Header (always rendered so the layout is consistent across states)
+  const header = (
+    <div className="section-accent-bar">
+      <h3 className="flex items-center gap-2 text-base font-semibold">
+        <Store className="h-5 w-5 text-violet-600" />
+        Vendor Performance Analytics
+      </h3>
+      <p className="mt-0.5 text-sm text-muted-foreground">
+        On-time delivery, spend distribution, and rating breakdown across all vendors
+      </p>
+    </div>
+  )
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {header}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-72 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!perf || perf.data.length === 0) {
+    return (
+      <div className="space-y-4">
+        {header}
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+            <div className="empty-state-icon">
+              <Store className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="font-semibold">No vendor performance data</p>
+              <p className="text-sm text-muted-foreground">
+                Performance analytics will appear once purchase orders have been placed and received.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {header}
+
+      {/* KPI tiles */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Total Vendors"
+          value={perf.totals.vendorCount}
+          icon={Store}
+          color="#64748b"
+          hint={`${perf.totals.totalPOs} POs total`}
+        />
+        <StatTile
+          label="Active Vendors"
+          value={perf.totals.activeVendors}
+          icon={CheckCircle2}
+          color="#10b981"
+          hint={`${perf.totals.vendorCount - perf.totals.activeVendors} inactive`}
+        />
+        <StatTile
+          label="Total Spend"
+          value={formatCurrency(perf.totals.totalSpent)}
+          icon={DollarSign}
+          color="#8b5cf6"
+          hint="Across all POs"
+        />
+        <StatTile
+          label="Avg On-Time Rate"
+          value={`${(perf.totals.avgOnTimeRate * 100).toFixed(1)}%`}
+          icon={Clock}
+          color="#f59e0b"
+          hint={`Avg rating ${perf.totals.avgRating.toFixed(1)}`}
+        />
+      </div>
+
+      {/* Charts row */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Top 5 Vendors by Spend */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <DollarSign className="h-4 w-4 text-violet-600" /> Top 5 Vendors by Spend
+            </CardTitle>
+            <CardDescription>Highest total spend across received POs</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart
+                data={topSpend.map((v) => ({ name: v.vendorName, value: v.totalSpent }))}
+                layout="vertical"
+                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v: number) => fmtCompactCurrency(v)}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={100}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+                  formatter={(v: number) => formatCurrency(v)}
+                />
+                <Bar dataKey="value" name="Total Spent" radius={[0, 6, 6, 0]}>
+                  {topSpend.map((_, i) => (
+                    <Cell key={i} fill={VENDOR_CHART_COLORS[i % VENDOR_CHART_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* On-Time Delivery Rate */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4 text-amber-600" /> On-Time Delivery Rate
+            </CardTitle>
+            <CardDescription>Top 5 vendors by PO volume</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart
+                data={topByPOs.map((v) => ({ name: v.vendorName, rate: v.onTimeRate }))}
+                layout="vertical"
+                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.7 0.01 240 / 0.15)" />
+                <XAxis
+                  type="number"
+                  domain={[0, 1]}
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={100}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+                  formatter={(v: number) => `${(v * 100).toFixed(1)}%`}
+                />
+                <Bar dataKey="rate" name="On-Time Rate" radius={[0, 6, 6, 0]}>
+                  {topByPOs.map((v, i) => (
+                    <Cell
+                      key={i}
+                      fill={
+                        v.onTimeRate >= 0.8
+                          ? '#10b981'
+                          : v.onTimeRate >= 0.5
+                          ? '#f59e0b'
+                          : '#f43f5e'
+                      }
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              On-time = received on or before expected date
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Rating distribution + performance table */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Rating Distribution */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Star className="h-4 w-4 text-amber-500" /> Rating Distribution
+            </CardTitle>
+            <CardDescription>Vendor count per rating bucket</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {ratingBuckets.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">No ratings yet</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={ratingBuckets}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={3}
+                  >
+                    {ratingBuckets.map((entry, i) => (
+                      <Cell key={`cell-${i}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: '1px solid oklch(0.91 0.005 240)', fontSize: 12 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delivery Performance Table */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShoppingCart className="h-4 w-4 text-sky-600" /> Delivery Performance
+            </CardTitle>
+            <CardDescription>Per-vendor delivery metrics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="scrollbar-thin max-h-80 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 z-10 bg-background">
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-2 font-medium">Vendor</th>
+                    <th className="pb-2 pr-2 text-right font-medium">POs</th>
+                    <th className="pb-2 pr-2 text-right font-medium">On-Time %</th>
+                    <th className="pb-2 pr-2 text-right font-medium">Avg Days</th>
+                    <th className="pb-2 font-medium">Rating</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {perf.data.map((v) => {
+                    const onTimePct = (v.onTimeRate * 100).toFixed(0)
+                    const isLow = v.onTimeRate < 0.5 && v.totalPOs > 0
+                    const isGood = v.onTimeRate >= 0.8
+                    return (
+                      <tr
+                        key={v.vendorId}
+                        className={`border-b last:border-0 ${isLow ? 'bg-rose-500/5' : ''}`}
+                      >
+                        <td className="max-w-[140px] truncate py-1.5 pr-2 font-medium" title={v.vendorName}>
+                          {v.vendorName}
+                        </td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{v.totalPOs}</td>
+                        <td
+                          className={`py-1.5 pr-2 text-right tabular-nums ${
+                            isLow
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : isGood
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {onTimePct}%
+                        </td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums text-muted-foreground">
+                          {v.avgDeliveryDays ?? '—'}
+                        </td>
+                        <td className="py-1.5">
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-2.5 w-2.5 ${
+                                  i < v.rating
+                                    ? 'fill-amber-400 text-amber-400'
+                                    : 'text-muted-foreground/30'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

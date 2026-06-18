@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
+import { EmptyState } from '@/components/empty-state'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -288,7 +289,7 @@ export function AssetsListView() {
           <Button variant="outline" size="sm" onClick={() => navigate('ocr-upload')}>
             <ScanText className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Scan</span>
           </Button>
-          <Button size="sm" onClick={() => navigate('asset-new')}>
+          <Button size="sm" className="btn-press" onClick={() => navigate('asset-new')}>
             <Plus className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Add Asset</span>
           </Button>
         </div>
@@ -662,20 +663,19 @@ export function AssetsListView() {
                 Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i}>
                     {Array.from({ length: 12 }).map((__, j) => (
-                      <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
+                      <TableCell key={j}><Skeleton className="h-5 w-full shimmer-bg" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : !data || data.data.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={12} className="h-32 text-center">
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Package className="h-8 w-8" />
-                      <p>No assets found</p>
-                      <Button size="sm" onClick={() => navigate('asset-new')}>
-                        <Plus className="h-4 w-4 mr-1.5" /> Add your first asset
-                      </Button>
-                    </div>
+                    <EmptyState
+                      icon={Package}
+                      title="No assets found"
+                      description="Try adjusting your filters or add a new asset."
+                      action={{ label: 'Add Asset', onClick: () => navigate('asset-new'), icon: Plus }}
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

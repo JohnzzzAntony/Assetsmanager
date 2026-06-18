@@ -23,6 +23,10 @@ import type {
   AssetDisposal,
   AssetTag,
   AssetBooking,
+  SavedReport,
+  SavedReportConfig,
+  VendorPerformance,
+  LifecycleYoYPoint,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -2257,3 +2261,176 @@ export const assetBookingRepo = {
     return { total, pending, active, approved, upcoming }
   },
 }
+
+// ============ Saved Reports (Round 5) ============
+export const savedReportRepo = {
+  list(): SavedReport[] {
+    ensure()
+    const r = rows<SavedReport & { config: string }>(
+      db.prepare('SELECT * FROM SavedReport ORDER BY updatedAt DESC').all()
+    )
+    return r.map((s) => ({
+      ...s,
+      config: safeParseConfig(s.config),
+    }))
+  },
+  get(id: string): SavedReport | null {
+    ensure()
+    const r = row<SavedReport & { config: string }>(
+      db.prepare('SELECT * FROM SavedReport WHERE id = ?').get(id)
+    )
+    if (!r) return null
+    return { ...r, config: safeParseConfig(r.config) }
+  },
+  create(data: { name: string; description?: string; section?: string; config?: SavedReportConfig; createdBy?: string }): SavedReport {
+    ensure()
+    const id = generateId()
+    const now = new Date().toISOString()
+    const cfg = JSON.stringify(data.config || {})
+    db.prepare(
+      `INSERT INTO SavedReport (id, name, description, section, config, createdBy, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, data.name, data.description ?? null, data.section ?? null, cfg, data.createdBy ?? null, now, now)
+    const sr = this.get(id)!
+    activityLogRepo.log('savedreport.created', 'SavedReport', id, `Created saved report "${sr.name}"`)
+    return sr
+  },
+  update(id: string, data: Partial<{ name: string; description?: string | null; section?: string | null; config?: SavedReportConfig }>): SavedReport | null {
+    ensure()
+    const cur = this.get(id)
+    if (!cur) return null
+    const now = new Date().toISOString()
+    const sets: string[] = []
+    const params: unknown[] = []
+    if (data.name !== undefined) { sets.push('name = ?'); params.push(data.name) }
+    if (data.description !== undefined) { sets.push('description = ?'); params.push(data.description) }
+    if (data.section !== undefined) { sets.push('section = ?'); params.push(data.section) }
+    if (data.config !== undefined) { sets.push('config = ?'); params.push(JSON.stringify(data.config)) }
+    if (!sets.length) return cur
+    sets.push('updatedAt = ?')
+    params.push(now, id)
+    db.prepare(`UPDATE SavedReport SET ${sets.join(', ')} WHERE id = ?`).run(...params)
+    const updated = this.get(id)!
+    activityLogRepo.log('savedreport.updated', 'SavedReport', id, `Updated saved report "${updated.name}"`)
+    return updated
+  },
+  delete(id: string): void {
+    ensure()
+    const cur = this.get(id)
+    db.prepare('DELETE FROM SavedReport WHERE id = ?').run(id)
+    if (cur) activityLogRepo.log('savedreport.deleted', 'SavedReport', id, `Deleted saved report "${cur.name}"`)
+  },
+}
+
+function safeParseConfig(s: string | null | undefined): SavedReportConfig {
+  if (!s) return {}
+  try { return JSON.parse(s) as SavedReportConfig } catch { return {} }
+}
+
+// ============ Vendor Performance Analytics (Round 5) ============
+export const vendorPerformanceRepo = {
+  list(): VendorPerformance[] {
+    ensure()
+    const vendors = rows<Vendor & { isActive: number; rating: number }>(
+      db.prepare('SELECT * FROM Vendor').all()
+    )
+    const result: VendorPerformance[] = []
+    for (const v of vendors) {
+      const pos = rows<PurchaseOrder & { receivedDate: string | null; expectedDate: string | null; status: string; totalAmount: number; orderDate: string }>(
+        db.prepare('SELECT status, totalAmount, orderDate, expectedDate, receivedDate FROM PurchaseOrder WHERE vendorId = ?').all(v.id)
+      )
+      const totalPOs = pos.length
+      const activePOs = pos.filter((p) => ['Draft', 'Sent', 'Approved', 'Ordered', 'Partial'].includes(p.status)).length
+      const completedPOs = pos.filter((p) => p.status === 'Received' || p.status === 'Closed').length
+      const cancelledPOs = pos.filter((p) => p.status === 'Cancelled').length
+      const totalSpent = pos
+        .filter((p) => !['Draft', 'Cancelled'].includes(p.status))
+        .reduce((s, p) => s + (Number(p.totalAmount) || 0), 0)
+
+      // On-time delivery: receivedDate <= expectedDate (both must be present)
+      const receivedWithExpected = pos.filter((p) => p.receivedDate && p.expectedDate)
+      const onTime = receivedWithExpected.filter((p) => new Date(p.receivedDate!).getTime() <= new Date(p.expectedDate!).getTime())
+      const lateDeliveries = receivedWithExpected.length - onTime.length
+      const onTimeRate = receivedWithExpected.length ? onTime.length / receivedWithExpected.length : 0
+
+      // Average delivery days (receivedDate - orderDate)
+      const receivedWithOrder = pos.filter((p) => p.receivedDate && p.orderDate)
+      const deliveryDays = receivedWithOrder.map((p) => {
+        const diff = new Date(p.receivedDate!).getTime() - new Date(p.orderDate).getTime()
+        return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24)))
+      })
+      const avgDeliveryDays = deliveryDays.length
+        ? Math.round(deliveryDays.reduce((s, d) => s + d, 0) / deliveryDays.length)
+        : null
+
+      result.push({
+        vendorId: v.id,
+        vendorName: v.name,
+        category: v.category ?? null,
+        rating: Number(v.rating) || 0,
+        isActive: toBool(v.isActive),
+        totalPOs,
+        activePOs,
+        completedPOs,
+        cancelledPOs,
+        totalSpent,
+        avgDeliveryDays,
+        onTimeRate,
+        lateDeliveries,
+      })
+    }
+    // Sort by total spent descending
+    return result.sort((a, b) => b.totalSpent - a.totalSpent)
+  },
+}
+
+// ============ Asset Lifecycle YoY Comparison (Round 5) ============
+// Appended to assetRepo below via a separate export to avoid touching the giant assetRepo object.
+export const assetLifecycleRepo = {
+  yoyByType(yearsBack = 2): LifecycleYoYPoint[] {
+    ensure()
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const years: number[] = []
+    for (let i = yearsBack - 1; i >= 0; i--) years.push(currentYear - i)
+    // Build per-type/year purchase-cost map (use parameter binding for the IN clause)
+    const placeholders = years.map(() => '?').join(',')
+    const yearStrs = years.map((y) => String(y))
+    const rows_ = rows<{ assetType: string; year: number; total: number }>(
+      db.prepare(`
+        SELECT t.name as assetType, CAST(substr(a.purchaseDate, 1, 4) AS INTEGER) as year, COALESCE(SUM(a.cost), 0) as total
+        FROM Asset a
+        JOIN AssetType t ON a.assetTypeId = t.id
+        WHERE a.purchaseDate IS NOT NULL
+          AND substr(a.purchaseDate, 1, 4) IN (${placeholders})
+        GROUP BY t.id, year
+        ORDER BY t.name
+      `).all(...yearStrs)
+    )
+    // Also enumerate all asset types so empty types still appear
+    const types = rows<{ name: string }>(db.prepare('SELECT name FROM AssetType ORDER BY name').all()).map((t) => t.name)
+    const map = new Map<string, Record<number, number>>()
+    for (const t of types) map.set(t, Object.fromEntries(years.map((y) => [y, 0])))
+    for (const r of rows_) {
+      if (!map.has(r.assetType)) map.set(r.assetType, Object.fromEntries(years.map((y) => [y, 0])))
+      map.get(r.assetType)![r.year] = r.total
+    }
+    const curYear = years[years.length - 1]
+    const prevYear = years[years.length - 2] ?? curYear
+    const out: LifecycleYoYPoint[] = []
+    for (const [assetType, yearMap] of map.entries()) {
+      const currentYear_total = yearMap[curYear] || 0
+      const previousYear_total = yearMap[prevYear] || 0
+      const delta = currentYear_total - previousYear_total
+      const deltaPct = previousYear_total > 0 ? delta / previousYear_total : null
+      out.push({
+        assetType,
+        currentYear: currentYear_total,
+        previousYear: previousYear_total,
+        delta,
+        deltaPct,
+      })
+    }
+    return out
+  },
+}
+

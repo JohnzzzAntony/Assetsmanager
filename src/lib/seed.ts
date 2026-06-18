@@ -188,8 +188,11 @@ export function seedDatabase(opts: { force?: boolean } = {}) {
         locId = p.location ? locMap[p.location] : null
       }
     }
-    const purchaseDate = new Date(2023, idx % 12, (idx % 28) + 1).toISOString()
-    const warrantyExpiry = new Date(2025, (idx + 6) % 12, (idx % 28) + 1).toISOString()
+    // Spread purchase dates across the last 3 years for richer YoY analytics.
+    // idx 0..6 -> 2024, idx 7..13 -> 2025, idx 14..20 -> 2026 (current year)
+    const purchaseYear = 2024 + Math.floor(idx / 7)
+    const purchaseDate = new Date(purchaseYear, idx % 12, (idx % 28) + 1).toISOString()
+    const warrantyExpiry = new Date(purchaseYear + 2, (idx + 6) % 12, (idx % 28) + 1).toISOString()
     insAsset.run(
       id,
       assetTag,

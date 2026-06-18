@@ -780,3 +780,51 @@ export interface AssetBooking {
   approvedBy?: Person | null
   _conflicts?: AssetBooking[]
 }
+
+// ============ Saved Reports (Round 5) ============
+export interface SavedReport {
+  id: string
+  name: string
+  description?: string | null
+  section?: string | null
+  config: SavedReportConfig
+  createdBy?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SavedReportConfig {
+  range?: 'all' | '30d' | '90d' | '365d' | 'custom'
+  customStart?: string | null
+  customEnd?: string | null
+  months?: number
+  // Reserved for future per-section filters
+  filters?: Record<string, unknown>
+}
+
+// Vendor performance analytics result
+export interface VendorPerformance {
+  vendorId: string
+  vendorName: string
+  category?: string | null
+  rating: number
+  isActive: boolean
+  totalPOs: number
+  activePOs: number
+  completedPOs: number
+  cancelledPOs: number
+  totalSpent: number
+  avgDeliveryDays: number | null
+  onTimeRate: number // 0..1
+  lateDeliveries: number
+}
+
+// Asset lifecycle YoY comparison
+export interface LifecycleYoYPoint {
+  assetType: string
+  currentYear: number
+  previousYear: number
+  delta: number
+  deltaPct: number | null
+}
+
