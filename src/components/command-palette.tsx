@@ -397,7 +397,7 @@ export function CommandPalette() {
                       data-selected={selected ? 'true' : 'false'}
                       onClick={() => executeItem(item)}
                       onMouseEnter={() => setSelectedIndex(flatIndex)}
-                      className="cmd-result flex w-full items-center gap-3 px-4 py-2 text-left text-sm"
+                      className="cmd-result hover-lift flex w-full items-center gap-3 px-4 py-2 text-left text-sm"
                     >
                       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="flex-1 truncate font-medium">{item.label}</span>
@@ -414,9 +414,13 @@ export function CommandPalette() {
           )}
         </div>
 
-        {/* Footer hint */}
-        <div className="border-t px-4 py-2 text-[11px] text-muted-foreground">
-          ↑↓ to navigate · Enter to select · Esc to close
+          {/* Footer hint */}
+        <div className="border-t px-4 py-2 text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1"><kbd className="kbd-key">↑</kbd><kbd className="kbd-key">↓</kbd> to navigate</span>
+          <span aria-hidden="true" className="opacity-50">·</span>
+          <span className="inline-flex items-center gap-1"><kbd className="kbd-key">Enter</kbd> to select</span>
+          <span aria-hidden="true" className="opacity-50">·</span>
+          <span className="inline-flex items-center gap-1"><kbd className="kbd-key">Esc</kbd> to close</span>
         </div>
       </div>
     </div>

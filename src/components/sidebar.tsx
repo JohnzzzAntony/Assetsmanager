@@ -61,7 +61,7 @@ function SidebarFooter() {
         </div>
         <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <CircleDot className="h-3 w-3 text-emerald-500 animate-pulse" />
-          <span>v2.4 · Round 7</span>
+          <span>v2.5 · Round 8</span>
         </div>
       </div>
     </div>

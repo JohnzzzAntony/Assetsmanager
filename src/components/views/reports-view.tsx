@@ -283,6 +283,10 @@ export function ReportsView() {
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="live-dot" aria-hidden="true" />
             <Activity className="h-5 w-5" /> <span className="gradient-text-shine">Reports & Analytics</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+              <span className="status-pulse-dot" aria-hidden="true" />
+              <span className="text-shimmer uppercase tracking-wider">Live</span>
+            </span>
             <Badge variant="secondary" className="text-xs font-normal">{rangeLabel}</Badge>
             {loadedSavedReport && (
               <Badge
@@ -430,12 +434,12 @@ export function ReportsView() {
 
       {/* KPI cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4" style={{ borderLeftColor: '#10b981' }}>
+        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#10b981' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Utilization Rate</p>
-                <p className="text-2xl font-bold">{utilization}%</p>
+                <p className="text-2xl font-bold animate-count-up">{utilization}%</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
@@ -443,12 +447,12 @@ export function ReportsView() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
+        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#8b5cf6' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Total Asset Value</p>
-                <p className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</p>
+                <p className="text-2xl font-bold animate-count-up">{formatCurrency(stats.totalValue)}</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10">
                 <DollarSign className="h-5 w-5 text-violet-600" />
@@ -456,12 +460,12 @@ export function ReportsView() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#f59e0b' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">In Repair</p>
-                <p className="text-2xl font-bold">{stats.repair}</p>
+                <p className="text-2xl font-bold animate-count-up">{stats.repair}</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
                 <Wrench className="h-5 w-5 text-amber-600" />
@@ -469,12 +473,12 @@ export function ReportsView() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4" style={{ borderLeftColor: '#06b6d4' }}>
+        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#06b6d4' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Warranty Expiring</p>
-                <p className="text-2xl font-bold">{stats.warrantyExpiringSoon}</p>
+                <p className="text-2xl font-bold animate-count-up">{stats.warrantyExpiringSoon}</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10">
                 <AlertTriangle className="h-5 w-5 text-cyan-600" />
@@ -486,7 +490,7 @@ export function ReportsView() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Acquisition trend */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Asset Acquisition Trend</CardTitle>
             <CardDescription>Assets purchased per month (last 12 months)</CardDescription>
@@ -515,7 +519,7 @@ export function ReportsView() {
         </Card>
 
         {/* Cost Trend Over Time */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <LineChartIcon className="h-4 w-4 text-violet-600" /> Cost Trend Over Time
@@ -547,7 +551,7 @@ export function ReportsView() {
         </Card>
 
         {/* Status donut */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Status Distribution</CardTitle>
             <CardDescription>Asset count by status</CardDescription>
@@ -574,7 +578,7 @@ export function ReportsView() {
         </Card>
 
         {/* Value by type */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Asset Value by Type</CardTitle>
             <CardDescription>Total cost grouped by asset type</CardDescription>
@@ -597,7 +601,7 @@ export function ReportsView() {
         </Card>
 
         {/* Department breakdown */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Assets by Department</CardTitle>
             <CardDescription>Distribution across teams</CardDescription>
@@ -625,7 +629,7 @@ export function ReportsView() {
       {/* Procurement & Vendor Analytics */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Vendor Spend */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Store className="h-4 w-4 text-sky-600" /> Vendor Spend
@@ -661,7 +665,7 @@ export function ReportsView() {
         </Card>
 
         {/* PO Status Breakdown */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <ShoppingCart className="h-4 w-4 text-violet-600" /> Purchase Order Status
@@ -784,7 +788,7 @@ export function ReportsView() {
         </Card>
 
         {/* Disposal Summary */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Trash2 className="h-4 w-4 text-rose-600" /> Asset Disposals
@@ -842,7 +846,7 @@ export function ReportsView() {
       {/* Bookings & Tags Analytics */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Booking Status Distribution */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-cyan-600" /> Booking Status Distribution
@@ -897,7 +901,7 @@ export function ReportsView() {
         </Card>
 
         {/* Tag Distribution */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Tag className="h-4 w-4 text-pink-600" /> Tag Distribution
@@ -958,7 +962,7 @@ export function ReportsView() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Lifecycle Stacked Bar Chart */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Package className="h-4 w-4 text-violet-600" /> Lifecycle Cost Breakdown
@@ -1049,7 +1053,7 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Total Purchase Cost</p>
-                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.purchaseCost)}</p>
+                <p className="text-lg font-bold tabular-nums animate-count-up">{formatCurrency(lifecycle?.totals.purchaseCost)}</p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10">
                 <DollarSign className="h-4 w-4 text-violet-600" />
@@ -1062,7 +1066,7 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Total Maintenance Cost</p>
-                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.maintenanceCost)}</p>
+                <p className="text-lg font-bold tabular-nums animate-count-up">{formatCurrency(lifecycle?.totals.maintenanceCost)}</p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
                 <Wrench className="h-4 w-4 text-amber-600" />
@@ -1075,7 +1079,7 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Total Disposal Cost</p>
-                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.disposalCost)}</p>
+                <p className="text-lg font-bold tabular-nums animate-count-up">{formatCurrency(lifecycle?.totals.disposalCost)}</p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/10">
                 <Trash2 className="h-4 w-4 text-rose-600" />
@@ -1088,7 +1092,7 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Net Cost (after residual)</p>
-                <p className="text-lg font-bold tabular-nums">{formatCurrency(lifecycle?.totals.netCost)}</p>
+                <p className="text-lg font-bold tabular-nums animate-count-up">{formatCurrency(lifecycle?.totals.netCost)}</p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
                 <TrendingDown className="h-4 w-4 text-emerald-600" />
@@ -1111,7 +1115,7 @@ export function ReportsView() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* YoY Grouped Bar Chart */}
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <TrendingUp className="h-4 w-4 text-violet-600" /> Cost by Asset Type (YoY)
@@ -1351,7 +1355,7 @@ export function ReportsView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Total Maintenance Cost</p>
-                    <p className="text-lg font-bold tabular-nums">
+                    <p className="text-lg font-bold tabular-nums animate-count-up">
                       {formatCurrency(maintenanceCost.totals.totalCost)}
                     </p>
                   </div>
@@ -1366,7 +1370,7 @@ export function ReportsView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Total Events</p>
-                    <p className="text-lg font-bold tabular-nums">
+                    <p className="text-lg font-bold tabular-nums animate-count-up">
                       {maintenanceCost.totals.totalEvents}
                     </p>
                   </div>
@@ -1381,7 +1385,7 @@ export function ReportsView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Avg Cost / Event</p>
-                    <p className="text-lg font-bold tabular-nums">
+                    <p className="text-lg font-bold tabular-nums animate-count-up">
                       {formatCurrency(maintenanceCost.totals.avgCostPerEvent)}
                     </p>
                     {maintenanceCost.totals.trendDeltaPct !== null && (
@@ -1411,7 +1415,7 @@ export function ReportsView() {
           {/* Two-column grid: Cost by Asset Type + Monthly Cost Trend */}
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Cost by Asset Type — horizontal BarChart */}
-            <Card>
+            <Card className="hover-lift">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Wrench className="h-4 w-4 text-amber-600" /> Cost by Asset Type
@@ -1489,7 +1493,7 @@ export function ReportsView() {
             </Card>
 
             {/* Monthly Cost Trend — AreaChart */}
-            <Card>
+            <Card className="hover-lift">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Activity className="h-4 w-4 text-amber-600" /> Monthly Cost Trend (12 months)
@@ -1648,7 +1652,7 @@ export function ReportsView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Historical Total (12mo)</p>
-                    <p className="text-lg font-bold tabular-nums">
+                    <p className="text-lg font-bold tabular-nums animate-count-up">
                       {formatCurrency(costForecast.totals.historicalTotal)}
                     </p>
                   </div>
@@ -1663,7 +1667,7 @@ export function ReportsView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Forecast Total (6mo)</p>
-                    <p className="text-lg font-bold tabular-nums">
+                    <p className="text-lg font-bold tabular-nums animate-count-up">
                       {formatCurrency(costForecast.totals.forecastTotal)}
                     </p>
                   </div>
@@ -1678,7 +1682,7 @@ export function ReportsView() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Projected Annual Run-Rate</p>
-                    <p className="text-lg font-bold tabular-nums">
+                    <p className="text-lg font-bold tabular-nums animate-count-up">
                       {formatCurrency(costForecast.totals.projectedAnnual)}
                     </p>
                     <div className="mt-1 flex items-center gap-1">
@@ -1711,7 +1715,7 @@ export function ReportsView() {
           </div>
 
           {/* Combined Forecast Chart — ComposedChart with Bar (historical) + Line (forecast) + Area (confidence band) */}
-          <Card>
+          <Card className="hover-lift">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <TrendingUp className="h-4 w-4 text-violet-600" /> Combined Forecast

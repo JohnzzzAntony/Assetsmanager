@@ -99,7 +99,7 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent className="relative">
-        <div className="text-2xl font-bold tracking-tight tabular-nums animate-count-pop">{value}</div>
+        <div className="text-2xl font-bold tracking-tight tabular-nums animate-count-pop animate-count-up">{value}</div>
         {trend && (
           <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
             <TrendingUp className="h-3 w-3" style={{ color }} />
@@ -213,6 +213,10 @@ export function DashboardView() {
               <span className="font-semibold text-foreground">{stats.totalLocations}</span> locations.
               Total portfolio value:{' '}
               <span className="gradient-text-shine font-bold">{formatCurrency(stats.totalValue)}</span>.
+              <span className="ml-2 inline-flex items-center gap-1 align-middle">
+                <span className="status-pulse-dot" aria-hidden="true" />
+                <span className="text-shimmer text-xs uppercase tracking-wider">Live</span>
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

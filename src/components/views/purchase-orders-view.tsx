@@ -58,7 +58,9 @@ import {
   type PurchaseOrder,
   type PurchaseOrderItem,
   type PurchaseOrderStatus,
+  type POReceiveResult,
 } from '@/lib/types'
+import { useNav } from '@/lib/nav'
 import { formatCurrency, formatDate, formatDateTime, formatRelative } from '@/lib/format'
 import {
   ShoppingCart,
@@ -84,6 +86,8 @@ import {
   X,
   Filter,
   Download,
+  Sparkles,
+  AlertCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -1075,7 +1079,10 @@ function PODetailDialog({
   if (!po) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">Purchase order</DialogTitle>
+          </DialogHeader>
           <div className="flex items-center justify-center h-40">
             {isLoading ? (
               <div className="space-y-2 w-full max-w-md">
@@ -1325,6 +1332,7 @@ function POReceiveDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const qc = useQueryClient()
+  const navigate = useNav((s) => s.navigate)
   const { data: po, isLoading } = useQuery({
     queryKey: ['purchase-order', id],
     queryFn: () => purchaseOrdersApi.get(id),
@@ -1335,6 +1343,12 @@ function POReceiveDialog({
   // Initialized from the PO's items when the dialog opens / data loads.
   const [receiveMap, setReceiveMap] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
+  // Round 8: inline validation error (shown when no items have a positive qty)
+  const [inlineError, setInlineError] = useState<string | null>(null)
+  // Round 8: when the receive call auto-creates assets, we keep the result
+  // here and swap the dialog body to a "Created Assets" summary view.
+  const [createdAssetsResult, setCreatedAssetsResult] =
+    useState<NonNullable<POReceiveResult['createdAssets']>>(null)
 
   // Pre-fill the receive-now inputs with the remaining quantity for each item
   // the first time we get the PO data.
@@ -1357,6 +1371,8 @@ function POReceiveDialog({
 
   function setReceiveValue(itemId: string, value: string) {
     setReceiveMap((m) => ({ ...m, [itemId]: value }))
+    // Clear any inline error as soon as the user edits an input.
+    if (inlineError) setInlineError(null)
   }
 
   // Items with a parsed "receive now" quantity greater than zero.
@@ -1391,10 +1407,13 @@ function POReceiveDialog({
 
   async function confirmReceipt() {
     if (!po) return
+    // Defense in depth: the backend now also rejects this with 400, but UX
+    // should prevent the call. Show an inline error and bail out.
     if (itemsToReceive.length === 0) {
-      toast.error('Enter a quantity greater than 0 for at least one item.')
+      setInlineError('Enter at least one received quantity greater than 0')
       return
     }
+    setInlineError(null)
     setSubmitting(true)
     try {
       const result = await poReceivingApi.receive(po.id, itemsToReceive.map((it) => ({
@@ -1407,9 +1426,20 @@ function POReceiveDialog({
       } else {
         toast.message(`PO ${po.poNumber} partially received`)
       }
+      const created = result.createdAssets ?? []
+      const totalCreated = created.reduce((s, c) => s + c.assetIds.length, 0)
+      if (created.length > 0 && totalCreated > 0) {
+        toast.success(`Created ${totalCreated} new asset${totalCreated === 1 ? '' : 's'} from this PO`)
+      }
       await qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       await qc.invalidateQueries({ queryKey: ['purchase-order', po.id] })
-      onOpenChange(false)
+      await qc.invalidateQueries({ queryKey: ['assets'] })
+      if (created.length > 0) {
+        // Swap the dialog body to the "Assets Auto-Created" summary view.
+        setCreatedAssetsResult(created)
+      } else {
+        onOpenChange(false)
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       toast.error(`Receiving failed: ${msg}`)
@@ -1422,6 +1452,15 @@ function POReceiveDialog({
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-mono">
+              <PackageCheck className="h-4 w-4 text-emerald-600" />
+              Receive Items
+            </DialogTitle>
+            <DialogDescription>
+              {isLoading ? 'Loading purchase order details, please wait.' : 'Purchase order not found.'}
+            </DialogDescription>
+          </DialogHeader>
           <div className="flex items-center justify-center h-40">
             {isLoading ? (
               <div className="space-y-2 w-full max-w-md">
@@ -1433,6 +1472,99 @@ function POReceiveDialog({
               <p className="text-muted-foreground">Purchase order not found.</p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  // ============ Round 8: "Assets Auto-Created" success summary view ============
+  // Replaces the regular confirmation view when the receive call auto-created
+  // Asset rows (i.e. at least one line item had an assetTypeId set).
+  if (createdAssetsResult && createdAssetsResult.length > 0) {
+    const totalCreated = createdAssetsResult.reduce((s, c) => s + c.assetIds.length, 0)
+    return (
+      <Dialog open={open} onOpenChange={(v) => !v && !submitting && onOpenChange(false)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-mono">
+              <PackageCheck className="h-4 w-4 text-emerald-600" />
+              Receive Items — {po.poNumber}
+            </DialogTitle>
+            <DialogDescription>
+              Receipt recorded. The following assets were auto-created in your inventory.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="animate-in fade-in-50 slide-in-from-bottom-1 duration-300">
+            <Card className="border-emerald-500/30 bg-emerald-500/5">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-emerald-600" />
+                  <CardTitle className="text-base">Assets Auto-Created</CardTitle>
+                  <Badge variant="secondary" className="ml-auto">
+                    {totalCreated} new
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs">
+                  These assets are now in your inventory with status &quot;In Stock&quot;.
+                  Assign or configure them as needed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {createdAssetsResult.map((entry) => {
+                  const matchedItem = (po.items ?? []).find((it) => it.id === entry.itemId)
+                  const description = matchedItem?.description ?? 'Line item'
+                  return (
+                    <div key={entry.itemId} className="rounded-md border bg-background p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">{description}</div>
+                          {matchedItem?.assetType && (
+                            <Badge variant="outline" className="mt-0.5 text-[10px]">
+                              {matchedItem.assetType.name}
+                            </Badge>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">
+                          {entry.assetIds.length} asset{entry.assetIds.length === 1 ? '' : 's'}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {entry.assetTags.map((tag, i) => (
+                          <Badge
+                            key={entry.assetIds[i]}
+                            variant="secondary"
+                            className="font-mono cursor-pointer hover:bg-secondary/80"
+                            onClick={() => {
+                              onOpenChange(false)
+                              navigate('asset-detail', { id: entry.assetIds[i] })
+                            }}
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Done
+            </Button>
+            <Button
+              className="btn-press bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => {
+                onOpenChange(false)
+                navigate('assets')
+              }}
+            >
+              <Sparkles className="h-4 w-4 mr-1.5" /> View Assets
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     )
@@ -1459,6 +1591,14 @@ function POReceiveDialog({
           <span>All receipts are logged in the audit trail.</span>
         </div>
 
+        {/* Round 8: inline validation error (empty-items defense in depth) */}
+        {inlineError && (
+          <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            <span>{inlineError}</span>
+          </div>
+        )}
+
         <div className="max-h-[60vh] overflow-y-auto scrollbar-thin pr-1 space-y-2">
           {(po.items || []).length === 0 ? (
             <div className="rounded-md border bg-muted/30 py-10 text-center text-sm text-muted-foreground">
@@ -1472,6 +1612,7 @@ function POReceiveDialog({
               const pct = qty > 0 ? Math.min(100, (recv / qty) * 100) : 0
               const fullyReceived = recv >= qty && qty > 0
               const rawValue = receiveMap[it.id] ?? String(remaining)
+              const willCreateAssets = !!it.assetTypeId
               return (
                 <div
                   key={it.id}
@@ -1512,8 +1653,17 @@ function POReceiveDialog({
                     />
                   </div>
 
-                  {/* Receive Now input */}
-                  <div className="mt-2 flex items-end justify-end gap-2">
+                  {/* Receive Now input + Round 8 "Auto-creates Asset" badge */}
+                  <div className="mt-2 flex items-end justify-end gap-2 flex-wrap">
+                    {willCreateAssets && (
+                      <Badge
+                        variant="outline"
+                        className="text-emerald-600 border-emerald-500/30 bg-emerald-500/5"
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        <span className="text-[10px] uppercase tracking-wide">Auto-creates Asset</span>
+                      </Badge>
+                    )}
                     <div className="w-32 space-y-1">
                       <Label htmlFor={`recv-${it.id}`} className="text-[10px] uppercase tracking-wide text-muted-foreground">
                         Receive Now
@@ -1567,7 +1717,7 @@ function POReceiveDialog({
           <Button
             className="btn-press bg-emerald-600 hover:bg-emerald-700 text-white"
             onClick={() => void confirmReceipt()}
-            disabled={submitting || itemsToReceive.length === 0}
+            disabled={submitting}
           >
             {submitting ? (
               <>

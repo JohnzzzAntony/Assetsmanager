@@ -30,6 +30,8 @@ import type {
   POReceiveResult,
   AssetLocationMapReport,
   CostForecastReport,
+  ExpiryRenewPayload,
+  ExpiryRenewResult,
 } from './types'
 
 class ApiError extends Error {
@@ -544,10 +546,17 @@ export const reportsApi = {
 // ---- Round 6: Expirations & Utilization ----
 export const expirationsApi = {
   list: () => request<ExpirationReport>('/api/expirations'),
+  renew: (payload: ExpiryRenewPayload) =>
+    request<ExpiryRenewResult>(`/api/expirations/renew`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  exportCsvUrl: () => `/api/expirations/export`,
 }
 
 export const utilizationApi = {
-  report: () => request<UtilizationReport>('/api/utilization'),
+  report: (idleThresholdDays: 30 | 60 | 90 | 180 = 30) =>
+    request<UtilizationReport>(`/api/utilization?idleThresholdDays=${idleThresholdDays}`),
 }
 
 // ---- Round 7: Timeline, Asset Map, PO Receiving ----

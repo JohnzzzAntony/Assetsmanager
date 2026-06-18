@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { timelineApi } from '@/lib/api'
 import type { TimelineEvent, AssetTimeline } from '@/lib/types'
@@ -8,9 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowLeft,
+  ArrowUpRight,
+  ArrowDownLeft,
   Plus,
   UserPlus,
   UserMinus,
@@ -26,6 +29,8 @@ import {
   GitBranch,
   CheckCircle2,
   XCircle,
+  ClipboardList,
+  FilterX,
 } from 'lucide-react'
 import { formatDate, formatRelative } from '@/lib/format'
 import { useNav } from '@/lib/nav'
@@ -40,6 +45,9 @@ const iconMap: Record<string, LucideIcon> = {
   KeyRound,
   Image: ImageIcon,
   Trash2,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ClipboardList,
 }
 
 // ---- Map event.type → dot CSS variant class ----
@@ -49,11 +57,12 @@ function dotVariant(type: string): string {
     case 'updated':
       return 'event-created'
     case 'assigned':
-    case 'checkout':
       return 'event-assigned'
     case 'unassigned':
-    case 'checkin':
       return 'event-unassigned'
+    case 'checkout':
+    case 'checkin':
+      return 'event-emerald'
     case 'maintenance.scheduled':
     case 'maintenance.cancelled':
       return 'event-maintenance'
@@ -82,11 +91,12 @@ function accentColor(type: string): string {
     case 'maintenance.completed':
       return '#10b981' // emerald
     case 'assigned':
-    case 'checkout':
       return '#8b5cf6' // violet
     case 'unassigned':
-    case 'checkin':
       return '#64748b' // slate
+    case 'checkout':
+    case 'checkin':
+      return '#10b981' // emerald (Round 8 — checkout/checkin)
     case 'maintenance.scheduled':
     case 'maintenance.cancelled':
       return '#f59e0b' // amber
@@ -95,15 +105,83 @@ function accentColor(type: string): string {
       return '#0ea5e9' // sky
     case 'license.allocated':
     case 'license.deallocated':
-      return '#8b5cf6' // violet
+      return '#ec4899' // pink
     case 'image.added':
-      return '#0ea5e9' // sky
+      return '#f97316' // orange
     case 'disposal':
       return '#f43f5e' // rose
     default:
       return '#0ea5e9' // sky default
   }
 }
+
+// ---- Filter category config ----
+interface FilterCategory {
+  key: string
+  label: string
+  types: string[]
+  color: string
+  ringClass: string
+}
+
+const FILTER_CATEGORIES: FilterCategory[] = [
+  {
+    key: 'All',
+    label: 'All',
+    types: [],
+    color: '#64748b',
+    ringClass: 'ring-slate-400/40',
+  },
+  {
+    key: 'Assignments',
+    label: 'Assignments',
+    types: ['assigned', 'unassigned'],
+    color: '#0ea5e9',
+    ringClass: 'ring-sky-500/30',
+  },
+  {
+    key: 'Maintenance',
+    label: 'Maintenance',
+    types: ['maintenance.scheduled', 'maintenance.completed', 'maintenance.cancelled'],
+    color: '#f59e0b',
+    ringClass: 'ring-amber-500/30',
+  },
+  {
+    key: 'Bookings',
+    label: 'Bookings',
+    types: ['booking.created', 'booking.completed'],
+    color: '#8b5cf6',
+    ringClass: 'ring-violet-500/30',
+  },
+  {
+    key: 'Checkouts',
+    label: 'Checkouts',
+    types: ['checkout', 'checkin'],
+    color: '#10b981',
+    ringClass: 'ring-emerald-500/30',
+  },
+  {
+    key: 'Licenses',
+    label: 'Licenses',
+    types: ['license.allocated', 'license.deallocated'],
+    color: '#ec4899',
+    ringClass: 'ring-pink-500/30',
+  },
+  {
+    key: 'Images',
+    label: 'Images',
+    types: ['image.added'],
+    color: '#f97316',
+    ringClass: 'ring-orange-500/30',
+  },
+  {
+    key: 'Lifecycle',
+    label: 'Lifecycle',
+    types: ['created', 'disposal'],
+    color: '#64748b',
+    ringClass: 'ring-slate-500/30',
+  },
+]
 
 // ---- Stat tile ----
 interface StatTileProps {
@@ -289,22 +367,104 @@ function EmptyState() {
   )
 }
 
+// ---- Filter-empty state ----
+function FilterEmptyState({ onClear }: { onClear: () => void }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center justify-center py-14 px-4 text-center">
+        <div className="empty-state-icon mb-4">
+          <FilterX className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <h3 className="text-base font-semibold text-foreground">No events match this filter</h3>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          There are no events in the selected category for this asset. Try clearing the filter to see all activity.
+        </p>
+        <Button variant="outline" className="mt-4 btn-press" onClick={onClear}>
+          <FilterX className="mr-2 h-4 w-4" />
+          Clear filter
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---- Filter chip ----
+interface FilterChipProps {
+  category: FilterCategory
+  count: number
+  active: boolean
+  onClick: () => void
+}
+
+function FilterChip({ category, count, active, onClick }: FilterChipProps) {
+  return (
+    <Button
+      type="button"
+      variant={active ? 'default' : 'outline'}
+      size="sm"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'h-8 gap-1.5 rounded-full px-3 text-xs font-medium shadow-sm transition-all',
+        active
+          ? cn('text-white shadow-sm ring-2', category.ringClass)
+          : 'border-muted-foreground/20 hover:bg-muted/50 hover:border-muted-foreground/40',
+      )}
+      style={active ? { backgroundColor: category.color, borderColor: category.color } : undefined}
+    >
+      <span>{category.label}</span>
+      <span
+        className={cn(
+          'ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+          active ? 'bg-white/20' : 'bg-muted-foreground/10',
+        )}
+      >
+        {count}
+      </span>
+    </Button>
+  )
+}
+
 // ---- Main view ----
 export function AssetTimelineView({ assetId }: { assetId: string }) {
   const navigate = useNav((s) => s.navigate)
+  const [activeFilter, setActiveFilter] = useState<string>('All')
   const { data, isLoading, isError } = useQuery<AssetTimeline>({
     queryKey: ['asset-timeline', assetId],
     queryFn: () => timelineApi.getForAsset(assetId),
   })
 
   const events = data?.events
-  const groups = useMemo(() => {
+
+  // Per-category counts (always computed from ALL events, never filtered)
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    if (!events) return counts
+    for (const cat of FILTER_CATEGORIES) {
+      if (cat.key === 'All') {
+        counts[cat.key] = events.length
+      } else {
+        counts[cat.key] = events.filter((e) => cat.types.includes(e.type)).length
+      }
+    }
+    return counts
+  }, [events])
+
+  // Filtered events (filter applied BEFORE grouping so empty date groups don't render)
+  const filteredEvents = useMemo(() => {
     if (!events) return []
-    const sorted = [...events].sort(
+    if (activeFilter === 'All') return events
+    const cat = FILTER_CATEGORIES.find((c) => c.key === activeFilter)
+    if (!cat) return events
+    return events.filter((e) => cat.types.includes(e.type))
+  }, [events, activeFilter])
+
+  const groups = useMemo(() => {
+    const sorted = [...filteredEvents].sort(
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     )
     return groupByDate(sorted)
-  }, [events])
+  }, [filteredEvents])
 
   return (
     <div className="space-y-5 animate-fade-in-up">
@@ -331,7 +491,7 @@ export function AssetTimelineView({ assetId }: { assetId: string }) {
             {data && (
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                 <Package className="h-3.5 w-3.5" />
-                <span className="font-medium text-foreground">{data.assetName}</span>
+                <span className="gradient-text-shine font-medium text-foreground">{data.assetName}</span>
                 {data.assetTag && (
                   <Badge variant="secondary" className="font-mono text-[11px]">
                     {data.assetTag}
@@ -367,24 +527,24 @@ export function AssetTimelineView({ assetId }: { assetId: string }) {
         </Card>
       ) : (
         <>
-          {/* Stat tiles */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Stat tiles — 7 total, always unfiltered */}
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
             <StatTile
               label="Total Events"
               value={data.stats.totalEvents}
               icon={GitBranch}
               color="#0ea5e9"
-              hint="All lifecycle activity"
+              hint="All activity"
             />
             <StatTile
               label="Assignments"
               value={data.stats.assignmentCount}
               icon={UserPlus}
-              color="#8b5cf6"
+              color="#0ea5e9"
               hint="Assignment changes"
             />
             <StatTile
-              label="Maintenance Events"
+              label="Maintenance"
               value={data.stats.maintenanceCount}
               icon={Wrench}
               color="#f59e0b"
@@ -394,9 +554,46 @@ export function AssetTimelineView({ assetId }: { assetId: string }) {
               label="Bookings"
               value={data.stats.bookingCount}
               icon={CalendarClock}
-              color="#10b981"
+              color="#8b5cf6"
               hint="Reservation events"
             />
+            <StatTile
+              label="Checkouts"
+              value={data.stats.checkoutCount ?? 0}
+              icon={ArrowUpRight}
+              color="#10b981"
+              hint="Check-out / check-in"
+            />
+            <StatTile
+              label="Licenses"
+              value={data.stats.licenseCount ?? 0}
+              icon={KeyRound}
+              color="#ec4899"
+              hint="Allocated / deallocated"
+            />
+            <StatTile
+              label="Images"
+              value={data.stats.imageCount ?? 0}
+              icon={ImageIcon}
+              color="#f97316"
+              hint="Photos added"
+            />
+          </div>
+
+          {/* Strong gradient divider between KPIs and filter chips */}
+          <div className="gradient-divider-strong" aria-hidden />
+
+          {/* Filter chips */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {FILTER_CATEGORIES.map((cat) => (
+              <FilterChip
+                key={cat.key}
+                category={cat}
+                count={categoryCounts[cat.key] ?? 0}
+                active={activeFilter === cat.key}
+                onClick={() => setActiveFilter(cat.key)}
+              />
+            ))}
           </div>
 
           {/* First / Last event footer */}
@@ -423,13 +620,20 @@ export function AssetTimelineView({ assetId }: { assetId: string }) {
           {/* Timeline */}
           {data.events.length === 0 ? (
             <EmptyState />
+          ) : filteredEvents.length === 0 ? (
+            <FilterEmptyState onClear={() => setActiveFilter('All')} />
           ) : (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <History className="h-4 w-4 text-sky-600" />
                   Lifecycle Events
-                  <Badge variant="secondary" className="ml-1">{data.stats.totalEvents}</Badge>
+                  <Badge variant="secondary" className="ml-1">{filteredEvents.length}</Badge>
+                  {activeFilter !== 'All' && (
+                    <Badge variant="outline" className="ml-1 text-[10px] font-normal">
+                      Filtered: {activeFilter}
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
                   Full chronological history · most recent first · scroll for older events

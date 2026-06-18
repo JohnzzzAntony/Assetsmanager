@@ -16,7 +16,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json(result)
   } catch (e) {
     const msg = String(e)
-    const status = msg.includes('must be in') ? 400 : 500
+    const status =
+      msg.includes('must be in') ||
+      msg.includes('No items were advanced') ||
+      msg.includes('is required')
+        ? 400
+        : 500
     return NextResponse.json({ error: msg }, { status })
   }
 }

@@ -43,6 +43,8 @@ import type {
   CostForecastReport,
   CostForecastCategory,
   CostForecastPoint,
+  ExpiryRenewPayload,
+  ExpiryRenewResult,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -2606,7 +2608,7 @@ function bucketFromRows(
 }
 
 export const utilizationRepo = {
-  report(): UtilizationReport {
+  report(idleThresholdDays: 30 | 60 | 90 | 180 = 30): UtilizationReport {
     ensure()
     const allAssets = rows<{
       id: string; assetTag: string | null; make: string | null; model: string | null;
@@ -2647,7 +2649,7 @@ export const utilizationRepo = {
       byTypeMap.set(t.id, bucketFromRows(t.id, t.name, rowsForType))
     }
 
-    // Idle assets: In Stock for > 30 days
+    // Idle assets: In Stock for > idleThresholdDays (Round 8: configurable)
     const DAY_MS = 24 * 60 * 60 * 1000
     const idleAssets: IdleAsset[] = allAssets
       .filter((a) => a.status === 'In Stock')
@@ -2666,7 +2668,7 @@ export const utilizationRepo = {
           locationName: a.locationName,
         }
       })
-      .filter((a) => a.daysIdle >= 30)
+      .filter((a) => a.daysIdle >= idleThresholdDays)
       .sort((a, b) => b.daysIdle - a.daysIdle)
 
     return {
@@ -2969,6 +2971,69 @@ export const assetTimelineRepo = {
       })
     }
 
+    // 8. Round 8: Checkout / Check-in events
+    const checkouts = rows<{
+      id: string
+      requestType: string
+      status: string
+      reason: string | null
+      requestedStartDate: string
+      requestedReturnDate: string | null
+      checkedOutAt: string | null
+      checkedInAt: string | null
+      actualReturnDate: string | null
+      conditionAtReturn: string | null
+      requesterName: string | null
+    }>(
+      db.prepare(`
+        SELECT c.id, c.requestType, c.status, c.reason, c.requestedStartDate, c.requestedReturnDate,
+               c.checkedOutAt, c.checkedInAt, c.actualReturnDate, c.conditionAtReturn,
+               p.fullName as requesterName
+        FROM CheckoutRequest c
+        LEFT JOIN Person p ON c.requestedById = p.id
+        WHERE c.assetId = ?
+        ORDER BY c.updatedAt DESC
+      `).all(assetId)
+    )
+    for (const c of checkouts) {
+      // Check-out event (when asset was actually checked out)
+      if (c.checkedOutAt) {
+        events.push({
+          id: `co-out-${c.id}`,
+          type: 'checkout',
+          timestamp: c.checkedOutAt,
+          title: `Checked out${c.requesterName ? ` to ${c.requesterName}` : ''}`,
+          description: c.reason || `Return expected ${c.requestedReturnDate ? c.requestedReturnDate.slice(0, 10) : '—'}`,
+          icon: 'ArrowUpRight',
+          actorName: c.requesterName,
+        })
+      }
+      // Check-in event (when asset was returned / checked back in)
+      if (c.checkedInAt || c.actualReturnDate) {
+        events.push({
+          id: `co-in-${c.id}`,
+          type: 'checkin',
+          timestamp: c.actualReturnDate || c.checkedInAt || c.requestedStartDate,
+          title: `Checked in${c.requesterName ? ` from ${c.requesterName}` : ''}`,
+          description: c.conditionAtReturn ? `Returned · condition: ${c.conditionAtReturn}` : 'Asset returned to inventory',
+          icon: 'ArrowDownLeft',
+          actorName: c.requesterName,
+        })
+      }
+      // Pending / Approved / Rejected status events (only when no checkout happened yet)
+      if (!c.checkedOutAt && (c.status === 'Pending' || c.status === 'Approved' || c.status === 'Rejected')) {
+        events.push({
+          id: `co-req-${c.id}`,
+          type: 'checkout',
+          timestamp: c.requestedStartDate,
+          title: `${c.requestType} request ${c.status.toLowerCase()}`,
+          description: c.reason || `Requester: ${c.requesterName || '—'}`,
+          icon: 'ClipboardList',
+          actorName: c.requesterName,
+        })
+      }
+    }
+
     // Sort all events by timestamp desc
     events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
@@ -2977,6 +3042,9 @@ export const assetTimelineRepo = {
       assignmentCount: events.filter((e) => e.type === 'assigned' || e.type === 'unassigned').length,
       maintenanceCount: events.filter((e) => String(e.type).startsWith('maintenance')).length,
       bookingCount: events.filter((e) => String(e.type).startsWith('booking')).length,
+      checkoutCount: events.filter((e) => e.type === 'checkout' || e.type === 'checkin').length,
+      licenseCount: events.filter((e) => String(e.type).startsWith('license')).length,
+      imageCount: events.filter((e) => String(e.type).startsWith('image')).length,
       firstEventAt: events.length ? events[events.length - 1].timestamp : null,
       lastEventAt: events.length ? events[0].timestamp : null,
     }
@@ -3002,20 +3070,82 @@ export const poReceivingRepo = {
       throw new Error(`PO must be in Approved, Ordered, or Partially Received state to receive items (current: ${po.status})`)
     }
 
+    // Round 8 fix: validate that at least one item will be advanced with a positive qty.
+    // Pre-filter the items so we can refuse empty/zero submissions before any DB writes.
+    const effectiveItems = items
+      .map((payload) => {
+        const item = po.items!.find((i) => i.id === payload.itemId)
+        if (!item) return null
+        const receivedNow = Math.max(0, Math.floor(Number(payload.receivedQty) || 0))
+        if (receivedNow === 0) return null
+        // Clamp so we don't receive more than the line allows
+        const newTotal = Math.min(item.quantity, item.receivedQuantity + receivedNow)
+        const actuallyReceived = newTotal - item.receivedQuantity
+        if (actuallyReceived <= 0) return null
+        return { item, receivedNow, newTotal, actuallyReceived }
+      })
+      .filter((x): x is { item: typeof po.items[number]; receivedNow: number; newTotal: number; actuallyReceived: number } => x !== null)
+
+    if (effectiveItems.length === 0) {
+      throw new Error('No items were advanced. Provide at least one itemId with a positive receivedQty greater than the previously received quantity.')
+    }
+
     const now = new Date().toISOString()
     const receivedItems: POReceiveResult['receivedItems'] = []
+    const createdAssets: POReceiveResult['createdAssets'] = []
     let allReceived = true
 
-    for (const payload of items) {
-      const item = po.items.find((i) => i.id === payload.itemId)
-      if (!item) continue
-      const receivedNow = Math.max(0, Math.floor(Number(payload.receivedQty) || 0))
-      if (receivedNow === 0) continue
-      const newTotal = Math.min(item.quantity, item.receivedQuantity + receivedNow)
-      const actuallyReceived = newTotal - item.receivedQuantity
+    // Look up the AssetType for tag generation (each item may have its own assetTypeId)
+    for (const { item, newTotal, actuallyReceived } of effectiveItems) {
       db.prepare('UPDATE PurchaseOrderItem SET receivedQuantity = ? WHERE id = ?').run(newTotal, item.id)
       const fullyReceived = newTotal >= item.quantity
       if (!fullyReceived) allReceived = false
+
+      // Round 8: auto-create Asset rows for items with an assetTypeId.
+      // One Asset per newly received unit (NOT for previously received quantity).
+      const newAssetIds: string[] = []
+      const newAssetTags: string[] = []
+      if (item.assetTypeId && actuallyReceived > 0) {
+        const at = row<{ id: string; name: string }>(
+          db.prepare('SELECT id, name FROM AssetType WHERE id = ?').get(item.assetTypeId)
+        )
+        if (at) {
+          for (let i = 0; i < actuallyReceived; i++) {
+            const assetId = generateId()
+            const tag = generateSequentialAssetTag(at.name)
+            const cols = [
+              'id', 'assetTag', 'assetTypeId', 'make', 'model', 'status',
+              'purchaseDate', 'cost', 'currency', 'comments', 'createdAt', 'updatedAt',
+            ]
+            const vals = [
+              assetId,
+              tag,
+              item.assetTypeId,
+              null,
+              null,
+              'In Stock',
+              po.orderDate,
+              item.unitPrice,
+              po.currency || 'USD',
+              `Auto-created from PO ${po.poNumber} · "${item.description}"`,
+              now,
+              now,
+            ]
+            const ph = cols.map(() => '?').join(', ')
+            db.prepare(`INSERT INTO Asset (${cols.join(', ')}) VALUES (${ph})`).run(...vals)
+            logAssetActivity('asset.created', assetId, `Auto-created from PO ${po.poNumber} (line item: ${item.description})`)
+            newAssetIds.push(assetId)
+            newAssetTags.push(tag)
+          }
+          activityLogRepo.log(
+            'po.assets.created',
+            'PurchaseOrder',
+            poId,
+            `PO ${po.poNumber} receiving auto-created ${newAssetIds.length} asset(s) for "${item.description}"`
+          )
+        }
+      }
+
       receivedItems.push({
         itemId: item.id,
         description: item.description,
@@ -3024,11 +3154,14 @@ export const poReceivingRepo = {
         quantity: item.quantity,
         fullyReceived,
       })
+      if (newAssetIds.length > 0) {
+        createdAssets.push({ itemId: item.id, assetIds: newAssetIds, assetTags: newAssetTags })
+      }
       activityLogRepo.log(
         'po.item.received',
         'PurchaseOrderItem',
         item.id,
-        `Received ${actuallyReceived} of "${item.description}" (total ${newTotal}/${item.quantity}) for PO ${po.poNumber}`
+        `Received ${actuallyReceived} of "${item.description}" (total ${newTotal}/${item.quantity}) for PO ${po.poNumber}${newAssetIds.length ? ` · created ${newAssetIds.length} asset(s)` : ''}`
       )
     }
 
@@ -3045,12 +3178,137 @@ export const poReceivingRepo = {
       'PurchaseOrder',
       poId,
       allReceived
-        ? `PO ${po.poNumber} fully received (${receivedItems.length} items)`
+        ? `PO ${po.poNumber} fully received (${receivedItems.length} items${createdAssets.length ? `, ${createdAssets.reduce((s, c) => s + c.assetIds.length, 0)} assets auto-created` : ''})`
         : `PO ${po.poNumber} partially received (${receivedItems.length} items updated)`
     )
 
     const updatedPo = purchaseOrderRepo.get(poId)!
-    return { po: updatedPo, receivedItems, allItemsReceived: allReceived }
+    return { po: updatedPo, receivedItems, allItemsReceived: allReceived, createdAssets }
+  },
+}
+
+// ============ Round 8: helper — sequential asset tag generator ============
+// Builds tags like LAPTOP-0007, MON-0012 etc. using AssetType.prefix (or name slug)
+// and the current highest count for that type to keep tags sequential.
+function generateSequentialAssetTag(prefixOrName: string): string {
+  ensure()
+  const slug = (prefixOrName || 'ASSET')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 8) || 'ASSET'
+  // Count existing assets of any type whose assetTag starts with this slug + '-'
+  const row = db
+    .prepare("SELECT assetTag FROM Asset WHERE assetTag LIKE ? ORDER BY assetTag DESC LIMIT 1")
+    .get(`${slug}-%`) as { assetTag: string } | undefined
+  let next = 1
+  if (row && row.assetTag) {
+    const m = row.assetTag.match(/(\d+)$/)
+    if (m) next = parseInt(m[1], 10) + 1
+  }
+  return `${slug}-${String(next).padStart(4, '0')}`
+}
+
+// ============ Round 8: Expiry Renew Workflow ============
+export const expiryRenewRepo = {
+  /**
+   * Creates a draft Purchase Order that represents the renewal of either:
+   *   - an asset's warranty (assetId provided), or
+   *   - a software license (licenseId provided)
+   * Returns the new PO + the renewed item descriptor.
+   */
+  renew(payload: ExpiryRenewPayload): ExpiryRenewResult {
+    ensure()
+    if (!payload.vendorId) throw new Error('vendorId is required')
+    if (!payload.assetId && !payload.licenseId) {
+      throw new Error('Either assetId or licenseId must be provided')
+    }
+
+    let entityName = ''
+    let currentExpiry: string | null = null
+    let description = ''
+    let unitPrice = 0
+    let assetTypeId: string | null = null
+
+    if (payload.assetId) {
+      const asset = row<{ id: string; assetTag: string | null; make: string | null; model: string | null; warrantyExpiry: string | null; cost: number | null; assetTypeId: string }>(
+        db.prepare('SELECT id, assetTag, make, model, warrantyExpiry, cost, assetTypeId FROM Asset WHERE id = ?').get(payload.assetId)
+      )
+      if (!asset) throw new Error('Asset not found')
+      entityName = `${asset.make || ''} ${asset.model || ''}`.trim() || asset.assetTag || asset.id.slice(0, 8)
+      currentExpiry = asset.warrantyExpiry
+      description = `Warranty renewal for ${entityName}${asset.assetTag ? ` (${asset.assetTag})` : ''}`
+      unitPrice = Number(asset.cost) || 0
+      assetTypeId = asset.assetTypeId
+    } else if (payload.licenseId) {
+      const lic = row<{ id: string; name: string; vendor: string | null; expiryDate: string | null; cost: number | null; seatsTotal: number }>(
+        db.prepare('SELECT id, name, vendor, expiryDate, cost, seatsTotal FROM SoftwareLicense WHERE id = ?').get(payload.licenseId)
+      )
+      if (!lic) throw new Error('Software license not found')
+      entityName = lic.name
+      currentExpiry = lic.expiryDate
+      description = `License renewal for ${lic.name}`
+      // Use total cost (cost × seatsTotal) when available, otherwise fall back to flat cost
+      unitPrice = Number(lic.cost) || 0
+    }
+
+    const now = new Date().toISOString()
+    const today = now.slice(0, 10)
+    // Generate PO number: RENEW-YYYYMMDD-HHMMSS
+    const poNumber = `RENEW-${today.replace(/-/g, '')}-${now.slice(11, 19).replace(/:/g, '')}`
+
+    const poId = generateId()
+    const expectedDate = payload.expectedDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    db.prepare(`
+      INSERT INTO PurchaseOrder (id, poNumber, vendorId, status, orderDate, expectedDate, subtotal, taxRate, taxAmount, shippingCost, totalAmount, currency, notes, createdAt, updatedAt)
+      VALUES (?, ?, ?, 'Draft', ?, ?, ?, 0, 0, 0, ?, 'USD', ?, ?, ?)
+    `).run(
+      poId,
+      poNumber,
+      payload.vendorId,
+      today,
+      expectedDate,
+      unitPrice,
+      unitPrice,
+      payload.notes || `${description}${currentExpiry ? ` · current expiry ${currentExpiry.slice(0, 10)}` : ''}`,
+      now,
+      now
+    )
+
+    // Create one line item describing the renewal
+    const itemId = generateId()
+    db.prepare(`
+      INSERT INTO PurchaseOrderItem (id, poId, assetTypeId, description, quantity, unitPrice, totalPrice, receivedQuantity, notes, createdAt)
+      VALUES (?, ?, ?, ?, 1, ?, ?, 0, ?, ?)
+    `).run(
+      itemId,
+      poId,
+      assetTypeId,
+      description,
+      unitPrice,
+      unitPrice,
+      `Auto-generated renewal PO for ${payload.assetId ? 'warranty' : 'license'} expiry`,
+      now
+    )
+
+    activityLogRepo.log(
+      'po.renew.created',
+      'PurchaseOrder',
+      poId,
+      `Renewal PO ${poNumber} drafted for ${payload.assetId ? 'asset warranty' : 'software license'}: ${entityName}`
+    )
+
+    const renewedItem: ExpiryRenewResult['renewedItem'] = {
+      expiryType: payload.assetId ? 'warranty' : 'license',
+      entityId: payload.assetId || payload.licenseId!,
+      entityName,
+      currentExpiry,
+    }
+
+    return {
+      po: purchaseOrderRepo.get(poId)!,
+      renewedItem,
+    }
   },
 }
 

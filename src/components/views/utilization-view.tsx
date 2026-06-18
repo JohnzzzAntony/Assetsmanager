@@ -1,13 +1,25 @@
 'use client'
 
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { utilizationApi } from '@/lib/api'
-import type { UtilizationByBucket, IdleAsset } from '@/lib/types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  utilizationApi,
+  assetsApi,
+  disposalsApi,
+  personsApi,
+  departmentsApi,
+  locationsApi,
+} from '@/lib/api'
+import type {
+  UtilizationByBucket,
+  IdleAsset,
+  DisposalMethod,
+} from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/empty-state'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -17,6 +29,31 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   ResponsiveContainer,
   BarChart,
@@ -38,9 +75,18 @@ import {
   Layers,
   Activity,
   Timer,
+  UserCog,
+  Trash2,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { formatDate } from '@/lib/format'
 import { useNav } from '@/lib/nav'
+
+// ---- Idle threshold options ----
+type IdleThreshold = 30 | 60 | 90 | 180
+const IDLE_THRESHOLDS: IdleThreshold[] = [30, 60, 90, 180]
 
 // ---- KPI tile ----
 interface KPITileProps {
@@ -229,14 +275,22 @@ function BucketSection({ title, description, icon: Icon, iconColor, buckets, cha
   )
 }
 
-// ---- Idle asset row ----
+// ---- Idle asset row badge ----
 function idleBadge(days: number): { text: string; className: string } {
   if (days > 180) return { text: `${days}d`, className: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30' }
   if (days > 90) return { text: `${days}d`, className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30' }
   return { text: `${days}d`, className: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30' }
 }
 
-function IdleAssetsTable({ assets }: { assets: IdleAsset[] }) {
+// ---- Idle Assets Table ----
+interface IdleAssetsTableProps {
+  assets: IdleAsset[]
+  idleThresholdDays: IdleThreshold
+  onReassign: (asset: IdleAsset) => void
+  onDispose: (asset: IdleAsset) => void
+}
+
+function IdleAssetsTable({ assets, idleThresholdDays, onReassign, onDispose }: IdleAssetsTableProps) {
   const navigate = useNav((s) => s.navigate)
   const sorted = useMemo(() => [...assets].sort((a, b) => b.daysIdle - a.daysIdle), [assets])
 
@@ -248,10 +302,12 @@ function IdleAssetsTable({ assets }: { assets: IdleAsset[] }) {
           Idle Assets
           <Badge variant="secondary" className="ml-1">{sorted.length}</Badge>
         </CardTitle>
-        <CardDescription>Assets in stock for more than 30 days · sorted by days idle (desc)</CardDescription>
+        <CardDescription>
+          {`Assets in stock for ≥ ${idleThresholdDays} days · sorted by days idle (desc)`}
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="max-h-96 overflow-y-auto scrollbar-thin">
+        <div className="max-h-96 overflow-y-auto scrollbar-thin [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
           <Table>
             <TableHeader>
               <TableRow>
@@ -260,7 +316,9 @@ function IdleAssetsTable({ assets }: { assets: IdleAsset[] }) {
                 <TableHead>Department</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead className="text-right">Days Idle</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="sticky right-0 z-10 bg-background/95 text-right backdrop-blur">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -269,7 +327,13 @@ function IdleAssetsTable({ assets }: { assets: IdleAsset[] }) {
                 return (
                   <TableRow key={a.id}>
                     <TableCell>
-                      <div className="font-medium text-foreground">{a.name}</div>
+                      <button
+                        type="button"
+                        className="text-left font-medium text-foreground hover:underline"
+                        onClick={() => navigate('asset-detail', { id: a.id })}
+                      >
+                        {a.name}
+                      </button>
                       {a.assetTag && (
                         <div className="text-[11px] text-muted-foreground">{a.assetTag}</div>
                       )}
@@ -290,15 +354,29 @@ function IdleAssetsTable({ assets }: { assets: IdleAsset[] }) {
                         {badge.text}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="btn-press h-7 px-2 text-xs"
-                        onClick={() => navigate('asset-detail', { id: a.id })}
-                      >
-                        View
-                      </Button>
+                    <TableCell className="sticky right-0 z-10 bg-background/95 text-right backdrop-blur">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="btn-press h-7 px-2 text-xs hover:ring-2 hover:ring-sky-500/30"
+                          onClick={() => onReassign(a)}
+                          title="Reassign asset"
+                        >
+                          <UserCog className="h-3.5 w-3.5" />
+                          <span className="ml-1 hidden sm:inline">Reassign</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="btn-press h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                          onClick={() => onDispose(a)}
+                          title="Dispose asset"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span className="ml-1 hidden sm:inline">Dispose</span>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -311,22 +389,383 @@ function IdleAssetsTable({ assets }: { assets: IdleAsset[] }) {
   )
 }
 
+// ---- Reassign Dialog ----
+function ReassignDialog({ asset, onClose }: { asset: IdleAsset; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [personId, setPersonId] = useState<string>('')
+  const [departmentId, setDepartmentId] = useState<string>('')
+  const [locationId, setLocationId] = useState<string>('')
+  const [notes, setNotes] = useState<string>('')
+  const [submitting, setSubmitting] = useState(false)
+
+  // Fetch persons / departments / locations whenever this dialog mounts.
+  // TanStack Query caches by key, so reopens are instant.
+  const { data: persons, isLoading: personsLoading } = useQuery({
+    queryKey: ['persons', 'list-all'],
+    queryFn: () => personsApi.list(),
+  })
+  const { data: departments } = useQuery({
+    queryKey: ['departments', 'list-all'],
+    queryFn: () => departmentsApi.list(),
+  })
+  const { data: locations } = useQuery({
+    queryKey: ['locations', 'list-all'],
+    queryFn: () => locationsApi.list(),
+  })
+
+  async function handleSubmit() {
+    if (!personId) {
+      toast.error('Please select a person to reassign the asset to.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      // The existing assetsApi.assign accepts { personId, departmentId, locationId, reason, action }.
+      // We fold the optional notes into the reason string so the data is preserved without
+      // requiring changes to the assign repo (AssignmentHistory.reason is free-text).
+      const reason = notes.trim()
+        ? `Reassigned from idle — ${notes.trim()}`
+        : 'Reassigned from idle'
+      await assetsApi.assign(asset.id, {
+        personId,
+        departmentId: departmentId || undefined,
+        locationId: locationId || undefined,
+        reason,
+      })
+      toast.success('Asset reassigned', {
+        description: `${asset.name} has been reassigned to a new owner.`,
+      })
+      onClose()
+      await qc.invalidateQueries({ queryKey: ['utilization'] })
+      qc.invalidateQueries({ queryKey: ['assets'] })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error('Failed to reassign asset', { description: msg })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserCog className="h-5 w-5 text-sky-600" />
+            Reassign Asset
+          </DialogTitle>
+          <DialogDescription>
+            Reassign this idle asset to a new owner. The previous assignment will be closed and a new one created.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {/* Read-only asset context */}
+          <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-xs space-y-1">
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Asset</span>
+              <span className="text-right font-medium text-foreground">{asset.name}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Asset Tag</span>
+              <span className="font-mono text-foreground">{asset.assetTag || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Current Department</span>
+              <span className="text-foreground">{asset.departmentName || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Current Location</span>
+              <span className="text-foreground">{asset.locationName || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Days Idle</span>
+              <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30">
+                <Clock className="mr-1 h-3 w-3" />
+                {asset.daysIdle}d
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="reassign-person" className="text-xs uppercase tracking-wide text-muted-foreground">
+              New Owner <span className="text-destructive">*</span>
+            </Label>
+            <Select value={personId} onValueChange={setPersonId}>
+              <SelectTrigger id="reassign-person" className="w-full">
+                <SelectValue placeholder={personsLoading ? 'Loading people…' : 'Select a person…'} />
+              </SelectTrigger>
+              <SelectContent>
+                {(persons ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.fullName}{p.role ? ` · ${p.role}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                New Department
+              </Label>
+              <Select value={departmentId} onValueChange={setDepartmentId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Unchanged" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(departments ?? []).map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                New Location
+              </Label>
+              <Select value={locationId} onValueChange={setLocationId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Unchanged" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(locations ?? []).map((l) => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="reassign-notes" className="text-xs uppercase tracking-wide text-muted-foreground">
+              Notes
+            </Label>
+            <Textarea
+              id="reassign-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any context about this reassignment…"
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting || !personId}>
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Reassigning…
+              </>
+            ) : (
+              <>
+                <UserCog className="mr-2 h-4 w-4" />
+                Reassign Asset
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---- Dispose AlertDialog ----
+const DISPOSE_OPTIONS: { value: DisposalMethod; label: string }[] = [
+  { value: 'Donated', label: 'Donate' },
+  { value: 'Recycled', label: 'Recycle' },
+  { value: 'Sold', label: 'Sell' },
+  { value: 'Scrapped', label: 'Scrap' },
+]
+
+function DisposeDialog({ asset, onClose }: { asset: IdleAsset; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [method, setMethod] = useState<DisposalMethod>('Donated')
+  const [reason, setReason] = useState<string>('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleConfirm() {
+    setSubmitting(true)
+    try {
+      await disposalsApi.create({
+        assetId: asset.id,
+        method,
+        reason: reason.trim() || undefined,
+      })
+      toast.success('Asset disposed', {
+        description: `${asset.name} has been marked as ${method.toLowerCase()}.`,
+      })
+      onClose()
+      await qc.invalidateQueries({ queryKey: ['utilization'] })
+      qc.invalidateQueries({ queryKey: ['assets'] })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error('Failed to dispose asset', { description: msg })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <AlertDialog open onOpenChange={(o) => !o && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <Trash2 className="h-5 w-5 text-destructive" />
+            Dispose Asset?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This will mark the asset as disposed. The action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3 py-1">
+          <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-xs space-y-1">
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Asset</span>
+              <span className="text-right font-medium text-foreground">{asset.name}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Asset Tag</span>
+              <span className="font-mono text-foreground">{asset.assetTag || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Days Idle</span>
+              <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30">
+                <Clock className="mr-1 h-3 w-3" />
+                {asset.daysIdle}d
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Disposal Method
+            </Label>
+            <Select value={method} onValueChange={(v) => setMethod(v as DisposalMethod)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DISPOSE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="dispose-reason" className="text-xs uppercase tracking-wide text-muted-foreground">
+              Reason (optional)
+            </Label>
+            <Textarea
+              id="dispose-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why is this asset being disposed?"
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              // Prevent default close — we close manually after the API call resolves.
+              e.preventDefault()
+              handleConfirm()
+            }}
+            disabled={submitting}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Disposing…
+              </>
+            ) : (
+              <>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Confirm Disposal
+              </>
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+// ---- Main view ----
 export function UtilizationView() {
+  const qc = useQueryClient()
+  const [idleThresholdDays, setIdleThresholdDays] = useState<IdleThreshold>(30)
+  const [reassignAsset, setReassignAsset] = useState<IdleAsset | null>(null)
+  const [disposeAsset, setDisposeAsset] = useState<IdleAsset | null>(null)
+
+  // Skip toast on initial mount; show "Idle threshold updated to N days" on user-initiated changes.
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    toast.success(`Idle threshold updated to ${idleThresholdDays} days`)
+  }, [idleThresholdDays])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['utilization'],
-    queryFn: () => utilizationApi.report(),
+    queryKey: ['utilization', idleThresholdDays],
+    queryFn: () => utilizationApi.report(idleThresholdDays),
   })
 
   const overall = data?.overall
 
+  // Helper used by Reassign/Dispose success handlers — we already invalidate inside the
+  // dialogs, but keep a stable no-op here for clarity / future use.
+  void qc
+
   return (
-    <div className="space-y-5 animate-fade-in-up">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold tracking-tight">Asset Utilization</h2>
-        <p className="text-sm text-muted-foreground">
-          Track how effectively your asset pool is being used across departments and types.
-        </p>
+    <div className="animate-fade-in-up space-y-5">
+      {/* Header — title + idle-threshold selector */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="gradient-text-shine text-xl font-bold tracking-tight">Asset Utilization</h2>
+          <p className="text-sm text-muted-foreground">
+            Track how effectively your asset pool is being used across departments and types.
+          </p>
+        </div>
+        <div className="flex flex-col items-start gap-1 sm:items-end">
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="idle-threshold"
+              className="text-xs uppercase tracking-wide text-muted-foreground"
+            >
+              Idle Threshold:
+            </Label>
+            <Select
+              value={String(idleThresholdDays)}
+              onValueChange={(v) => setIdleThresholdDays(Number(v) as IdleThreshold)}
+            >
+              <SelectTrigger id="idle-threshold" className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {IDLE_THRESHOLDS.map((d) => (
+                  <SelectItem key={d} value={String(d)}>{d} days</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {`Assets In Stock for ≥ ${idleThresholdDays} days are considered idle`}
+          </p>
+        </div>
       </div>
 
       {isLoading && (
@@ -368,7 +807,7 @@ export function UtilizationView() {
               value={overall.idleCount}
               icon={Clock}
               color="#f59e0b"
-              hint="In stock > 30 days"
+              hint={`In stock > ${idleThresholdDays} days`}
             />
           </div>
 
@@ -412,16 +851,27 @@ export function UtilizationView() {
 
             {data.idleAssets.length === 0 ? (
               <Card>
-                <CardContent className="p-2">
-                  <EmptyState
-                    icon={TrendingUp}
-                    title="No idle assets — great job!"
-                    description="Every in-stock asset has been put to use within the last 30 days. Keep it up."
-                  />
+                <CardContent className="p-8">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
+                      <CheckCircle2 className="h-7 w-7 text-emerald-600" />
+                    </div>
+                    <h3 className="text-base font-semibold text-foreground">
+                      No idle assets at this threshold
+                    </h3>
+                    <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                      {`Every in-stock asset has been put to use within the last ${idleThresholdDays} days. Try a higher threshold to surface longer-idle assets.`}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
-              <IdleAssetsTable assets={data.idleAssets} />
+              <IdleAssetsTable
+                assets={data.idleAssets}
+                idleThresholdDays={idleThresholdDays}
+                onReassign={setReassignAsset}
+                onDispose={setDisposeAsset}
+              />
             )}
           </div>
 
@@ -451,6 +901,20 @@ export function UtilizationView() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Reassign / Dispose dialogs — mounted on demand */}
+      {reassignAsset && (
+        <ReassignDialog
+          asset={reassignAsset}
+          onClose={() => setReassignAsset(null)}
+        />
+      )}
+      {disposeAsset && (
+        <DisposeDialog
+          asset={disposeAsset}
+          onClose={() => setDisposeAsset(null)}
+        />
       )}
     </div>
   )

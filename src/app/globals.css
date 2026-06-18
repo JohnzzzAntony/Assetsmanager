@@ -1058,6 +1058,7 @@
 .timeline-dot.event-license { border-color: oklch(0.6 0.18 295); box-shadow: 0 0 0 3px oklch(0.6 0.18 295 / 0.15); }
 .timeline-dot.event-disposal { border-color: oklch(0.65 0.22 25); box-shadow: 0 0 0 3px oklch(0.65 0.22 25 / 0.15); }
 .timeline-dot.event-image { border-color: oklch(0.65 0.13 200); box-shadow: 0 0 0 3px oklch(0.65 0.13 200 / 0.15); }
+.timeline-dot.event-emerald { border-color: oklch(0.65 0.18 162); box-shadow: 0 0 0 3px oklch(0.65 0.18 162 / 0.15); }
 
 /* Timeline item hover */
 .timeline-item {
@@ -1181,5 +1182,189 @@
 .sparkline-area {
   fill: url(#sparkGrad);
   opacity: 0.4;
+}
+
+/* ============================================================
+   Round 8 — Styling Polish (micro-interactions, empty states,
+   hover effects, animations, accessibility focus ring)
+   ============================================================
+   Note: `.hover-lift` and `.scrollbar-thin` already exist above
+   (defined earlier in this file). They are reused as-is by the
+   Round 8 polish pass — see the existing definitions for their
+   full behaviour. The utilities below are NEW additions.
+   ============================================================ */
+
+/* 1. Subtle fade-in + upward translate for KPI numbers */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-count-up {
+  animation: countUp 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 2. Shimmering skeleton loader */
+@keyframes shimmer {
+  0%   { background-position: -468px 0; }
+  100% { background-position: 468px 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.95 0 0) 25%,
+    oklch(0.85 0 0 / 0.55) 37%,
+    oklch(0.95 0 0) 63%
+  );
+  background-size: 936px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.25 0 0) 25%,
+    oklch(0.4 0 0 / 0.5) 37%,
+    oklch(0.25 0 0) 63%
+  );
+  background-size: 936px 100%;
+}
+
+/* 3. `.hover-lift` already defined earlier in this file — reused as-is. */
+
+/* 4. Coloured hover glow rings for cards / buttons */
+.hover-glow-emerald,
+.hover-glow-sky,
+.hover-glow-violet,
+.hover-glow-amber {
+  transition: box-shadow 200ms ease;
+}
+.hover-glow-emerald:hover {
+  box-shadow: 0 0 0 4px oklch(0.7 0.15 145 / 0.10);
+}
+.hover-glow-sky:hover {
+  box-shadow: 0 0 0 4px oklch(0.7 0.15 240 / 0.10);
+}
+.hover-glow-violet:hover {
+  box-shadow: 0 0 0 4px oklch(0.7 0.15 290 / 0.10);
+}
+.hover-glow-amber:hover {
+  box-shadow: 0 0 0 4px oklch(0.7 0.15 80 / 0.10);
+}
+
+/* 5. Dotted background pattern for empty states */
+.empty-state-pattern {
+  background-image: radial-gradient(oklch(0.5 0 0 / 0.08) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.dark .empty-state-pattern {
+  background-image: radial-gradient(oklch(0.7 0 0 / 0.10) 1px, transparent 1px);
+}
+
+/* 6. Keyboard shortcut key styling (for command palette, tooltips) */
+.kbd-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 0.3rem;
+  background: oklch(0.97 0 0);
+  border: 1px solid oklch(0.85 0 0);
+  border-bottom-width: 2px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.7rem;
+  color: oklch(0.4 0 0);
+  box-shadow: 0 1px 0 oklch(0.85 0 0);
+}
+.dark .kbd-key {
+  background: oklch(0.25 0.01 240);
+  border-color: oklch(0.4 0.01 240);
+  color: oklch(0.85 0 0);
+  box-shadow: 0 1px 0 oklch(0 0 0 / 0.3);
+}
+
+/* 7. Card with subtle gradient border (mask trick) */
+.gradient-border-card {
+  position: relative;
+  background: hsl(var(--background));
+  border-radius: 0.75rem;
+}
+.gradient-border-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, oklch(0.7 0.15 240 / 0.5), oklch(0.7 0.15 290 / 0.5));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* 8. Small pulsing dot for "live" indicators */
+.status-pulse-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: oklch(0.7 0.15 145);
+  box-shadow: 0 0 0 0 oklch(0.7 0.15 145 / 0.7);
+  animation: status-pulse 2s infinite;
+}
+@keyframes status-pulse {
+  0%   { box-shadow: 0 0 0 0 oklch(0.7 0.15 145 / 0.7); }
+  70%  { box-shadow: 0 0 0 6px oklch(0.7 0.15 145 / 0); }
+  100% { box-shadow: 0 0 0 0 oklch(0.7 0.15 145 / 0); }
+}
+
+/* 9. `.scrollbar-thin` already defined earlier in this file — reused as-is. */
+
+/* 10. Subtle text shimmer animation for "loading" or "live" labels */
+@keyframes textShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.5 0 0) 0%,
+    oklch(0.3 0 0) 25%,
+    oklch(0.5 0 0) 50%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 3s linear infinite;
+}
+.dark .text-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.7 0 0) 0%,
+    oklch(0.95 0 0) 25%,
+    oklch(0.7 0 0) 50%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 11. Consistent focus ring for accessibility */
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: box-shadow 150ms ease;
+}
+.focus-ring:focus-visible {
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px oklch(0.6 0.15 240 / 0.6);
+}
+
+/* 12. Subtle glow on badges for emphasis */
+.badge-glow {
+  box-shadow: 0 0 12px oklch(0.7 0.15 240 / 0.25);
 }
 

@@ -59,6 +59,7 @@ import {
   Pencil,
   Trash2,
   Package,
+  PackageOpen,
   X,
   ChevronLeft,
   ChevronRight,
@@ -671,10 +672,11 @@ export function AssetsListView() {
                 <TableRow>
                   <TableCell colSpan={12} className="h-32 text-center">
                     <EmptyState
-                      icon={Package}
+                      icon={PackageOpen}
                       title="No assets found"
-                      description="Try adjusting your filters or add a new asset."
+                      description="Try adjusting your filters or add a new asset to get started."
                       action={{ label: 'Add Asset', onClick: () => navigate('asset-new'), icon: Plus }}
+                      className="empty-state-pattern rounded-lg border border-dashed"
                     />
                   </TableCell>
                 </TableRow>
@@ -683,10 +685,11 @@ export function AssetsListView() {
                   const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
                   const assetTags = asset.tags || []
                   const isRowSelected = selectedIds.has(asset.id)
+                  const assetName = `${asset.make} ${asset.model}`.trim()
                   return (
                     <TableRow
                       key={asset.id}
-                      className={`cursor-pointer hover:bg-muted/40 transition-colors ${isRowSelected ? 'bg-primary/5' : ''}`}
+                      className={`cursor-pointer hover:bg-muted/40 hover-lift transition-all ${isRowSelected ? 'bg-primary/5' : ''}`}
                       onClick={() => navigate('asset-detail', { id: asset.id })}
                     >
                       <TableCell
@@ -704,8 +707,13 @@ export function AssetsListView() {
                         <Badge variant="outline" className="font-normal">{asset.assetType?.name || '—'}</Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{asset.make} {asset.model}</div>
-                        {asset.modelNumber && <div className="text-xs text-muted-foreground">{asset.modelNumber}</div>}
+                        <div
+                          className="font-medium truncate max-w-[200px]"
+                          title={assetName}
+                        >
+                          {assetName || '—'}
+                        </div>
+                        {asset.modelNumber && <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={asset.modelNumber}>{asset.modelNumber}</div>}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{asset.serialNumber || '—'}</TableCell>
                       <TableCell>{asset.assignedTo?.fullName || <span className="text-muted-foreground">—</span>}</TableCell>

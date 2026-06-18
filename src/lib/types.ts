@@ -977,6 +977,9 @@ export interface AssetTimeline {
     assignmentCount: number
     maintenanceCount: number
     bookingCount: number
+    checkoutCount: number
+    licenseCount: number
+    imageCount: number
     firstEventAt: string | null
     lastEventAt: string | null
   }
@@ -992,6 +995,29 @@ export interface POReceiveResult {
   po: PurchaseOrder
   receivedItems: { itemId: string; description: string; receivedNow: number; totalReceived: number; quantity: number; fullyReceived: boolean }[]
   allItemsReceived: boolean
+  // Round 8: when an item has assetTypeId set, the receiver auto-creates Asset rows
+  // one per received unit. Each entry contains the itemId + list of new assetIds.
+  createdAssets?: { itemId: string; assetIds: string[]; assetTags: string[] }[]
+}
+
+// ============ Round 8: Expiry Renew Workflow ============
+export interface ExpiryRenewPayload {
+  // assetId for warranty, licenseId for software license
+  assetId?: string
+  licenseId?: string
+  vendorId: string
+  expectedDate?: string
+  notes?: string
+}
+
+export interface ExpiryRenewResult {
+  po: PurchaseOrder
+  renewedItem: { expiryType: 'warranty' | 'license'; entityId: string; entityName: string; currentExpiry: string | null }
+}
+
+// ============ Round 8: Utilization Idle Threshold ============
+export interface UtilizationReportOpts {
+  idleThresholdDays?: 30 | 60 | 90 | 180
 }
 
 // ============ Round 7: Asset Location Map ============
