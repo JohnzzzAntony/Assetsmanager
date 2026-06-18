@@ -1,0 +1,163 @@
+// IT Asset Manager - Prisma Schema
+// Based on the wireframe for IT asset management
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AssetType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  assets      Asset[]
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  persons   Person[]
+  assets    Asset[]
+  history   AssignmentHistory[]
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  persons   Person[]
+  assets    Asset[]
+  history   AssignmentHistory[]
+}
+
+model Person {
+  id          String   @id @default(cuid())
+  fullName    String
+  email       String?
+  phone       String?
+  role        String?
+  departmentId String?
+  locationId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  department  Department? @relation(fields: [departmentId], references: [id])
+  location    Location?   @relation(fields: [locationId], references: [id])
+  assets      Asset[]
+  history     AssignmentHistory[]
+}
+
+model Asset {
+  id                String   @id @default(cuid())
+  assetTag          String?  @unique
+  assetTypeId       String
+  make              String?
+  model             String?
+  modelNumber       String?
+  serialNumber      String?
+  partNumber        String?
+  status            String   @default("In Stock")
+  purchaseDate      DateTime?
+  cost              Float?
+  currency          String   @default("USD")
+  warrantyExpiry    DateTime?
+  os                String?
+  osKey             String?
+  officeKey         String?
+  cpu               String?
+  gpu               String?
+  ram               String?
+  storage           String?
+  color             String?
+
+  // Mobile-specific
+  imei1             String?
+  imei2             String?
+  rom               String?
+  otpMobileNumber   String?
+  googleAppleAccount String?
+
+  // Peripherals
+  monitorMake       String?
+  monitorModel      String?
+  monitorSn         String?
+  monitorSize       String?
+  keyboardMake      String?
+  keyboardModel     String?
+  keyboardSn        String?
+  mouseMake         String?
+  mouseModel        String?
+  mouseSn           String?
+
+  // Assignment
+  assignedToId      String?
+  departmentId      String?
+  locationId        String?
+
+  comments          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  assetType         AssetType  @relation(fields: [assetTypeId], references: [id])
+  assignedTo        Person?    @relation(fields: [assignedToId], references: [id])
+  department        Department? @relation(fields: [departmentId], references: [id])
+  location          Location?  @relation(fields: [locationId], references: [id])
+  images            AssetImage[]
+  history           AssignmentHistory[]
+}
+
+model AssignmentHistory {
+  id           String    @id @default(cuid())
+  assetId      String
+  personId     String?
+  departmentId String?
+  locationId   String?
+  assignedOn   DateTime  @default(now())
+  unassignedOn DateTime?
+  reason       String?
+  action       String    @default("Assigned")
+  notes        String?
+  createdAt    DateTime  @default(now())
+
+  asset        Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  person       Person?    @relation(fields: [personId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  location     Location?  @relation(fields: [locationId], references: [id])
+}
+
+model AssetImage {
+  id            String    @id @default(cuid())
+  assetId       String?
+  fileName      String
+  filePath      String
+  mimeType      String
+  fileSize      Int
+  processedText String?
+  ocrStatus     String    @default("Pending")
+  ocrEngine     String?
+  parsedFields  String?
+  createdAt     DateTime  @default(now())
+  processedAt   DateTime?
+
+  asset         Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  entityType String
+  entityId  String
+  details   String?
+  createdAt DateTime @default(now())
+}
