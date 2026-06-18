@@ -87,6 +87,25 @@ import { useNav } from '@/lib/nav'
 // ---- Idle threshold options ----
 type IdleThreshold = 30 | 60 | 90 | 180
 const IDLE_THRESHOLDS: IdleThreshold[] = [30, 60, 90, 180]
+// Round 9-B: persist the user's preferred idle threshold across reloads.
+const IDLE_THRESHOLD_STORAGE_KEY = 'assethub:utilization-idle-threshold'
+
+function loadIdleThresholdFromStorage(): IdleThreshold {
+  if (typeof window === 'undefined') return 30
+  try {
+    const raw = window.localStorage.getItem(IDLE_THRESHOLD_STORAGE_KEY)
+    if (raw == null) return 30
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return 30
+    // Only accept the four supported thresholds; otherwise fall back to default.
+    if ((IDLE_THRESHOLDS as number[]).includes(parsed)) {
+      return parsed as IdleThreshold
+    }
+    return 30
+  } catch {
+    return 30
+  }
+}
 
 // ---- KPI tile ----
 interface KPITileProps {
@@ -99,7 +118,7 @@ interface KPITileProps {
 
 function KPITile({ label, value, icon: Icon, color, hint }: KPITileProps) {
   return (
-    <Card className="stat-tile-gradient card-hover-lift overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
+    <Card className="stat-tile-gradient card-hover-lift card-3d-tilt overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -168,7 +187,7 @@ function BucketList({ buckets }: { buckets: UtilizationByBucket[] }) {
               {label.text}
             </div>
             <div className="col-span-4 sm:col-span-2">
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted progress-stripes">
                 <div
                   className="util-bar-fill progress-fill-anim h-full rounded-full"
                   style={{ width: `${pct}%`, background: rateColor(b.utilizationRate) }}
@@ -705,7 +724,10 @@ function DisposeDialog({ asset, onClose }: { asset: IdleAsset; onClose: () => vo
 // ---- Main view ----
 export function UtilizationView() {
   const qc = useQueryClient()
-  const [idleThresholdDays, setIdleThresholdDays] = useState<IdleThreshold>(30)
+  // Round 9-B: read saved threshold from localStorage on mount (default 30).
+  const [idleThresholdDays, setIdleThresholdDays] = useState<IdleThreshold>(() =>
+    loadIdleThresholdFromStorage()
+  )
   const [reassignAsset, setReassignAsset] = useState<IdleAsset | null>(null)
   const [disposeAsset, setDisposeAsset] = useState<IdleAsset | null>(null)
 
@@ -715,6 +737,14 @@ export function UtilizationView() {
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
+    }
+    // Round 9-B: persist the new threshold to localStorage.
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(IDLE_THRESHOLD_STORAGE_KEY, String(idleThresholdDays))
+      } catch {
+        // localStorage may be unavailable (private mode, etc.) — fail silently.
+      }
     }
     toast.success(`Idle threshold updated to ${idleThresholdDays} days`)
   }, [idleThresholdDays])
@@ -733,9 +763,9 @@ export function UtilizationView() {
   return (
     <div className="animate-fade-in-up space-y-5">
       {/* Header — title + idle-threshold selector */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="bg-radial-spotlight flex flex-col gap-3 rounded-xl border border-border/60 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="gradient-text-shine text-xl font-bold tracking-tight">Asset Utilization</h2>
+          <h2 className="gradient-text-shine shimmer-underline text-xl font-bold tracking-tight">Asset Utilization</h2>
           <p className="text-sm text-muted-foreground">
             Track how effectively your asset pool is being used across departments and types.
           </p>

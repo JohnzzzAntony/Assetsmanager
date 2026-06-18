@@ -1089,3 +1089,101 @@ export interface CostForecastReport {
   }
 }
 
+// ============ Round 9: Asset Audit / Physical Inventory ============
+export type AuditScope = 'all' | 'location' | 'department' | 'type'
+export type AuditStatus = 'Open' | 'In Progress' | 'Completed' | 'Cancelled'
+export type AuditItemStatus = 'Pending' | 'Verified' | 'Missing' | 'Found' | 'Extra'
+
+export interface AssetAudit {
+  id: string
+  auditNumber: string
+  title: string
+  scope: AuditScope
+  scopeId?: string | null
+  scopeName?: string | null
+  status: AuditStatus
+  startedAt?: string | null
+  completedAt?: string | null
+  startedById?: string | null
+  startedByName?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  // Aggregated stats (computed when fetched via list/get)
+  stats?: {
+    total: number
+    verified: number
+    missing: number
+    found: number
+    extra: number
+    pending: number
+    accuracyPct: number // verified / (verified + missing) — excludes extras/pending
+  }
+}
+
+export interface AssetAuditItem {
+  id: string
+  auditId: string
+  assetId?: string | null
+  assetTag?: string | null
+  assetName?: string | null
+  assetTypeName?: string | null
+  status: AuditItemStatus
+  expected: boolean
+  scannedAt?: string | null
+  scannedByName?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AssetAuditCreatePayload {
+  title: string
+  scope: AuditScope
+  scopeId?: string
+  notes?: string
+  startedById?: string
+}
+
+export interface AssetAuditScanPayload {
+  // Identify the asset being scanned — must provide at least one identifier.
+  assetId?: string
+  assetTag?: string
+  // Override status: defaults to Verified for expected assets, Extra for unexpected.
+  status?: AuditItemStatus
+  scannedByName?: string
+  notes?: string
+}
+
+export interface AssetAuditScanResult {
+  auditId: string
+  item: AssetAuditItem
+  // Whether this scan was on the expected list (true) or a brand-new Extra (false)
+  wasExpected: boolean
+  // Convenience flag — when true the asset was previously Pending and is now Verified
+  newlyVerified: boolean
+}
+
+export interface ExpiryBulkRenewItem {
+  // Either assetId (for warranty) or licenseId (for software license) must be set
+  assetId?: string
+  licenseId?: string
+}
+
+export interface ExpiryBulkRenewPayload {
+  vendorId: string
+  items: ExpiryBulkRenewItem[]
+  expectedDate?: string
+  notes?: string
+}
+
+export interface ExpiryBulkRenewResult {
+  po: PurchaseOrder
+  renewedItems: {
+    expiryType: 'warranty' | 'license'
+    entityId: string
+    entityName: string
+    currentExpiry: string | null
+  }[]
+}
+

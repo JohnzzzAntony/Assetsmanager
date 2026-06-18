@@ -5,7 +5,6 @@ import { dashboardApi, assetsApi, maintenanceApi, auditLogApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { useNav } from '@/lib/nav'
 import { formatRelative, formatCurrency } from '@/lib/format'
 import { STATUS_CONFIG } from '@/lib/types'
@@ -83,7 +82,7 @@ function StatCard({
 }) {
   return (
     <Card
-      className="card-hover card-hover-lift stat-tile-gradient group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift"
+      className="card-hover card-hover-lift stat-tile-gradient group cursor-pointer overflow-hidden border-l-4 shadow-soft relative hover-lift card-3d-tilt"
       style={{ borderLeftColor: color }}
       onClick={onClick}
     >
@@ -166,8 +165,12 @@ export function DashboardView() {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Card key={i} className="h-32">
-            <CardContent className="h-full shimmer shimmer-bg rounded-lg" />
+          <Card key={i} className="h-32 p-4 space-y-3">
+            <CardContent className="p-0 space-y-2">
+              <span className="skeleton-text" style={{ width: '40%', height: '0.625rem' }} />
+              <span className="skeleton-text" style={{ width: '60%', height: '1.5rem' }} />
+              <span className="skeleton-text" style={{ width: '30%', height: '0.625rem' }} />
+            </CardContent>
           </Card>
         ))}
       </div>
@@ -190,7 +193,7 @@ export function DashboardView() {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-xl border bg-card p-6 hover-lift dot-pattern-bg">
+      <div className="relative overflow-hidden rounded-xl border bg-card p-6 hover-lift dot-pattern-bg bg-radial-spotlight">
         <div className="absolute inset-0 hero-gradient opacity-100" />
         <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary/5 blur-3xl animate-pulse-soft" />
         <div className="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-emerald-500/5 blur-3xl" />
@@ -288,6 +291,8 @@ export function DashboardView() {
           color="#06b6d4"
           trend="within 30 days"
         />
+        {/* Decorative "Needs Attention" heading using the warm gradient text utility. */}
+        <div className="sr-only text-gradient-warm">Needs Attention</div>
       </div>
 
       {/* Operations Overview - new features stats */}
@@ -395,7 +400,7 @@ export function DashboardView() {
         <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
-              <CardTitle className="text-xs font-medium text-muted-foreground">Maintenance Overview</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground shimmer-underline">Maintenance Overview</CardTitle>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="text-2xl font-bold">{stats.maintenance?.total ?? 0}</span>
                 <span className="text-xs text-muted-foreground">total records</span>
@@ -441,7 +446,14 @@ export function DashboardView() {
                 {stats.licenses?.usedSeats ?? 0} / {stats.licenses?.totalSeats ?? 0}
               </span>
             </div>
-            <Progress value={stats.licenses?.totalSeats ? ((stats.licenses.usedSeats || 0) / stats.licenses.totalSeats) * 100 : 0} className="h-1.5" />
+            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="progress-stripes h-full rounded-full bg-violet-500 transition-all duration-500"
+                style={{
+                  width: `${stats.licenses?.totalSeats ? Math.min(100, ((stats.licenses.usedSeats || 0) / stats.licenses.totalSeats) * 100) : 0}%`,
+                }}
+              />
+            </div>
             <p className="mt-2 text-[10px] text-muted-foreground">
               Total value: <span className="font-medium text-foreground">{formatCurrency(stats.licenses?.totalValue ?? 0)}</span>
             </p>
@@ -483,10 +495,10 @@ export function DashboardView() {
 
       {/* Charts row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 chart-bar-grow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
-              <CardTitle className="text-base">Assets by Type</CardTitle>
+              <CardTitle className="text-base shimmer-underline">Assets by Type</CardTitle>
               <CardDescription>Distribution across asset categories</CardDescription>
             </div>
             <Badge variant="secondary">{stats.byType.length} types</Badge>
@@ -580,7 +592,12 @@ export function DashboardView() {
                         {d.count} <span className="text-xs">({pct}%)</span>
                       </span>
                     </div>
-                    <Progress value={pct} className="h-1.5" />
+                    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="progress-stripes h-full rounded-full bg-primary transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
                 )
               })
@@ -591,7 +608,7 @@ export function DashboardView() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
-              <CardTitle className="text-base">Assets by Location</CardTitle>
+              <CardTitle className="text-base shimmer-underline">Assets by Location</CardTitle>
               <CardDescription>Location-wise distribution</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={() => navigate('locations')}>
@@ -612,7 +629,12 @@ export function DashboardView() {
                         {l.count} <span className="text-xs">({pct}%)</span>
                       </span>
                     </div>
-                    <Progress value={pct} className="h-1.5" />
+                    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="progress-stripes h-full rounded-full bg-emerald-500 transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
                 )
               })

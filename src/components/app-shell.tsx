@@ -87,6 +87,7 @@ function HeaderTitle() {
     utilization: 'Asset Utilization',
     'asset-map': 'Asset Location Map',
     'asset-timeline': 'Asset Timeline',
+    audits: 'Asset Audits',
   }
   const showBack = ['asset-detail', 'asset-edit'].includes(view)
   return (
@@ -161,9 +162,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-medium text-foreground/80">AssetHub</span>
               <span className="opacity-50">·</span>
-              <span>IT Asset Manager v2.5</span>
+              <span>IT Asset Manager v2.6</span>
               <span className="hidden sm:inline opacity-50">·</span>
-              <span className="hidden sm:inline rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Round 8</span>
+              <span className="hidden sm:inline rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Round 9</span>
             </div>
             <div className="flex items-center gap-3">
               <span>{stats ? `${stats.totalAssets} assets · ${stats.totalPersons} persons · ${stats.totalDepartments} depts` : 'Loading...'}</span>

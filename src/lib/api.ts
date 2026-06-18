@@ -32,6 +32,13 @@ import type {
   CostForecastReport,
   ExpiryRenewPayload,
   ExpiryRenewResult,
+  AssetAudit,
+  AssetAuditItem,
+  AssetAuditCreatePayload,
+  AssetAuditScanPayload,
+  AssetAuditScanResult,
+  ExpiryBulkRenewPayload,
+  ExpiryBulkRenewResult,
 } from './types'
 
 class ApiError extends Error {
@@ -551,6 +558,12 @@ export const expirationsApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  // Round 9-B: bulk renew — many expirations → one Draft renewal PO with one line per item
+  renewBulk: (payload: ExpiryBulkRenewPayload) =>
+    request<ExpiryBulkRenewResult>(`/api/expirations/renew-bulk`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   exportCsvUrl: () => `/api/expirations/export`,
 }
 
@@ -562,6 +575,8 @@ export const utilizationApi = {
 // ---- Round 7: Timeline, Asset Map, PO Receiving ----
 export const timelineApi = {
   getForAsset: (assetId: string) => request<AssetTimeline>(`/api/assets/${assetId}/timeline`),
+  // Round 9-B: CSV export URL for the asset timeline
+  exportCsvUrl: (assetId: string) => `/api/assets/${assetId}/timeline/export`,
 }
 
 export const assetMapApi = {
@@ -574,4 +589,19 @@ export const poReceivingApi = {
       method: 'POST',
       body: JSON.stringify({ items }),
     }),
+}
+
+// ---- Round 9: Asset Audits ----
+export const auditsApi = {
+  list: () => request<AssetAudit[]>('/api/audits'),
+  get: (id: string) => request<{ audit: AssetAudit; items: AssetAuditItem[] }>(`/api/audits/${id}`),
+  create: (payload: AssetAuditCreatePayload) =>
+    request<AssetAudit>('/api/audits', { method: 'POST', body: JSON.stringify(payload) }),
+  scan: (id: string, payload: AssetAuditScanPayload) =>
+    request<AssetAuditScanResult>(`/api/audits/${id}/scan`, { method: 'POST', body: JSON.stringify(payload) }),
+  complete: (id: string) =>
+    request<AssetAudit>(`/api/audits/${id}/complete`, { method: 'POST' }),
+  cancel: (id: string) =>
+    request<AssetAudit>(`/api/audits/${id}/cancel`, { method: 'POST' }),
+  exportCsvUrl: (id: string) => `/api/audits/${id}/export`,
 }

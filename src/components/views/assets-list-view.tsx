@@ -284,13 +284,13 @@ export function AssetsListView() {
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="btn-press" onClick={exportCsv} disabled={!data}>
+          <Button variant="outline" size="sm" className="btn-press hover-ripple" onClick={exportCsv} disabled={!data}>
             <Download className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Export</span>
           </Button>
-          <Button variant="outline" size="sm" className="btn-press" onClick={() => navigate('ocr-upload')}>
+          <Button variant="outline" size="sm" className="btn-press hover-ripple" onClick={() => navigate('ocr-upload')}>
             <ScanText className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Scan</span>
           </Button>
-          <Button size="sm" className="btn-press" onClick={() => navigate('asset-new')}>
+          <Button size="sm" className="btn-press hover-ripple" onClick={() => navigate('asset-new')}>
             <Plus className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Add Asset</span>
           </Button>
         </div>
@@ -646,17 +646,17 @@ export function AssetsListView() {
                     aria-label="Select all on page"
                   />
                 </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort('assetTag')}>Asset Tag</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort('type')}>Type</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort('make')}>Make / Model</TableHead>
-                <TableHead>Serial Number</TableHead>
-                <TableHead>Assigned To</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>Status</TableHead>
-                <TableHead className="min-w-[140px]">Tags</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort('cost')}>Cost</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="cursor-pointer shimmer-underline" onClick={() => toggleSort('assetTag')}>Asset Tag</TableHead>
+                <TableHead className="cursor-pointer shimmer-underline" onClick={() => toggleSort('type')}>Type</TableHead>
+                <TableHead className="cursor-pointer shimmer-underline" onClick={() => toggleSort('make')}>Make / Model</TableHead>
+                <TableHead className="shimmer-underline">Serial Number</TableHead>
+                <TableHead className="shimmer-underline">Assigned To</TableHead>
+                <TableHead className="shimmer-underline">Department</TableHead>
+                <TableHead className="shimmer-underline">Location</TableHead>
+                <TableHead className="cursor-pointer shimmer-underline" onClick={() => toggleSort('status')}>Status</TableHead>
+                <TableHead className="min-w-[140px] shimmer-underline">Tags</TableHead>
+                <TableHead className="cursor-pointer shimmer-underline" onClick={() => toggleSort('cost')}>Cost</TableHead>
+                <TableHead className="text-right shimmer-underline">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -720,7 +720,7 @@ export function AssetsListView() {
                       <TableCell>{asset.department?.name || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell>{asset.location?.name || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1`}>
+                        <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1 ${(asset.status === 'Repair' || asset.status === 'Lost') ? 'badge-shine' : ''}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
                           {asset.status}
                         </Badge>
@@ -763,7 +763,7 @@ export function AssetsListView() {
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 hover-ripple">
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>

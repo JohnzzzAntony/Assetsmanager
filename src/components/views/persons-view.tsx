@@ -68,23 +68,23 @@ export function PersonsView() {
     <div className="space-y-4 animate-fade-in-up">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold flex items-center gap-2"><Users className="h-5 w-5" /> Persons</h2>
+          <h2 className="text-lg font-bold flex items-center gap-2 shimmer-underline inline-block"><Users className="h-5 w-5" /> Persons</h2>
           <p className="text-sm text-muted-foreground">{persons?.length || 0} people</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1.5" /> Add Person</Button>
+        <Button onClick={openNew} className="hover-ripple"><Plus className="h-4 w-4 mr-1.5" /> Add Person</Button>
       </div>
 
-      <Card>
+      <Card className="card-3d-tilt">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Assets</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="shimmer-underline">Name</TableHead>
+              <TableHead className="shimmer-underline">Contact</TableHead>
+              <TableHead className="shimmer-underline">Role</TableHead>
+              <TableHead className="shimmer-underline">Department</TableHead>
+              <TableHead className="shimmer-underline">Location</TableHead>
+              <TableHead className="shimmer-underline">Assets</TableHead>
+              <TableHead className="text-right shimmer-underline">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -108,13 +108,13 @@ export function PersonsView() {
                       {!p.email && !p.phone && '—'}
                     </div>
                   </TableCell>
-                  <TableCell>{p.role ? <Badge variant="outline">{p.role}</Badge> : '—'}</TableCell>
+                  <TableCell>{p.role ? <Badge variant="outline" className="badge-shine">{p.role}</Badge> : '—'}</TableCell>
                   <TableCell>{p.department?.name || '—'}</TableCell>
                   <TableCell>{p.location?.name || '—'}</TableCell>
                   <TableCell><span className="inline-flex items-center gap-1 text-sm"><Package className="h-3.5 w-3.5 text-muted-foreground" />{p._count?.assets || 0}</span></TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(p)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 hover-ripple" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover-ripple" onClick={() => handleDelete(p)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </TableCell>
                 </TableRow>
               ))

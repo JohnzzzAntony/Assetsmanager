@@ -1,0 +1,1371 @@
+     1→@import "tailwindcss";
+     2→@import "tw-animate-css";
+     3→
+     4→@custom-variant dark (&:is(.dark *));
+     5→
+     6→@theme inline {
+     7→  --color-background: var(--background);
+     8→  --color-foreground: var(--foreground);
+     9→  --font-sans: var(--font-geist-sans);
+    10→  --font-mono: var(--font-geist-mono);
+    11→  --color-sidebar-ring: var(--sidebar-ring);
+    12→  --color-sidebar-border: var(--sidebar-border);
+    13→  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    14→  --color-sidebar-accent: var(--sidebar-accent);
+    15→  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    16→  --color-sidebar-primary: var(--sidebar-primary);
+    17→  --color-sidebar-foreground: var(--sidebar-foreground);
+    18→  --color-sidebar: var(--sidebar);
+    19→  --color-chart-5: var(--chart-5);
+    20→  --color-chart-4: var(--chart-4);
+    21→  --color-chart-3: var(--chart-3);
+    22→  --color-chart-2: var(--chart-2);
+    23→  --color-chart-1: var(--chart-1);
+    24→  --color-ring: var(--ring);
+    25→  --color-input: var(--input);
+    26→  --color-border: var(--border);
+    27→  --color-destructive: var(--destructive);
+    28→  --color-accent-foreground: var(--accent-foreground);
+    29→  --color-accent: var(--accent);
+    30→  --color-muted-foreground: var(--muted-foreground);
+    31→  --color-muted: var(--muted);
+    32→  --color-secondary-foreground: var(--secondary-foreground);
+    33→  --color-secondary: var(--secondary);
+    34→  --color-primary-foreground: var(--primary-foreground);
+    35→  --color-primary: var(--primary);
+    36→  --color-popover-foreground: var(--popover-foreground);
+    37→  --color-popover: var(--popover);
+    38→  --color-card-foreground: var(--card-foreground);
+    39→  --color-card: var(--card);
+    40→  --radius-sm: calc(var(--radius) - 4px);
+    41→  --radius-md: calc(var(--radius) - 2px);
+    42→  --radius-lg: var(--radius);
+    43→  --radius-xl: calc(var(--radius) + 4px);
+    44→}
+    45→
+    46→:root {
+    47→  --radius: 0.625rem;
+    48→  --background: oklch(0.99 0.003 240);
+    49→  --foreground: oklch(0.145 0 0);
+    50→  --card: oklch(1 0 0);
+    51→  --card-foreground: oklch(0.145 0 0);
+    52→  --popover: oklch(1 0 0);
+    53→  --popover-foreground: oklch(0.145 0 0);
+    54→  --primary: oklch(0.24 0.04 240);
+    55→  --primary-foreground: oklch(0.985 0 0);
+    56→  --secondary: oklch(0.96 0.005 240);
+    57→  --secondary-foreground: oklch(0.24 0.04 240);
+    58→  --muted: oklch(0.96 0.005 240);
+    59→  --muted-foreground: oklch(0.5 0.01 240);
+    60→  --accent: oklch(0.94 0.01 240);
+    61→  --accent-foreground: oklch(0.24 0.04 240);
+    62→  --destructive: oklch(0.577 0.245 27.325);
+    63→  --border: oklch(0.91 0.005 240);
+    64→  --input: oklch(0.91 0.005 240);
+    65→  --ring: oklch(0.5 0.02 240);
+    66→  --chart-1: oklch(0.646 0.222 41.116);
+    67→  --chart-2: oklch(0.6 0.118 184.704);
+    68→  --chart-3: oklch(0.398 0.07 227.392);
+    69→  --chart-4: oklch(0.828 0.189 84.429);
+    70→  --chart-5: oklch(0.769 0.188 70.08);
+    71→  --sidebar: oklch(0.985 0.003 240);
+    72→  --sidebar-foreground: oklch(0.145 0 0);
+    73→  --sidebar-primary: oklch(0.24 0.04 240);
+    74→  --sidebar-primary-foreground: oklch(0.985 0 0);
+    75→  --sidebar-accent: oklch(0.94 0.01 240);
+    76→  --sidebar-accent-foreground: oklch(0.24 0.04 240);
+    77→  --sidebar-border: oklch(0.91 0.005 240);
+    78→  --sidebar-ring: oklch(0.5 0.02 240);
+    79→}
+    80→
+    81→.dark {
+    82→  --background: oklch(0.13 0.01 240);
+    83→  --foreground: oklch(0.985 0 0);
+    84→  --card: oklch(0.18 0.015 240);
+    85→  --card-foreground: oklch(0.985 0 0);
+    86→  --popover: oklch(0.18 0.015 240);
+    87→  --popover-foreground: oklch(0.985 0 0);
+    88→  --primary: oklch(0.92 0.01 240);
+    89→  --primary-foreground: oklch(0.18 0.015 240);
+    90→  --secondary: oklch(0.24 0.015 240);
+    91→  --secondary-foreground: oklch(0.985 0 0);
+    92→  --muted: oklch(0.24 0.015 240);
+    93→  --muted-foreground: oklch(0.7 0.01 240);
+    94→  --accent: oklch(0.26 0.015 240);
+    95→  --accent-foreground: oklch(0.985 0 0);
+    96→  --destructive: oklch(0.704 0.191 22.216);
+    97→  --border: oklch(1 0 0 / 10%);
+    98→  --input: oklch(1 0 0 / 15%);
+    99→  --ring: oklch(0.556 0 0);
+   100→  --chart-1: oklch(0.488 0.243 264.376);
+   101→  --chart-2: oklch(0.696 0.17 162.48);
+   102→  --chart-3: oklch(0.769 0.188 70.08);
+   103→  --chart-4: oklch(0.627 0.265 303.9);
+   104→  --chart-5: oklch(0.645 0.246 16.439);
+   105→  --sidebar: oklch(0.18 0.015 240);
+   106→  --sidebar-foreground: oklch(0.985 0 0);
+   107→  --sidebar-primary: oklch(0.92 0.01 240);
+   108→  --sidebar-primary-foreground: oklch(0.18 0.015 240);
+   109→  --sidebar-accent: oklch(0.26 0.015 240);
+   110→  --sidebar-accent-foreground: oklch(0.985 0 0);
+   111→  --sidebar-border: oklch(1 0 0 / 10%);
+   112→  --sidebar-ring: oklch(0.556 0 0);
+   113→}
+   114→
+   115→@layer base {
+   116→  * {
+   117→    @apply border-border outline-ring/50;
+   118→  }
+   119→  body {
+   120→    @apply bg-background text-foreground;
+   121→    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+   122→  }
+   123→}
+   124→
+   125→/* Custom scrollbar */
+   126→@layer utilities {
+   127→  .scrollbar-thin {
+   128→    scrollbar-width: thin;
+   129→    scrollbar-color: var(--muted-foreground) transparent;
+   130→  }
+   131→  .scrollbar-thin::-webkit-scrollbar {
+   132→    width: 6px;
+   133→    height: 6px;
+   134→  }
+   135→  .scrollbar-thin::-webkit-scrollbar-track {
+   136→    background: transparent;
+   137→  }
+   138→  .scrollbar-thin::-webkit-scrollbar-thumb {
+   139→    background-color: oklch(0.7 0.01 240 / 0.3);
+   140→    border-radius: 9999px;
+   141→  }
+   142→  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+   143→    background-color: oklch(0.7 0.01 240 / 0.5);
+   144→  }
+   145→  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+   146→    background-color: oklch(0.5 0.01 240 / 0.4);
+   147→  }
+   148→}
+   149→
+   150→/* Gradient utilities */
+   151→.gradient-mesh {
+   152→  background-image:
+   153→    radial-gradient(at 0% 0%, oklch(0.646 0.222 41.116 / 0.06) 0px, transparent 50%),
+   154→    radial-gradient(at 100% 100%, oklch(0.6 0.118 184.704 / 0.06) 0px, transparent 50%);
+   155→}
+   156→
+   157→.dark .gradient-mesh {
+   158→  background-image:
+   159→    radial-gradient(at 0% 0%, oklch(0.646 0.222 41.116 / 0.15) 0px, transparent 50%),
+   160→    radial-gradient(at 100% 100%, oklch(0.6 0.118 184.704 / 0.15) 0px, transparent 50%);
+   161→}
+   162→
+   163→.card-hover {
+   164→  transition: all 0.2s ease;
+   165→}
+   166→.card-hover:hover {
+   167→  transform: translateY(-2px);
+   168→  box-shadow: 0 8px 25px -5px oklch(0 0 0 / 0.1);
+   169→}
+   170→
+   171→.dark .card-hover:hover {
+   172→  box-shadow: 0 8px 25px -5px oklch(0 0 0 / 0.4);
+   173→}
+   174→
+   175→/* Refined card shadow */
+   176→.shadow-soft {
+   177→  box-shadow: 0 1px 3px 0 oklch(0 0 0 / 0.04), 0 1px 2px -1px oklch(0 0 0 / 0.04);
+   178→}
+   179→.dark .shadow-soft {
+   180→  box-shadow: 0 1px 3px 0 oklch(0 0 0 / 0.3), 0 1px 2px -1px oklch(0 0 0 / 0.3);
+   181→}
+   182→
+   183→/* Sidebar active nav gradient */
+   184→.nav-active-gradient {
+   185→  background-image: linear-gradient(135deg, var(--primary), var(--primary) / 0.85);
+   186→}
+   187→
+   188→/* Animations */
+   189→@keyframes shimmer {
+   190→  0% { background-position: -200% 0; }
+   191→  100% { background-position: 200% 0; }
+   192→}
+   193→.shimmer {
+   194→  background: linear-gradient(90deg, transparent, oklch(0.7 0.01 240 / 0.1), transparent);
+   195→  background-size: 200% 100%;
+   196→  animation: shimmer 1.5s infinite;
+   197→}
+   198→
+   199→@keyframes fade-in-up {
+   200→  from { opacity: 0; transform: translateY(8px); }
+   201→  to { opacity: 1; transform: translateY(0); }
+   202→}
+   203→.animate-fade-in-up {
+   204→  animation: fade-in-up 0.3s ease-out;
+   205→}
+   206→
+   207→@keyframes scale-in {
+   208→  from { opacity: 0; transform: scale(0.96); }
+   209→  to { opacity: 1; transform: scale(1); }
+   210→}
+   211→.animate-scale-in {
+   212→  animation: scale-in 0.2s ease-out;
+   213→}
+   214→
+   215→@keyframes slide-in-right {
+   216→  from { opacity: 0; transform: translateX(20px); }
+   217→  to { opacity: 1; transform: translateX(0); }
+   218→}
+   219→.animate-slide-in-right {
+   220→  animation: slide-in-right 0.25s ease-out;
+   221→}
+   222→
+   223→@keyframes pulse-soft {
+   224→  0%, 100% { opacity: 1; }
+   225→  50% { opacity: 0.6; }
+   226→}
+   227→.animate-pulse-soft {
+   228→  animation: pulse-soft 2s ease-in-out infinite;
+   229→}
+   230→
+   231→/* Empty state styling */
+   232→.empty-state {
+   233→  display: flex;
+   234→  flex-direction: column;
+   235→  align-items: center;
+   236→  justify-content: center;
+   237→  padding: 3rem 1rem;
+   238→  text-align: center;
+   239→  color: var(--muted-foreground);
+   240→}
+   241→
+   242→/* Subtle grid background pattern */
+   243→.bg-grid {
+   244→  background-image:
+   245→    linear-gradient(to right, oklch(0.7 0.01 240 / 0.05) 1px, transparent 1px),
+   246→    linear-gradient(to bottom, oklch(0.7 0.01 240 / 0.05) 1px, transparent 1px);
+   247→  background-size: 32px 32px;
+   248→}
+   249→
+   250→/* Focus ring polish */
+   251→*:focus-visible {
+   252→  outline: 2px solid var(--ring);
+   253→  outline-offset: 2px;
+   254→  border-radius: 4px;
+   255→}
+   256→
+   257→/* Table row hover enhancement */
+   258→[data-slot="table-row"]:hover {
+   259→  background-color: oklch(0.96 0.005 240);
+   260→}
+   261→.dark [data-slot="table-row"]:hover {
+   262→  background-color: oklch(0.26 0.015 240);
+   263→}
+   264→
+   265→/* Print styles */
+   266→@media print {
+   267→  body { background: white !important; }
+   268→  aside, header, footer { display: none !important; }
+   269→  main { padding: 0 !important; }
+   270→  .no-print { display: none !important; }
+   271→}
+   272→
+   273→/* Toast positioning polish */
+   274→[data-sonner-toaster] {
+   275→  font-family: var(--font-sans);
+   276→}
+   277→
+   278→/* Better number tabular alignment */
+   279→.tabular-nums {
+   280→  font-variant-numeric: tabular-nums;
+   281→  font-feature-settings: "tnum";
+   282→}
+   283→
+   284→/* Code/mono text refinement */
+   285→.font-mono {
+   286→  font-feature-settings: "tnum", "zero";
+   287→}
+   288→
+   289→/* Status dot pulse */
+   290→.status-dot-pulse {
+   291→  position: relative;
+   292→}
+   293→.status-dot-pulse::after {
+   294→  content: '';
+   295→  position: absolute;
+   296→  inset: 0;
+   297→  border-radius: 9999px;
+   298→  background: inherit;
+   299→  opacity: 0.4;
+   300→  animation: pulse-soft 2s ease-in-out infinite;
+   301→}
+   302→
+   303→/* Number counter hover effect */
+   304→.tabular-nums {
+   305→  font-variant-numeric: tabular-nums;
+   306→  font-feature-settings: "tnum";
+   307→}
+   308→
+   309→/* Smooth row slide-in animation */
+   310→@keyframes row-slide-in {
+   311→  from { opacity: 0; transform: translateX(-4px); }
+   312→  to { opacity: 1; transform: translateX(0); }
+   313→}
+   314→.animate-row-slide-in {
+   315→  animation: row-slide-in 0.2s ease-out;
+   316→}
+   317→
+   318→/* Stagger children animation utility */
+   319→.stagger-children > * {
+   320→  animation: fade-in-up 0.3s ease-out both;
+   321→}
+   322→.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+   323→.stagger-children > *:nth-child(2) { animation-delay: 30ms; }
+   324→.stagger-children > *:nth-child(3) { animation-delay: 60ms; }
+   325→.stagger-children > *:nth-child(4) { animation-delay: 90ms; }
+   326→.stagger-children > *:nth-child(5) { animation-delay: 120ms; }
+   327→.stagger-children > *:nth-child(6) { animation-delay: 150ms; }
+   328→.stagger-children > *:nth-child(7) { animation-delay: 180ms; }
+   329→.stagger-children > *:nth-child(8) { animation-delay: 210ms; }
+   330→
+   331→/* Glow ring for active states */
+   332→.glow-ring {
+   333→  box-shadow: 0 0 0 1px var(--ring), 0 0 20px -4px var(--ring);
+   334→}
+   335→
+   336→/* Gradient text */
+   337→.gradient-text {
+   338→  background: linear-gradient(135deg, var(--foreground), oklch(0.5 0.05 240));
+   339→  -webkit-background-clip: text;
+   340→  background-clip: text;
+   341→  -webkit-text-fill-color: transparent;
+   342→  color: transparent;
+   343→}
+   344→
+   345→/* Card glow on hover */
+   346→.card-glow:hover {
+   347→  box-shadow:
+   348→    0 4px 24px -8px oklch(0.5 0.05 240 / 0.15),
+   349→    0 1px 3px 0 oklch(0 0 0 / 0.04);
+   350→}
+   351→
+   352→.dark .card-glow:hover {
+   353→  box-shadow:
+   354→    0 4px 24px -8px oklch(0.5 0.05 240 / 0.3),
+   355→    0 1px 3px 0 oklch(0 0 0 / 0.3);
+   356→}
+   357→
+   358→/* Subtle dot pattern background */
+   359→.bg-dot-pattern {
+   360→  background-image: radial-gradient(oklch(0.7 0.01 240 / 0.1) 1px, transparent 1px);
+   361→  background-size: 16px 16px;
+   362→}
+   363→
+   364→/* Glass morphism */
+   365→.glass {
+   366→  background: oklch(1 0 0 / 0.7);
+   367→  backdrop-filter: blur(12px);
+   368→  -webkit-backdrop-filter: blur(12px);
+   369→}
+   370→.dark .glass {
+   371→  background: oklch(0.18 0.015 240 / 0.7);
+   372→}
+   373→
+   374→/* Subtle floating animation */
+   375→@keyframes float {
+   376→  0%, 100% { transform: translateY(0); }
+   377→  50% { transform: translateY(-4px); }
+   378→}
+   379→.animate-float {
+   380→  animation: float 3s ease-in-out infinite;
+   381→}
+   382→
+   383→/* Number badge style */
+   384→.num-badge {
+   385→  display: inline-flex;
+   386→  align-items: center;
+   387→  justify-content: center;
+   388→  min-width: 1.25rem;
+   389→  height: 1.25rem;
+   390→  padding: 0 0.375rem;
+   391→  font-size: 0.6875rem;
+   392→  font-weight: 700;
+   393→  border-radius: 9999px;
+   394→  background: var(--muted);
+   395→  color: var(--muted-foreground);
+   396→  font-variant-numeric: tabular-nums;
+   397→}
+   398→
+   399→/* ===== Round 4: Additional styling polish ===== */
+   400→
+   401→/* Gradient border card (for hero / featured cards) */
+   402→.gradient-border {
+   403→  position: relative;
+   404→  background: var(--card);
+   405→  border-radius: var(--radius);
+   406→}
+   407→.gradient-border::before {
+   408→  content: '';
+   409→  position: absolute;
+   410→  inset: 0;
+   411→  padding: 1px;
+   412→  border-radius: inherit;
+   413→  background: linear-gradient(135deg, oklch(0.646 0.222 41.116 / 0.5), oklch(0.6 0.118 184.704 / 0.3), transparent 60%);
+   414→  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+   415→  -webkit-mask-composite: xor;
+   416→  mask-composite: exclude;
+   417→  pointer-events: none;
+   418→}
+   419→
+   420→/* Hover lift with smooth shadow */
+   421→.hover-lift {
+   422→  transition: transform 0.2s ease, box-shadow 0.2s ease;
+   423→}
+   424→.hover-lift:hover {
+   425→  transform: translateY(-3px);
+   426→  box-shadow:
+   427→    0 10px 30px -10px oklch(0 0 0 / 0.15),
+   428→    0 4px 10px -5px oklch(0 0 0 / 0.08);
+   429→}
+   430→.dark .hover-lift:hover {
+   431→  box-shadow:
+   432→    0 10px 30px -10px oklch(0 0 0 / 0.5),
+   433→    0 4px 10px -5px oklch(0 0 0 / 0.3);
+   434→}
+   435→
+   436→/* Animated gradient text */
+   437→@keyframes gradient-shift {
+   438→  0%, 100% { background-position: 0% 50%; }
+   439→  50% { background-position: 100% 50%; }
+   440→}
+   441→.animated-gradient-text {
+   442→  background: linear-gradient(135deg, oklch(0.5 0.18 240), oklch(0.6 0.2 280), oklch(0.55 0.22 200));
+   443→  background-size: 200% 200%;
+   444→  -webkit-background-clip: text;
+   445→  background-clip: text;
+   446→  -webkit-text-fill-color: transparent;
+   447→  color: transparent;
+   448→  animation: gradient-shift 4s ease-in-out infinite;
+   449→}
+   450→
+   451→/* Subtle inner ring on cards */
+   452→.inner-ring {
+   453→  box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.03);
+   454→}
+   455→.dark .inner-ring {
+   456→  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.04);
+   457→}
+   458→
+   459→/* Active nav glow for sidebar */
+   460→.nav-active-glow {
+   461→  position: relative;
+   462→}
+   463→.nav-active-glow::after {
+   464→  content: '';
+   465→  position: absolute;
+   466→  left: 0;
+   467→  top: 50%;
+   468→  transform: translateY(-50%);
+   469→  height: 60%;
+   470→  width: 3px;
+   471→  border-radius: 0 4px 4px 0;
+   472→  background: var(--primary-foreground);
+   473→  opacity: 0.7;
+   474→}
+   475→
+   476→/* Pretty kbd-style key indicator */
+   477→.kbd {
+   478→  display: inline-flex;
+   479→  align-items: center;
+   480→  justify-content: center;
+   481→  min-width: 1.4rem;
+   482→  height: 1.4rem;
+   483→  padding: 0 0.4rem;
+   484→  font-size: 0.7rem;
+   485→  font-family: var(--font-mono);
+   486→  background: var(--muted);
+   487→  color: var(--muted-foreground);
+   488→  border: 1px solid var(--border);
+   489→  border-bottom-width: 2px;
+   490→  border-radius: 6px;
+   491→  font-variant-numeric: tabular-nums;
+   492→}
+   493→
+   494→/* Section header divider with gradient */
+   495→.section-divider {
+   496→  height: 1px;
+   497→  background: linear-gradient(to right, transparent, var(--border), transparent);
+   498→}
+   499→
+   500→/* Stat tile mini sparkline background pattern */
+   501→.sparkline-bg {
+   502→  background-image:
+   503→    linear-gradient(to right, oklch(0.7 0.01 240 / 0.06) 1px, transparent 1px);
+   504→  background-size: 8px 100%;
+   505→}
+   506→
+   507→/* Subtle inset gradient for hero sections */
+   508→.hero-gradient {
+   509→  background:
+   510→    radial-gradient(at 0% 0%, oklch(0.646 0.222 41.116 / 0.06) 0px, transparent 60%),
+   511→    radial-gradient(at 100% 0%, oklch(0.6 0.118 184.704 / 0.06) 0px, transparent 50%),
+   512→    radial-gradient(at 50% 100%, oklch(0.6 0.2 280 / 0.04) 0px, transparent 60%);
+   513→}
+   514→.dark .hero-gradient {
+   515→  background:
+   516→    radial-gradient(at 0% 0%, oklch(0.646 0.222 41.116 / 0.15) 0px, transparent 60%),
+   517→    radial-gradient(at 100% 0%, oklch(0.6 0.118 184.704 / 0.15) 0px, transparent 50%),
+   518→    radial-gradient(at 50% 100%, oklch(0.6 0.2 280 / 0.12) 0px, transparent 60%);
+   519→}
+   520→
+   521→/* Slim progress bar with gradient */
+   522→.progress-gradient {
+   523→  background: linear-gradient(90deg, oklch(0.646 0.222 41.116), oklch(0.6 0.118 184.704));
+   524→}
+   525→
+   526→/* Skeleton shimmer for placeholders */
+   527→.skeleton-shine {
+   528→  position: relative;
+   529→  overflow: hidden;
+   530→  background: var(--muted);
+   531→}
+   532→.skeleton-shine::after {
+   533→  content: '';
+   534→  position: absolute;
+   535→  inset: 0;
+   536→  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.4), transparent);
+   537→  animation: shimmer 1.5s infinite;
+   538→}
+   539→.dark .skeleton-shine::after {
+   540→  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.06), transparent);
+   541→}
+   542→
+   543→/* Pop-in animation for dialogs / popovers */
+   544→@keyframes pop-in {
+   545→  0% { opacity: 0; transform: scale(0.92) translateY(-4px); }
+   546→  60% { opacity: 1; transform: scale(1.02) translateY(0); }
+   547→  100% { opacity: 1; transform: scale(1) translateY(0); }
+   548→}
+   549→.animate-pop-in {
+   550→  animation: pop-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+   551→}
+   552→
+   553→/* Selection ring for cards in selected state (bulk) */
+   554→.selected-ring {
+   555→  box-shadow:
+   556→    inset 0 0 0 2px var(--primary),
+   557→    0 1px 3px 0 oklch(0 0 0 / 0.04);
+   558→}
+   559→
+   560→/* Subtle elevation for sticky toolbars */
+   561→.sticky-elevated {
+   562→  box-shadow:
+   563→    0 4px 12px -6px oklch(0 0 0 / 0.15),
+   564→    0 1px 3px 0 oklch(0 0 0 / 0.04);
+   565→}
+   566→.dark .sticky-elevated {
+   567→  box-shadow:
+   568→    0 4px 12px -6px oklch(0 0 0 / 0.5),
+   569→    0 1px 3px 0 oklch(0 0 0 / 0.3);
+   570→}
+   571→
+   572→/* Accent underline animation */
+   573→.accent-underline {
+   574→  position: relative;
+   575→}
+   576→.accent-underline::after {
+   577→  content: '';
+   578→  position: absolute;
+   579→  left: 0;
+   580→  bottom: -2px;
+   581→  width: 100%;
+   582→  height: 2px;
+   583→  background: linear-gradient(to right, var(--primary), transparent);
+   584→  transform: scaleX(0);
+   585→  transform-origin: left;
+   586→  transition: transform 0.3s ease;
+   587→}
+   588→.accent-underline:hover::after {
+   589→  transform: scaleX(1);
+   590→}
+   591→
+   592→/* Subtle scroll fade for long lists */
+   593→.scroll-fade-mask {
+   594→  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
+   595→  mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
+   596→}
+   597→
+   598→/* Animated connection line (for timeline-style displays) */
+   599→.timeline-line::before {
+   600→  content: '';
+   601→  position: absolute;
+   602→  left: 0.5rem;
+   603→  top: 1rem;
+   604→  bottom: 0;
+   605→  width: 2px;
+   606→  background: linear-gradient(to bottom, var(--primary), transparent);
+   607→  opacity: 0.3;
+   608→}
+   609→
+   610→/* Status chip with side dot */
+   611→.status-chip {
+   612→  display: inline-flex;
+   613→  align-items: center;
+   614→  gap: 0.375rem;
+   615→  padding: 0.125rem 0.5rem;
+   616→  border-radius: 9999px;
+   617→  font-size: 0.6875rem;
+   618→  font-weight: 600;
+   619→  border: 1px solid transparent;
+   620→}
+   621→
+   622→/* Color-coded left border for stat tiles */
+   623→.accent-left {
+   624→  border-left-width: 4px;
+   625→  border-left-style: solid;
+   626→}
+   627→
+   628→/* Tooltip arrow polish */
+   629→[data-radix-popper-arrow-wrapper] > * {
+   630→  fill: var(--popover);
+   631→}
+   632→
+   633→/* Smooth theme transitions */
+   634→.theme-transition,
+   635→.theme-transition * {
+   636→  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+   637→}
+   638→
+   639→/* Hover-able table row with left accent on hover */
+   640→.row-accent {
+   641→  position: relative;
+   642→  transition: background-color 0.15s ease;
+   643→}
+   644→.row-accent::before {
+   645→  content: '';
+   646→  position: absolute;
+   647→  left: 0;
+   648→  top: 0;
+   649→  bottom: 0;
+   650→  width: 3px;
+   651→  background: var(--primary);
+   652→  transform: scaleY(0);
+   653→  transition: transform 0.15s ease;
+   654→}
+   655→.row-accent:hover::before {
+   656→  transform: scaleY(1);
+   657→}
+   658→
+   659→/* ============================================================
+   660→   Round 5 — Additional styling utilities
+   661→   ============================================================ */
+   662→
+   663→/* Shimmer background for loading skeletons */
+   664→.shimmer-bg {
+   665→  position: relative;
+   666→  overflow: hidden;
+   667→  background: oklch(0.94 0.005 240);
+   668→}
+   669→.shimmer-bg::after {
+   670→  content: '';
+   671→  position: absolute;
+   672→  inset: 0;
+   673→  transform: translateX(-100%);
+   674→  background: linear-gradient(
+   675→    90deg,
+   676→    transparent 0%,
+   677→    oklch(1 0 0 / 0.55) 50%,
+   678→    transparent 100%
+   679→  );
+   680→  animation: shimmer-sweep 1.6s infinite;
+   681→}
+   682→.dark .shimmer-bg {
+   683→  background: oklch(0.28 0.01 240);
+   684→}
+   685→.dark .shimmer-bg::after {
+   686→  background: linear-gradient(
+   687→    90deg,
+   688→    transparent 0%,
+   689→    oklch(1 0 0 / 0.08) 50%,
+   690→    transparent 100%
+   691→  );
+   692→}
+   693→@keyframes shimmer-sweep {
+   694→  100% { transform: translateX(100%); }
+   695→}
+   696→
+   697→/* Press-down micro-interaction for buttons */
+   698→.btn-press {
+   699→  transition: transform 0.08s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+   700→}
+   701→.btn-press:active:not(:disabled) {
+   702→  transform: scale(0.96);
+   703→}
+   704→
+   705→/* Card hover lift — subtle translateY + shadow growth */
+   706→.card-hover-lift {
+   707→  transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+   708→  will-change: transform;
+   709→}
+   710→.card-hover-lift:hover {
+   711→  transform: translateY(-3px);
+   712→  box-shadow:
+   713→    0 14px 28px -12px oklch(0 0 0 / 0.18),
+   714→    0 4px 8px -4px oklch(0 0 0 / 0.06);
+   715→}
+   716→.dark .card-hover-lift:hover {
+   717→  box-shadow:
+   718→    0 14px 28px -12px oklch(0 0 0 / 0.55),
+   719→    0 4px 8px -4px oklch(0 0 0 / 0.3);
+   720→}
+   721→
+   722→/* Glass card — translucent with backdrop blur */
+   723→.glass-card {
+   724→  background: oklch(1 0 0 / 0.7);
+   725→  backdrop-filter: blur(12px) saturate(140%);
+   726→  -webkit-backdrop-filter: blur(12px) saturate(140%);
+   727→  border: 1px solid oklch(1 0 0 / 0.4);
+   728→}
+   729→.dark .glass-card {
+   730→  background: oklch(0.2 0.01 240 / 0.7);
+   731→  border: 1px solid oklch(1 0 0 / 0.08);
+   732→}
+   733→
+   734→/* Gradient text utilities */
+   735→.gradient-text-emerald {
+   736→  background: linear-gradient(135deg, oklch(0.7 0.15 162) 0%, oklch(0.55 0.13 200) 100%);
+   737→  -webkit-background-clip: text;
+   738→  background-clip: text;
+   739→  -webkit-text-fill-color: transparent;
+   740→  color: transparent;
+   741→}
+   742→.gradient-text-violet {
+   743→  background: linear-gradient(135deg, oklch(0.65 0.18 295) 0%, oklch(0.55 0.2 350) 100%);
+   744→  -webkit-background-clip: text;
+   745→  background-clip: text;
+   746→  -webkit-text-fill-color: transparent;
+   747→  color: transparent;
+   748→}
+   749→
+   750→/* App background gradient — very subtle layered radial gradients */
+   751→.app-bg-gradient {
+   752→  background-image:
+   753→    radial-gradient(at 8% 0%, oklch(0.95 0.02 250 / 0.6) 0px, transparent 50%),
+   754→    radial-gradient(at 92% 4%, oklch(0.95 0.025 180 / 0.5) 0px, transparent 50%),
+   755→    radial-gradient(at 50% 100%, oklch(0.96 0.015 300 / 0.45) 0px, transparent 60%);
+   756→  background-attachment: fixed;
+   757→}
+   758→.dark .app-bg-gradient {
+   759→  background-image:
+   760→    radial-gradient(at 8% 0%, oklch(0.25 0.03 250 / 0.55) 0px, transparent 50%),
+   761→    radial-gradient(at 92% 4%, oklch(0.25 0.04 180 / 0.45) 0px, transparent 50%),
+   762→    radial-gradient(at 50% 100%, oklch(0.25 0.03 300 / 0.4) 0px, transparent 60%);
+   763→}
+   764→
+   765→/* Empty-state icon container — gradient ring + soft glow */
+   766→.empty-state-icon {
+   767→  position: relative;
+   768→  display: inline-flex;
+   769→  align-items: center;
+   770→  justify-content: center;
+   771→  width: 4rem;
+   772→  height: 4rem;
+   773→  border-radius: 9999px;
+   774→  background: linear-gradient(135deg, oklch(0.95 0.015 240), oklch(0.97 0.01 280));
+   775→  box-shadow:
+   776→    0 0 0 6px oklch(0.97 0.005 240),
+   777→    0 8px 24px -8px oklch(0 0 0 / 0.12);
+   778→}
+   779→.dark .empty-state-icon {
+   780→  background: linear-gradient(135deg, oklch(0.3 0.02 240), oklch(0.32 0.02 280));
+   781→  box-shadow:
+   782→    0 0 0 6px oklch(0.22 0.01 240),
+   783→    0 8px 24px -8px oklch(0 0 0 / 0.5);
+   784→}
+   785→
+   786→/* Pop-in entrance animation (for dialogs, cards appearing) */
+   787→@keyframes pop-in {
+   788→  0% { opacity: 0; transform: scale(0.94); }
+   789→  60% { opacity: 1; transform: scale(1.02); }
+   790→  100% { opacity: 1; transform: scale(1); }
+   791→}
+   792→.animate-pop-in {
+   793→  animation: pop-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+   794→}
+   795→
+   796→/* Soft pulse glow for badges / status indicators */
+   797→@keyframes soft-pulse-glow {
+   798→  0%, 100% { box-shadow: 0 0 0 0 oklch(0.7 0.15 162 / 0.6); }
+   799→  50% { box-shadow: 0 0 0 6px oklch(0.7 0.15 162 / 0); }
+   800→}
+   801→.pulse-glow {
+   802→  animation: soft-pulse-glow 2.4s ease-out infinite;
+   803→}
+   804→
+   805→/* Conflict ring — for bookings calendar conflict visualization */
+   806→.conflict-ring {
+   807→  box-shadow:
+   808→    0 0 0 2px oklch(0.65 0.22 25),
+   809→    0 0 0 4px oklch(0.65 0.22 25 / 0.25);
+   810→}
+   811→
+   812→/* Number tick — animated counting style for KPI deltas */
+   813→.tick-up {
+   814→  color: oklch(0.65 0.18 162);
+   815→}
+   816→.tick-down {
+   817→  color: oklch(0.65 0.22 25);
+   818→}
+   819→
+   820→/* Subtle divider with gradient fade */
+   821→.gradient-divider {
+   822→  height: 1px;
+   823→  background: linear-gradient(to right, transparent, oklch(0.85 0.005 240) 20%, oklch(0.85 0.005 240) 80%, transparent);
+   824→}
+   825→.dark .gradient-divider {
+   826→  background: linear-gradient(to right, transparent, oklch(0.35 0.01 240) 20%, oklch(0.35 0.01 240) 80%, transparent);
+   827→}
+   828→
+   829→/* Section header with left accent bar */
+   830→.section-accent-bar {
+   831→  position: relative;
+   832→  padding-left: 0.75rem;
+   833→}
+   834→.section-accent-bar::before {
+   835→  content: '';
+   836→  position: absolute;
+   837→  left: 0;
+   838→  top: 0.25rem;
+   839→  bottom: 0.25rem;
+   840→  width: 3px;
+   841→  border-radius: 9999px;
+   842→  background: linear-gradient(to bottom, oklch(0.55 0.18 295), oklch(0.6 0.18 162));
+   843→}
+   844→
+   845→/* ============================================================
+   846→   Round 6 — Additional styling utilities
+   847→   ============================================================ */
+   848→
+   849→/* Subtle dotted background pattern for hero / empty sections */
+   850→.dot-pattern-bg {
+   851→  background-image: radial-gradient(circle, oklch(0.7 0.01 240 / 0.18) 1px, transparent 1px);
+   852→  background-size: 16px 16px;
+   853→}
+   854→
+   855→/* Strong glassmorphism card (for command palette, modal overlays) */
+   856→.glass-card-strong {
+   857→  background: oklch(1 0 0 / 0.85);
+   858→  backdrop-filter: blur(20px) saturate(180%);
+   859→  -webkit-backdrop-filter: blur(20px) saturate(180%);
+   860→  border: 1px solid oklch(0.91 0.005 240 / 0.6);
+   861→  box-shadow:
+   862→    0 20px 50px -10px oklch(0.2 0.01 240 / 0.18),
+   863→    0 0 0 1px oklch(0.95 0.005 240 / 0.5);
+   864→}
+   865→.dark .glass-card-strong {
+   866→  background: oklch(0.18 0.01 240 / 0.85);
+   867→  border: 1px solid oklch(0.3 0.01 240 / 0.6);
+   868→  box-shadow:
+   869→    0 20px 50px -10px oklch(0 0 0 / 0.5),
+   870→    0 0 0 1px oklch(0.3 0.01 240 / 0.5);
+   871→}
+   872→
+   873→/* Animated shine sweep for gradient text on hover */
+   874→.gradient-text-shine {
+   875→  background: linear-gradient(110deg, oklch(0.45 0.2 295) 0%, oklch(0.55 0.2 162) 45%, oklch(0.5 0.2 250) 55%, oklch(0.45 0.2 295) 100%);
+   876→  background-size: 200% 100%;
+   877→  -webkit-background-clip: text;
+   878→  background-clip: text;
+   879→  -webkit-text-fill-color: transparent;
+   880→  color: transparent;
+   881→  animation: text-shine 6s linear infinite;
+   882→}
+   883→@keyframes text-shine {
+   884→  to { background-position: -200% 0; }
+   885→}
+   886→
+   887→/* Counter pop-in — used by stat tiles on data load */
+   888→.animate-count-pop {
+   889→  animation: count-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+   890→}
+   891→@keyframes count-pop {
+   892→  0% { transform: scale(0.85); opacity: 0; }
+   893→  100% { transform: scale(1); opacity: 1; }
+   894→}
+   895→
+   896→/* Smooth progress-bar fill animation */
+   897→.progress-fill-anim {
+   898→  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+   899→}
+   900→
+   901→/* Urgency color utilities (expiry center) */
+   902→.urgency-expired {
+   903→  background: linear-gradient(135deg, oklch(0.65 0.22 25 / 0.12), oklch(0.6 0.22 25 / 0.04));
+   904→  border-left: 3px solid oklch(0.65 0.22 25);
+   905→}
+   906→.urgency-30d {
+   907→  background: linear-gradient(135deg, oklch(0.7 0.19 35 / 0.12), oklch(0.65 0.19 35 / 0.04));
+   908→  border-left: 3px solid oklch(0.7 0.19 35);
+   909→}
+   910→.urgency-60d {
+   911→  background: linear-gradient(135deg, oklch(0.75 0.16 70 / 0.12), oklch(0.7 0.16 70 / 0.04));
+   912→  border-left: 3px solid oklch(0.75 0.16 70);
+   913→}
+   914→.urgency-90d {
+   915→  background: linear-gradient(135deg, oklch(0.75 0.13 200 / 0.12), oklch(0.7 0.13 200 / 0.04));
+   916→  border-left: 3px solid oklch(0.75 0.13 200);
+   917→}
+   918→.urgency-future {
+   919→  background: linear-gradient(135deg, oklch(0.7 0.01 240 / 0.04), transparent);
+   920→  border-left: 3px solid oklch(0.7 0.01 240 / 0.4);
+   921→}
+   922→
+   923→/* Bar fill gradient — for utilization bar chart */
+   924→.util-bar-fill {
+   925→  background: linear-gradient(90deg, oklch(0.65 0.18 162), oklch(0.7 0.18 200));
+   926→  position: relative;
+   927→  overflow: hidden;
+   928→}
+   929→.util-bar-fill::after {
+   930→  content: '';
+   931→  position: absolute;
+   932→  inset: 0;
+   933→  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.25), transparent);
+   934→  animation: util-shimmer 2.5s ease-in-out infinite;
+   935→}
+   936→@keyframes util-shimmer {
+   937→  0% { transform: translateX(-100%); }
+   938→  100% { transform: translateX(100%); }
+   939→}
+   940→
+   941→/* Command palette result item hover */
+   942→.cmd-result {
+   943→  transition: background-color 0.12s ease, transform 0.12s ease;
+   944→}
+   945→.cmd-result[data-selected='true'] {
+   946→  background: oklch(0.94 0.02 250 / 0.6);
+   947→}
+   948→.dark .cmd-result[data-selected='true'] {
+   949→  background: oklch(0.3 0.02 250 / 0.6);
+   950→}
+   951→
+   952→/* Kbd pill style */
+   953→.kbd-pill {
+   954→  display: inline-flex;
+   955→  align-items: center;
+   956→  justify-content: center;
+   957→  min-width: 1.4rem;
+   958→  height: 1.4rem;
+   959→  padding: 0 0.4rem;
+   960→  border-radius: 0.35rem;
+   961→  background: oklch(0.96 0.005 240);
+   962→  border: 1px solid oklch(0.88 0.005 240);
+   963→  color: oklch(0.4 0.01 240);
+   964→  font-size: 0.7rem;
+   965→  font-weight: 600;
+   966→  font-family: ui-monospace, SFMono-Regular, monospace;
+   967→  box-shadow: 0 1px 0 oklch(0.85 0.005 240);
+   968→}
+   969→.dark .kbd-pill {
+   970→  background: oklch(0.25 0.01 240);
+   971→  border-color: oklch(0.35 0.01 240);
+   972→  color: oklch(0.8 0.005 240);
+   973→  box-shadow: 0 1px 0 oklch(0 0 0 / 0.3);
+   974→}
+   975→
+   976→/* Stat tile with subtle gradient overlay */
+   977→.stat-tile-gradient {
+   978→  position: relative;
+   979→  overflow: hidden;
+   980→}
+   981→.stat-tile-gradient::before {
+   982→  content: '';
+   983→  position: absolute;
+   984→  top: 0;
+   985→  right: 0;
+   986→  width: 80px;
+   987→  height: 80px;
+   988→  background: radial-gradient(circle at top right, oklch(0.7 0.15 250 / 0.08), transparent 70%);
+   989→  pointer-events: none;
+   990→}
+   991→
+   992→/* Soft section divider with gradient */
+   993→.gradient-divider-strong {
+   994→  height: 1px;
+   995→  background: linear-gradient(90deg, transparent, oklch(0.7 0.01 240 / 0.3), transparent);
+   996→  margin: 1.5rem 0;
+   997→}
+   998→
+   999→/* Pulse dot for "live" indicator */
+  1000→.live-dot {
+  1001→  position: relative;
+  1002→  display: inline-block;
+  1003→  width: 8px;
+  1004→  height: 8px;
+  1005→  border-radius: 50%;
+  1006→  background: oklch(0.65 0.18 162);
+  1007→}
+  1008→.live-dot::after {
+  1009→  content: '';
+  1010→  position: absolute;
+  1011→  inset: -3px;
+  1012→  border-radius: 50%;
+  1013→  background: oklch(0.65 0.18 162 / 0.4);
+  1014→  animation: live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  1015→}
+  1016→@keyframes live-ping {
+  1017→  0% { transform: scale(1); opacity: 0.8; }
+  1018→  100% { transform: scale(2.4); opacity: 0; }
+  1019→}
+  1020→
+  1021→
+  1022→/* ============================================================
+  1023→   Round 7 — Additional styling utilities (timeline, map, forecast)
+  1024→   ============================================================ */
+  1025→
+  1026→/* Timeline vertical rail */
+  1027→.timeline-rail {
+  1028→  position: relative;
+  1029→}
+  1030→.timeline-rail::before {
+  1031→  content: '';
+  1032→  position: absolute;
+  1033→  left: 14px;
+  1034→  top: 6px;
+  1035→  bottom: 6px;
+  1036→  width: 2px;
+  1037→  background: linear-gradient(to bottom, oklch(0.7 0.13 250 / 0.4), oklch(0.7 0.13 250 / 0.1));
+  1038→  border-radius: 1px;
+  1039→}
+  1040→.timeline-dot {
+  1041→  position: absolute;
+  1042→  left: 7px;
+  1043→  top: 10px;
+  1044→  width: 16px;
+  1045→  height: 16px;
+  1046→  border-radius: 50%;
+  1047→  background: oklch(1 0 0);
+  1048→  border: 3px solid oklch(0.6 0.15 250);
+  1049→  box-shadow: 0 0 0 3px oklch(0.6 0.15 250 / 0.15);
+  1050→  z-index: 2;
+  1051→}
+  1052→.timeline-dot.event-created { border-color: oklch(0.65 0.18 162); box-shadow: 0 0 0 3px oklch(0.65 0.18 162 / 0.15); }
+  1053→.timeline-dot.event-assigned { border-color: oklch(0.6 0.18 295); box-shadow: 0 0 0 3px oklch(0.6 0.18 295 / 0.15); }
+  1054→.timeline-dot.event-unassigned { border-color: oklch(0.7 0.02 240); box-shadow: 0 0 0 3px oklch(0.7 0.02 240 / 0.15); }
+  1055→.timeline-dot.event-maintenance { border-color: oklch(0.7 0.16 70); box-shadow: 0 0 0 3px oklch(0.7 0.16 70 / 0.15); }
+  1056→.timeline-dot.event-maintenance-completed { border-color: oklch(0.65 0.18 162); box-shadow: 0 0 0 3px oklch(0.65 0.18 162 / 0.15); }
+  1057→.timeline-dot.event-booking { border-color: oklch(0.65 0.15 200); box-shadow: 0 0 0 3px oklch(0.65 0.15 200 / 0.15); }
+  1058→.timeline-dot.event-license { border-color: oklch(0.6 0.18 295); box-shadow: 0 0 0 3px oklch(0.6 0.18 295 / 0.15); }
+  1059→.timeline-dot.event-disposal { border-color: oklch(0.65 0.22 25); box-shadow: 0 0 0 3px oklch(0.65 0.22 25 / 0.15); }
+  1060→.timeline-dot.event-image { border-color: oklch(0.65 0.13 200); box-shadow: 0 0 0 3px oklch(0.65 0.13 200 / 0.15); }
+  1061→.timeline-dot.event-emerald { border-color: oklch(0.65 0.18 162); box-shadow: 0 0 0 3px oklch(0.65 0.18 162 / 0.15); }
+  1062→
+  1063→/* Timeline item hover */
+  1064→.timeline-item {
+  1065→  transition: transform 0.15s ease, background-color 0.15s ease;
+  1066→}
+  1067→.timeline-item:hover {
+  1068→  transform: translateX(2px);
+  1069→}
+  1070→
+  1071→/* Map card — pseudo "map" tile that looks like a location pin on a stylized background */
+  1072→.map-tile {
+  1073→  position: relative;
+  1074→  overflow: hidden;
+  1075→  background:
+  1076→    radial-gradient(circle at 20% 30%, oklch(0.7 0.13 200 / 0.06), transparent 40%),
+  1077→    radial-gradient(circle at 80% 70%, oklch(0.7 0.16 70 / 0.06), transparent 40%),
+  1078→    linear-gradient(135deg, oklch(0.97 0.005 240), oklch(0.94 0.005 240));
+  1079→}
+  1080→.dark .map-tile {
+  1081→  background:
+  1082→    radial-gradient(circle at 20% 30%, oklch(0.4 0.13 200 / 0.15), transparent 40%),
+  1083→    radial-gradient(circle at 80% 70%, oklch(0.4 0.16 70 / 0.15), transparent 40%),
+  1084→    linear-gradient(135deg, oklch(0.18 0.01 240), oklch(0.22 0.01 240));
+  1085→}
+  1086→.map-tile::before {
+  1087→  content: '';
+  1088→  position: absolute;
+  1089→  inset: 0;
+  1090→  background-image:
+  1091→    linear-gradient(oklch(0.7 0.01 240 / 0.08) 1px, transparent 1px),
+  1092→    linear-gradient(90deg, oklch(0.7 0.01 240 / 0.08) 1px, transparent 1px);
+  1093→  background-size: 32px 32px;
+  1094→  pointer-events: none;
+  1095→  opacity: 0.7;
+  1096→}
+  1097→
+  1098→/* Forecast band — for the area between lower and upper bounds */
+  1099→.forecast-band {
+  1100→  fill: oklch(0.65 0.15 250 / 0.12);
+  1101→  stroke: none;
+  1102→}
+  1103→.forecast-line {
+  1104→  stroke: oklch(0.6 0.18 295);
+  1105→  stroke-width: 2;
+  1106→  stroke-dasharray: 5 3;
+  1107→  fill: none;
+  1108→}
+  1109→.history-line {
+  1110→  stroke: oklch(0.55 0.18 162);
+  1111→  stroke-width: 2.5;
+  1112→  fill: none;
+  1113→}
+  1114→
+  1115→/* Trend chip colors */
+  1116→.trend-chip-up {
+  1117→  background: oklch(0.65 0.22 25 / 0.12);
+  1118→  color: oklch(0.55 0.22 25);
+  1119→  border: 1px solid oklch(0.65 0.22 25 / 0.3);
+  1120→}
+  1121→.trend-chip-down {
+  1122→  background: oklch(0.65 0.18 162 / 0.12);
+  1123→  color: oklch(0.5 0.18 162);
+  1124→  border: 1px solid oklch(0.65 0.18 162 / 0.3);
+  1125→}
+  1126→.trend-chip-flat {
+  1127→  background: oklch(0.7 0.02 240 / 0.08);
+  1128→  color: oklch(0.5 0.02 240);
+  1129→  border: 1px solid oklch(0.7 0.02 240 / 0.2);
+  1130→}
+  1131→
+  1132→/* PO receiving progress mini-bar */
+  1133→.receive-progress {
+  1134→  height: 4px;
+  1135→  background: oklch(0.92 0.005 240);
+  1136→  border-radius: 2px;
+  1137→  overflow: hidden;
+  1138→}
+  1139→.dark .receive-progress {
+  1140→  background: oklch(0.3 0.01 240);
+  1141→}
+  1142→.receive-progress-fill {
+  1143→  height: 100%;
+  1144→  background: linear-gradient(90deg, oklch(0.7 0.16 70), oklch(0.65 0.18 162));
+  1145→  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  1146→}
+  1147→.receive-progress-fill.full {
+  1148→  background: linear-gradient(90deg, oklch(0.65 0.18 162), oklch(0.7 0.13 200));
+  1149→}
+  1150→
+  1151→/* Animated entrance for timeline items (staggered) */
+  1152→.timeline-item {
+  1153→  animation: timeline-fade-in 0.35s ease-out backwards;
+  1154→}
+  1155→@keyframes timeline-fade-in {
+  1156→  from { opacity: 0; transform: translateX(-8px); }
+  1157→  to { opacity: 1; transform: translateX(0); }
+  1158→}
+  1159→
+  1160→/* Location pin pulse */
+  1161→.location-pin {
+  1162→  position: relative;
+  1163→  display: inline-flex;
+  1164→  align-items: center;
+  1165→  justify-content: center;
+  1166→}
+  1167→.location-pin::after {
+  1168→  content: '';
+  1169→  position: absolute;
+  1170→  inset: -4px;
+  1171→  border-radius: 50%;
+  1172→  background: oklch(0.6 0.18 295 / 0.25);
+  1173→  animation: location-pulse 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  1174→  z-index: -1;
+  1175→}
+  1176→@keyframes location-pulse {
+  1177→  0% { transform: scale(0.6); opacity: 0.8; }
+  1178→  100% { transform: scale(1.8); opacity: 0; }
+  1179→}
+  1180→
+  1181→/* Mini sparkline for forecast category cards */
+  1182→.sparkline-area {
+  1183→  fill: url(#sparkGrad);
+  1184→  opacity: 0.4;
+  1185→}
+  1186→
+  1187→/* ============================================================
+  1188→   Round 8 — Styling Polish (micro-interactions, empty states,
+  1189→   hover effects, animations, accessibility focus ring)
+  1190→   ============================================================
+  1191→   Note: `.hover-lift` and `.scrollbar-thin` already exist above
+  1192→   (defined earlier in this file). They are reused as-is by the
+  1193→   Round 8 polish pass — see the existing definitions for their
+  1194→   full behaviour. The utilities below are NEW additions.
+  1195→   ============================================================ */
+  1196→
+  1197→/* 1. Subtle fade-in + upward translate for KPI numbers */
+  1198→@keyframes countUp {
+  1199→  from { opacity: 0; transform: translateY(6px); }
+  1200→  to   { opacity: 1; transform: translateY(0); }
+  1201→}
+  1202→.animate-count-up {
+  1203→  animation: countUp 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  1204→}
+  1205→
+  1206→/* 2. Shimmering skeleton loader */
+  1207→@keyframes shimmer {
+  1208→  0%   { background-position: -468px 0; }
+  1209→  100% { background-position: 468px 0; }
+  1210→}
+  1211→.skeleton-shimmer {
+  1212→  background: linear-gradient(
+  1213→    90deg,
+  1214→    oklch(0.95 0 0) 25%,
+  1215→    oklch(0.85 0 0 / 0.55) 37%,
+  1216→    oklch(0.95 0 0) 63%
+  1217→  );
+  1218→  background-size: 936px 100%;
+  1219→  animation: shimmer 1.4s ease-in-out infinite;
+  1220→}
+  1221→.dark .skeleton-shimmer {
+  1222→  background: linear-gradient(
+  1223→    90deg,
+  1224→    oklch(0.25 0 0) 25%,
+  1225→    oklch(0.4 0 0 / 0.5) 37%,
+  1226→    oklch(0.25 0 0) 63%
+  1227→  );
+  1228→  background-size: 936px 100%;
+  1229→}
+  1230→
+  1231→/* 3. `.hover-lift` already defined earlier in this file — reused as-is. */
+  1232→
+  1233→/* 4. Coloured hover glow rings for cards / buttons */
+  1234→.hover-glow-emerald,
+  1235→.hover-glow-sky,
+  1236→.hover-glow-violet,
+  1237→.hover-glow-amber {
+  1238→  transition: box-shadow 200ms ease;
+  1239→}
+  1240→.hover-glow-emerald:hover {
+  1241→  box-shadow: 0 0 0 4px oklch(0.7 0.15 145 / 0.10);
+  1242→}
+  1243→.hover-glow-sky:hover {
+  1244→  box-shadow: 0 0 0 4px oklch(0.7 0.15 240 / 0.10);
+  1245→}
+  1246→.hover-glow-violet:hover {
+  1247→  box-shadow: 0 0 0 4px oklch(0.7 0.15 290 / 0.10);
+  1248→}
+  1249→.hover-glow-amber:hover {
+  1250→  box-shadow: 0 0 0 4px oklch(0.7 0.15 80 / 0.10);
+  1251→}
+  1252→
+  1253→/* 5. Dotted background pattern for empty states */
+  1254→.empty-state-pattern {
+  1255→  background-image: radial-gradient(oklch(0.5 0 0 / 0.08) 1px, transparent 1px);
+  1256→  background-size: 16px 16px;
+  1257→}
+  1258→.dark .empty-state-pattern {
+  1259→  background-image: radial-gradient(oklch(0.7 0 0 / 0.10) 1px, transparent 1px);
+  1260→}
+  1261→
+  1262→/* 6. Keyboard shortcut key styling (for command palette, tooltips) */
+  1263→.kbd-key {
+  1264→  display: inline-flex;
+  1265→  align-items: center;
+  1266→  justify-content: center;
+  1267→  min-width: 1.5rem;
+  1268→  height: 1.5rem;
+  1269→  padding: 0 0.4rem;
+  1270→  border-radius: 0.3rem;
+  1271→  background: oklch(0.97 0 0);
+  1272→  border: 1px solid oklch(0.85 0 0);
+  1273→  border-bottom-width: 2px;
+  1274→  font-family: ui-monospace, SFMono-Regular, monospace;
+  1275→  font-size: 0.7rem;
+  1276→  color: oklch(0.4 0 0);
+  1277→  box-shadow: 0 1px 0 oklch(0.85 0 0);
+  1278→}
+  1279→.dark .kbd-key {
+  1280→  background: oklch(0.25 0.01 240);
+  1281→  border-color: oklch(0.4 0.01 240);
+  1282→  color: oklch(0.85 0 0);
+  1283→  box-shadow: 0 1px 0 oklch(0 0 0 / 0.3);
+  1284→}
+  1285→
+  1286→/* 7. Card with subtle gradient border (mask trick) */
+  1287→.gradient-border-card {
+  1288→  position: relative;
+  1289→  background: hsl(var(--background));
+  1290→  border-radius: 0.75rem;
+  1291→}
+  1292→.gradient-border-card::before {
+  1293→  content: '';
+  1294→  position: absolute;
+  1295→  inset: 0;
+  1296→  border-radius: inherit;
+  1297→  padding: 1px;
+  1298→  background: linear-gradient(135deg, oklch(0.7 0.15 240 / 0.5), oklch(0.7 0.15 290 / 0.5));
+  1299→  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  1300→  -webkit-mask-composite: xor;
+  1301→  mask-composite: exclude;
+  1302→  pointer-events: none;
+  1303→}
+  1304→
+  1305→/* 8. Small pulsing dot for "live" indicators */
+  1306→.status-pulse-dot {
+  1307→  display: inline-block;
+  1308→  width: 0.5rem;
+  1309→  height: 0.5rem;
+  1310→  border-radius: 9999px;
+  1311→  background: oklch(0.7 0.15 145);
+  1312→  box-shadow: 0 0 0 0 oklch(0.7 0.15 145 / 0.7);
+  1313→  animation: status-pulse 2s infinite;
+  1314→}
+  1315→@keyframes status-pulse {
+  1316→  0%   { box-shadow: 0 0 0 0 oklch(0.7 0.15 145 / 0.7); }
+  1317→  70%  { box-shadow: 0 0 0 6px oklch(0.7 0.15 145 / 0); }
+  1318→  100% { box-shadow: 0 0 0 0 oklch(0.7 0.15 145 / 0); }
+  1319→}
+  1320→
+  1321→/* 9. `.scrollbar-thin` already defined earlier in this file — reused as-is. */
+  1322→
+  1323→/* 10. Subtle text shimmer animation for "loading" or "live" labels */
+  1324→@keyframes textShimmer {
+  1325→  0%   { background-position: 200% center; }
+  1326→  100% { background-position: -200% center; }
+  1327→}
+  1328→.text-shimmer {
+  1329→  background: linear-gradient(
+  1330→    90deg,
+  1331→    oklch(0.5 0 0) 0%,
+  1332→    oklch(0.3 0 0) 25%,
+  1333→    oklch(0.5 0 0) 50%
+  1334→  );
+  1335→  background-size: 200% auto;
+  1336→  -webkit-background-clip: text;
+  1337→  background-clip: text;
+  1338→  -webkit-text-fill-color: transparent;
+  1339→  animation: textShimmer 3s linear infinite;
+  1340→}
+  1341→.dark .text-shimmer {
+  1342→  background: linear-gradient(
+  1343→    90deg,
+  1344→    oklch(0.7 0 0) 0%,
+  1345→    oklch(0.95 0 0) 25%,
+  1346→    oklch(0.7 0 0) 50%
+  1347→  );
+  1348→  background-size: 200% auto;
+  1349→  -webkit-background-clip: text;
+  1350→  background-clip: text;
+  1351→  -webkit-text-fill-color: transparent;
+  1352→}
+  1353→
+  1354→/* 11. Consistent focus ring for accessibility */
+  1355→.focus-ring {
+  1356→  outline: 2px solid transparent;
+  1357→  outline-offset: 2px;
+  1358→  transition: box-shadow 150ms ease;
+  1359→}
+  1360→.focus-ring:focus-visible {
+  1361→  box-shadow:
+  1362→    0 0 0 2px hsl(var(--background)),
+  1363→    0 0 0 4px oklch(0.6 0.15 240 / 0.6);
+  1364→}
+  1365→
+  1366→/* 12. Subtle glow on badges for emphasis */
+  1367→.badge-glow {
+  1368→  box-shadow: 0 0 12px oklch(0.7 0.15 240 / 0.25);
+  1369→}
+  1370→
+  1371→

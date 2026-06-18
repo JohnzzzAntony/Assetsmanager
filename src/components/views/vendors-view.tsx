@@ -89,7 +89,7 @@ interface StatTileProps {
 
 function StatTile({ label, value, icon: Icon, color, hint }: StatTileProps) {
   return (
-    <Card className="card-hover stat-tile-gradient overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
+    <Card className="card-hover stat-tile-gradient overflow-hidden border-l-4 card-3d-tilt" style={{ borderLeftColor: color }}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -209,10 +209,10 @@ export function VendorsView() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => exportApi.download(exportApi.vendors())}>
+          <Button variant="outline" className="hover-ripple" onClick={() => exportApi.download(exportApi.vendors())}>
             <Download className="mr-1.5 h-4 w-4" /> Export CSV
           </Button>
-          <Button className="btn-press" onClick={openNew}>
+          <Button className="btn-press hover-ripple" onClick={openNew}>
             <Plus className="mr-1.5 h-4 w-4" /> Add Vendor
           </Button>
         </div>
@@ -421,7 +421,7 @@ export function VendorsView() {
                       {v.isActive ? (
                         <Badge
                           variant="outline"
-                          className="border-0 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400"
+                          className="border-0 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400 badge-shine"
                         >
                           <span className="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
                           Active
@@ -441,7 +441,7 @@ export function VendorsView() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-7 w-7 hover-ripple"
                           onClick={() => openEdit(v.id)}
                           aria-label={`Edit ${v.name}`}
                         >
@@ -450,7 +450,7 @@ export function VendorsView() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 text-destructive"
+                          className="h-7 w-7 text-destructive hover-ripple"
                           onClick={() => setDeleteTarget(v)}
                           aria-label={`Delete ${v.name}`}
                         >

@@ -1,0 +1,815 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo } from 'react'
+     4→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     5→import { assetsApi, departmentsApi, locationsApi, assetTypesApi, exportApi, tagsApi } from '@/lib/api'
+     6→import { useNav } from '@/lib/nav'
+     7→import { Card, CardContent } from '@/components/ui/card'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Badge } from '@/components/ui/badge'
+    11→import { Label } from '@/components/ui/label'
+    12→import { Checkbox } from '@/components/ui/checkbox'
+    13→import {
+    14→  Select,
+    15→  SelectContent,
+    16→  SelectItem,
+    17→  SelectTrigger,
+    18→  SelectValue,
+    19→} from '@/components/ui/select'
+    20→import {
+    21→  Table,
+    22→  TableBody,
+    23→  TableCell,
+    24→  TableHead,
+    25→  TableHeader,
+    26→  TableRow,
+    27→} from '@/components/ui/table'
+    28→import { Skeleton } from '@/components/ui/skeleton'
+    29→import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
+    30→import { EmptyState } from '@/components/empty-state'
+    31→import {
+    32→  AlertDialog,
+    33→  AlertDialogAction,
+    34→  AlertDialogCancel,
+    35→  AlertDialogContent,
+    36→  AlertDialogDescription,
+    37→  AlertDialogFooter,
+    38→  AlertDialogHeader,
+    39→  AlertDialogTitle,
+    40→  AlertDialogTrigger,
+    41→} from '@/components/ui/alert-dialog'
+    42→import {
+    43→  DropdownMenu,
+    44→  DropdownMenuContent,
+    45→  DropdownMenuItem,
+    46→  DropdownMenuLabel,
+    47→  DropdownMenuSeparator,
+    48→  DropdownMenuTrigger,
+    49→} from '@/components/ui/dropdown-menu'
+    50→import { STATUS_CONFIG, ASSET_STATUSES, getTagColorConfig } from '@/lib/types'
+    51→import type { AssetStatus } from '@/lib/types'
+    52→import { formatCurrency } from '@/lib/format'
+    53→import {
+    54→  Search,
+    55→  Plus,
+    56→  Filter,
+    57→  Download,
+    58→  Eye,
+    59→  Pencil,
+    60→  Trash2,
+    61→  Package,
+    62→  PackageOpen,
+    63→  X,
+    64→  ChevronLeft,
+    65→  ChevronRight,
+    66→  ArrowUpDown,
+    67→  ScanText,
+    68→  Tag,
+    69→  Loader2,
+    70→  AlertTriangle,
+    71→  ChevronDown,
+    72→} from 'lucide-react'
+    73→import { toast } from 'sonner'
+    74→
+    75→const SORT_OPTIONS = [
+    76→  { value: 'createdAt', label: 'Date Created' },
+    77→  { value: 'assetTag', label: 'Asset Tag' },
+    78→  { value: 'make', label: 'Make' },
+    79→  { value: 'model', label: 'Model' },
+    80→  { value: 'status', label: 'Status' },
+    81→  { value: 'purchaseDate', label: 'Purchase Date' },
+    82→  { value: 'cost', label: 'Cost' },
+    83→]
+    84→
+    85→const BULK_STATUSES: AssetStatus[] = ASSET_STATUSES
+    86→
+    87→export function AssetsListView() {
+    88→  const { navigate, params } = useNav()
+    89→  const qc = useQueryClient()
+    90→  const [search, setSearch] = useState(params.search || '')
+    91→  const [status, setStatus] = useState<string>(params.status || 'all')
+    92→  const [assetTypeId, setAssetTypeId] = useState<string>('all')
+    93→  const [departmentId, setDepartmentId] = useState<string>('all')
+    94→  const [locationId, setLocationId] = useState<string>('all')
+    95→  const [page, setPage] = useState(1)
+    96→  const [pageSize] = useState(15)
+    97→  const [sortBy, setSortBy] = useState('createdAt')
+    98→  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+    99→  const [showFilters, setShowFilters] = useState(false)
+   100→
+   101→  // Tag filtering state
+   102→  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+   103→  const [tagMatch, setTagMatch] = useState<'any' | 'all'>('any')
+   104→
+   105→  // Bulk selection state
+   106→  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+   107→  const [bulkLoading, setBulkLoading] = useState(false)
+   108→  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+   109→
+   110→  const { data: types } = useQuery({ queryKey: ['asset-types'], queryFn: () => assetTypesApi.list() })
+   111→  const { data: depts } = useQuery({ queryKey: ['departments'], queryFn: () => departmentsApi.list() })
+   112→  const { data: locs } = useQuery({ queryKey: ['locations'], queryFn: () => locationsApi.list() })
+   113→  const { data: tags } = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list() })
+   114→
+   115→  const query = useMemo(
+   116→    () => ({
+   117→      search: search || undefined,
+   118→      status: status === 'all' ? undefined : status,
+   119→      assetTypeId: assetTypeId === 'all' ? undefined : assetTypeId,
+   120→      departmentId: departmentId === 'all' ? undefined : departmentId,
+   121→      locationId: locationId === 'all' ? undefined : locationId,
+   122→      tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+   123→      tagMatch: selectedTagIds.length > 0 ? tagMatch : undefined,
+   124→      page,
+   125→      pageSize,
+   126→      sortBy,
+   127→      sortDir,
+   128→    }),
+   129→    [search, status, assetTypeId, departmentId, locationId, selectedTagIds, tagMatch, page, pageSize, sortBy, sortDir]
+   130→  )
+   131→
+   132→  const { data, isLoading } = useQuery({
+   133→    queryKey: ['assets', query],
+   134→    queryFn: () => assetsApi.list(query),
+   135→  })
+   136→
+   137→  const totalPages = data ? Math.ceil(data.total / data.pageSize) : 0
+   138→
+   139→  const pageIds = useMemo(() => (data?.data || []).map((a) => a.id), [data])
+   140→  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id))
+   141→  const someOnPageSelected = pageIds.some((id) => selectedIds.has(id))
+   142→  const selectedCount = selectedIds.size
+   143→
+   144→  function toggleSort(col: string) {
+   145→    if (sortBy === col) {
+   146→      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+   147→    } else {
+   148→      setSortBy(col)
+   149→      setSortDir('asc')
+   150→    }
+   151→  }
+   152→
+   153→  function toggleTag(tagId: string) {
+   154→    setSelectedTagIds((prev) =>
+   155→      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+   156→    )
+   157→    setPage(1)
+   158→  }
+   159→
+   160→  function toggleRowSelection(id: string) {
+   161→    setSelectedIds((prev) => {
+   162→      const next = new Set(prev)
+   163→      if (next.has(id)) next.delete(id)
+   164→      else next.add(id)
+   165→      return next
+   166→    })
+   167→  }
+   168→
+   169→  function toggleSelectAllOnPage() {
+   170→    if (allOnPageSelected) {
+   171→      setSelectedIds((prev) => {
+   172→        const next = new Set(prev)
+   173→        pageIds.forEach((id) => next.delete(id))
+   174→        return next
+   175→      })
+   176→    } else {
+   177→      setSelectedIds((prev) => {
+   178→        const next = new Set(prev)
+   179→        pageIds.forEach((id) => next.add(id))
+   180→        return next
+   181→      })
+   182→    }
+   183→  }
+   184→
+   185→  function clearSelection() {
+   186→    setSelectedIds(new Set())
+   187→  }
+   188→
+   189→  function invalidateAfterBulk() {
+   190→    qc.invalidateQueries({ queryKey: ['assets'] })
+   191→    qc.invalidateQueries({ queryKey: ['dashboard'] })
+   192→    qc.invalidateQueries({ queryKey: ['tags'] })
+   193→  }
+   194→
+   195→  async function handleBulk(
+   196→    action: 'setStatus' | 'delete' | 'assignTag' | 'removeTag',
+   197→    payload?: { status?: string; tagId?: string }
+   198→  ) {
+   199→    const ids = Array.from(selectedIds)
+   200→    if (ids.length === 0) return
+   201→    setBulkLoading(true)
+   202→    try {
+   203→      const res = await assetsApi.bulk({ ids, action, payload })
+   204→      toast.success(res.message || `Bulk action completed (${res.affected} affected)`)
+   205→      invalidateAfterBulk()
+   206→      clearSelection()
+   207→    } catch (e) {
+   208→      toast.error('Bulk action failed: ' + String(e))
+   209→    } finally {
+   210→      setBulkLoading(false)
+   211→    }
+   212→  }
+   213→
+   214→  async function handleBulkDelete() {
+   215→    setDeleteDialogOpen(false)
+   216→    await handleBulk('delete')
+   217→  }
+   218→
+   219→  async function handleDelete(id: string) {
+   220→    if (!confirm('Delete this asset? This cannot be undone.')) return
+   221→    try {
+   222→      await assetsApi.delete(id)
+   223→      toast.success('Asset deleted')
+   224→      qc.invalidateQueries({ queryKey: ['assets'] })
+   225→    } catch (e) {
+   226→      toast.error('Delete failed: ' + String(e))
+   227→    }
+   228→  }
+   229→
+   230→  function exportCsv() {
+   231→    exportApi.download(exportApi.assets())
+   232→    toast.success('Exporting CSV...')
+   233→  }
+   234→
+   235→  function clearFilters() {
+   236→    setSearch('')
+   237→    setStatus('all')
+   238→    setAssetTypeId('all')
+   239→    setDepartmentId('all')
+   240→    setLocationId('all')
+   241→    setSelectedTagIds([])
+   242→    setPage(1)
+   243→  }
+   244→
+   245→  const hasFilters =
+   246→    !!search ||
+   247→    status !== 'all' ||
+   248→    assetTypeId !== 'all' ||
+   249→    departmentId !== 'all' ||
+   250→    locationId !== 'all' ||
+   251→    selectedTagIds.length > 0
+   252→
+   253→  const activeFilterCount = [
+   254→    !!search,
+   255→    status !== 'all',
+   256→    assetTypeId !== 'all',
+   257→    departmentId !== 'all',
+   258→    locationId !== 'all',
+   259→    selectedTagIds.length > 0,
+   260→  ].filter(Boolean).length
+   261→
+   262→  return (
+   263→    <div className="space-y-4 animate-fade-in-up">
+   264→      {/* Toolbar */}
+   265→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   266→        <div className="flex flex-1 items-center gap-2">
+   267→          <div className="relative flex-1 max-w-md">
+   268→            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   269→            <Input
+   270→              placeholder="Search by tag, serial, IMEI, make, model..."
+   271→              value={search}
+   272→              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+   273→              className="pl-9 h-9"
+   274→            />
+   275→          </div>
+   276→          <Button
+   277→            variant={showFilters ? 'default' : 'outline'}
+   278→            size="sm"
+   279→            onClick={() => setShowFilters(!showFilters)}
+   280→            className="shrink-0"
+   281→          >
+   282→            <Filter className="h-4 w-4 mr-1.5" /> Filters
+   283→            {activeFilterCount > 0 && <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">{activeFilterCount}</Badge>}
+   284→          </Button>
+   285→        </div>
+   286→        <div className="flex items-center gap-2">
+   287→          <Button variant="outline" size="sm" className="btn-press" onClick={exportCsv} disabled={!data}>
+   288→            <Download className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Export</span>
+   289→          </Button>
+   290→          <Button variant="outline" size="sm" className="btn-press" onClick={() => navigate('ocr-upload')}>
+   291→            <ScanText className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Scan</span>
+   292→          </Button>
+   293→          <Button size="sm" className="btn-press" onClick={() => navigate('asset-new')}>
+   294→            <Plus className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Add Asset</span>
+   295→          </Button>
+   296→        </div>
+   297→      </div>
+   298→
+   299→      {/* Tag filter chip row */}
+   300→      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin pb-1">
+   301→        <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+   302→        <span className="shrink-0 text-xs text-muted-foreground pr-0.5">Tags:</span>
+   303→        {tags && tags.length > 0 ? (
+   304→          tags.map((tag) => {
+   305→            const tc = getTagColorConfig(tag.color)
+   306→            const selected = selectedTagIds.includes(tag.id)
+   307→            return (
+   308→              <button
+   309→                key={tag.id}
+   310→                type="button"
+   311→                onClick={() => toggleTag(tag.id)}
+   312→                aria-pressed={selected}
+   313→                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs cursor-pointer transition-all hover:scale-105 ${tc.bg} ${tc.text} ${selected ? 'ring-2 ring-offset-1 ring-primary scale-105 font-medium' : ''}`}
+   314→              >
+   315→                <span className={`h-1.5 w-1.5 rounded-full ${tc.dot}`} />
+   316→                {tag.name}
+   317→                {typeof tag._count?.assets === 'number' && (
+   318→                  <span className="opacity-60 ml-0.5 tabular-nums">{tag._count.assets}</span>
+   319→                )}
+   320→              </button>
+   321→            )
+   322→          })
+   323→        ) : (
+   324→          <span className="text-xs text-muted-foreground px-2 py-1">No tags available</span>
+   325→        )}
+   326→        {selectedTagIds.length > 0 && (
+   327→          <div className="ml-1 flex items-center gap-0.5 rounded-full border bg-muted/40 p-0.5 shrink-0">
+   328→            <span className="px-1.5 text-[11px] text-muted-foreground">Match:</span>
+   329→            <button
+   330→              type="button"
+   331→              onClick={() => { setTagMatch('any'); setPage(1) }}
+   332→              className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${tagMatch === 'any' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+   333→            >
+   334→              ANY
+   335→            </button>
+   336→            <button
+   337→              type="button"
+   338→              onClick={() => { setTagMatch('all'); setPage(1) }}
+   339→              className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${tagMatch === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+   340→            >
+   341→              ALL
+   342→            </button>
+   343→          </div>
+   344→        )}
+   345→      </div>
+   346→
+   347→      {/* Active filter chips */}
+   348→      {hasFilters && (
+   349→        <div className="flex flex-wrap items-center gap-1.5 animate-fade-in-up">
+   350→          <span className="text-xs text-muted-foreground">Active filters:</span>
+   351→          {search && (
+   352→            <Badge variant="secondary" className="gap-1">
+   353→              Search: &quot;{search}&quot;
+   354→              <button onClick={() => setSearch('')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+   355→            </Badge>
+   356→          )}
+   357→          {status !== 'all' && (
+   358→            <Badge variant="secondary" className="gap-1">
+   359→              Status: {status}
+   360→              <button onClick={() => setStatus('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+   361→            </Badge>
+   362→          )}
+   363→          {assetTypeId !== 'all' && (
+   364→            <Badge variant="secondary" className="gap-1">
+   365→              Type: {types?.find((t) => t.id === assetTypeId)?.name || 'Unknown'}
+   366→              <button onClick={() => setAssetTypeId('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+   367→            </Badge>
+   368→          )}
+   369→          {departmentId !== 'all' && (
+   370→            <Badge variant="secondary" className="gap-1">
+   371→              Dept: {depts?.find((d) => d.id === departmentId)?.name || 'Unknown'}
+   372→              <button onClick={() => setDepartmentId('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+   373→            </Badge>
+   374→          )}
+   375→          {locationId !== 'all' && (
+   376→            <Badge variant="secondary" className="gap-1">
+   377→              Loc: {locs?.find((l) => l.id === locationId)?.name || 'Unknown'}
+   378→              <button onClick={() => setLocationId('all')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+   379→            </Badge>
+   380→          )}
+   381→          {selectedTagIds.map((tagId) => {
+   382→            const tag = tags?.find((t) => t.id === tagId)
+   383→            if (!tag) return null
+   384→            const tc = getTagColorConfig(tag.color)
+   385→            return (
+   386→              <Badge key={tagId} variant="secondary" className={`gap-1 border ${tc.bg} ${tc.text} ${tc.border}`}>
+   387→                <span className={`h-1.5 w-1.5 rounded-full ${tc.dot}`} />
+   388→                Tag: {tag.name}
+   389→                <button onClick={() => toggleTag(tagId)} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+   390→              </Badge>
+   391→            )
+   392→          })}
+   393→          {selectedTagIds.length > 1 && (
+   394→            <Badge variant="outline" className="gap-1 text-[10px]">
+   395→              Match: {tagMatch.toUpperCase()}
+   396→            </Badge>
+   397→          )}
+   398→          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>
+   399→            Clear all
+   400→          </Button>
+   401→        </div>
+   402→      )}
+   403→
+   404→      {/* Filters panel */}
+   405→      {showFilters && (
+   406→        <Card>
+   407→          <CardContent className="grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-5">
+   408→            <div className="space-y-1.5">
+   409→              <Label className="text-xs">Status</Label>
+   410→              <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
+   411→                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+   412→                <SelectContent>
+   413→                  <SelectItem value="all">All Statuses</SelectItem>
+   414→                  {ASSET_STATUSES.map((s) => (
+   415→                    <SelectItem key={s} value={s}>{s}</SelectItem>
+   416→                  ))}
+   417→                </SelectContent>
+   418→              </Select>
+   419→            </div>
+   420→            <div className="space-y-1.5">
+   421→              <Label className="text-xs">Type</Label>
+   422→              <Select value={assetTypeId} onValueChange={(v) => { setAssetTypeId(v); setPage(1) }}>
+   423→                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+   424→                <SelectContent>
+   425→                  <SelectItem value="all">All Types</SelectItem>
+   426→                  {types?.map((t) => (
+   427→                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+   428→                  ))}
+   429→                </SelectContent>
+   430→              </Select>
+   431→            </div>
+   432→            <div className="space-y-1.5">
+   433→              <Label className="text-xs">Department</Label>
+   434→              <Select value={departmentId} onValueChange={(v) => { setDepartmentId(v); setPage(1) }}>
+   435→                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+   436→                <SelectContent>
+   437→                  <SelectItem value="all">All Departments</SelectItem>
+   438→                  {depts?.map((d) => (
+   439→                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+   440→                  ))}
+   441→                </SelectContent>
+   442→              </Select>
+   443→            </div>
+   444→            <div className="space-y-1.5">
+   445→              <Label className="text-xs">Location</Label>
+   446→              <Select value={locationId} onValueChange={(v) => { setLocationId(v); setPage(1) }}>
+   447→                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+   448→                <SelectContent>
+   449→                  <SelectItem value="all">All Locations</SelectItem>
+   450→                  {locs?.map((l) => (
+   451→                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+   452→                  ))}
+   453→                </SelectContent>
+   454→              </Select>
+   455→            </div>
+   456→            <div className="flex items-end">
+   457→              <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full">
+   458→                <X className="h-3.5 w-3.5 mr-1" /> Clear
+   459→              </Button>
+   460→            </div>
+   461→          </CardContent>
+   462→        </Card>
+   463→      )}
+   464→
+   465→      {/* Results summary & sort */}
+   466→      <div className="flex items-center justify-between text-sm">
+   467→        <p className="text-muted-foreground">
+   468→          {data ? (
+   469→            <>
+   470→              Showing <span className="font-medium text-foreground">{data.data.length}</span> of{' '}
+   471→              <span className="font-medium text-foreground">{data.total}</span> assets
+   472→            </>
+   473→          ) : (
+   474→            'Loading...'
+   475→          )}
+   476→        </p>
+   477→        <div className="flex items-center gap-2">
+   478→          <span className="text-xs text-muted-foreground">Sort by</span>
+   479→          <Select value={sortBy} onValueChange={setSortBy}>
+   480→            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+   481→            <SelectContent>
+   482→              {SORT_OPTIONS.map((o) => (
+   483→                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+   484→              ))}
+   485→            </SelectContent>
+   486→          </Select>
+   487→          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleSort(sortBy)}>
+   488→            <ArrowUpDown className="h-3.5 w-3.5" />
+   489→          </Button>
+   490→        </div>
+   491→      </div>
+   492→
+   493→      {/* Bulk actions toolbar */}
+   494→      {selectedCount > 0 && (
+   495→        <div className="sticky top-16 z-30 flex flex-wrap items-center gap-2 rounded-lg border bg-primary/5 px-3 py-2 backdrop-blur-sm animate-fade-in-up">
+   496→          <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs font-semibold">
+   497→            {selectedCount} selected
+   498→          </span>
+   499→          <Button
+   500→            variant="ghost"
+   501→            size="sm"
+   502→            className="h-7 text-xs"
+   503→            onClick={clearSelection}
+   504→            disabled={bulkLoading}
+   505→          >
+   506→            <X className="h-3.5 w-3.5 mr-1" /> Clear selection
+   507→          </Button>
+   508→          <div className="ml-auto flex flex-wrap items-center gap-2">
+   509→            {/* Change Status */}
+   510→            <DropdownMenu>
+   511→              <DropdownMenuTrigger asChild>
+   512→                <Button variant="outline" size="sm" disabled={bulkLoading}>
+   513→                  {bulkLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+   514→                  Change Status
+   515→                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+   516→                </Button>
+   517→              </DropdownMenuTrigger>
+   518→              <DropdownMenuContent align="end">
+   519→                <DropdownMenuLabel>Set status to…</DropdownMenuLabel>
+   520→                <DropdownMenuSeparator />
+   521→                {BULK_STATUSES.map((s) => {
+   522→                  const cfg = STATUS_CONFIG[s]
+   523→                  return (
+   524→                    <DropdownMenuItem
+   525→                      key={s}
+   526→                      onClick={() => handleBulk('setStatus', { status: s })}
+   527→                    >
+   528→                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   529→                      {s}
+   530→                    </DropdownMenuItem>
+   531→                  )
+   532→                })}
+   533→              </DropdownMenuContent>
+   534→            </DropdownMenu>
+   535→
+   536→            {/* Add Tag */}
+   537→            <DropdownMenu>
+   538→              <DropdownMenuTrigger asChild>
+   539→                <Button variant="outline" size="sm" disabled={bulkLoading}>
+   540→                  <Tag className="h-3.5 w-3.5 mr-1.5" />
+   541→                  Add Tag
+   542→                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+   543→                </Button>
+   544→              </DropdownMenuTrigger>
+   545→              <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto scrollbar-thin">
+   546→                <DropdownMenuLabel>Assign tag</DropdownMenuLabel>
+   547→                <DropdownMenuSeparator />
+   548→                {tags && tags.length > 0 ? (
+   549→                  tags.map((tag) => {
+   550→                    const tc = getTagColorConfig(tag.color)
+   551→                    return (
+   552→                      <DropdownMenuItem
+   553→                        key={tag.id}
+   554→                        onClick={() => handleBulk('assignTag', { tagId: tag.id })}
+   555→                      >
+   556→                        <span className={`h-1.5 w-1.5 rounded-full ${tc.dot}`} />
+   557→                        {tag.name}
+   558→                      </DropdownMenuItem>
+   559→                    )
+   560→                  })
+   561→                ) : (
+   562→                  <div className="px-2 py-1.5 text-xs text-muted-foreground">No tags available</div>
+   563→                )}
+   564→              </DropdownMenuContent>
+   565→            </DropdownMenu>
+   566→
+   567→            {/* Remove Tag */}
+   568→            <DropdownMenu>
+   569→              <DropdownMenuTrigger asChild>
+   570→                <Button variant="outline" size="sm" disabled={bulkLoading}>
+   571→                  <Tag className="h-3.5 w-3.5 mr-1.5" />
+   572→                  Remove Tag
+   573→                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+   574→                </Button>
+   575→              </DropdownMenuTrigger>
+   576→              <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto scrollbar-thin">
+   577→                <DropdownMenuLabel>Remove tag</DropdownMenuLabel>
+   578→                <DropdownMenuSeparator />
+   579→                {tags && tags.length > 0 ? (
+   580→                  tags.map((tag) => {
+   581→                    const tc = getTagColorConfig(tag.color)
+   582→                    return (
+   583→                      <DropdownMenuItem
+   584→                        key={tag.id}
+   585→                        onClick={() => handleBulk('removeTag', { tagId: tag.id })}
+   586→                      >
+   587→                        <span className={`h-1.5 w-1.5 rounded-full ${tc.dot}`} />
+   588→                        {tag.name}
+   589→                      </DropdownMenuItem>
+   590→                    )
+   591→                  })
+   592→                ) : (
+   593→                  <div className="px-2 py-1.5 text-xs text-muted-foreground">No tags available</div>
+   594→                )}
+   595→              </DropdownMenuContent>
+   596→            </DropdownMenu>
+   597→
+   598→            {/* Delete (with confirmation) */}
+   599→            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+   600→              <AlertDialogTrigger asChild>
+   601→                <Button variant="destructive" size="sm" disabled={bulkLoading}>
+   602→                  {bulkLoading
+   603→                    ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+   604→                    : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+   605→                  Delete
+   606→                </Button>
+   607→              </AlertDialogTrigger>
+   608→              <AlertDialogContent>
+   609→                <AlertDialogHeader>
+   610→                  <AlertDialogTitle className="flex items-center gap-2">
+   611→                    <AlertTriangle className="h-5 w-5 text-destructive" />
+   612→                    Delete {selectedCount} asset{selectedCount === 1 ? '' : 's'}?
+   613→                  </AlertDialogTitle>
+   614→                  <AlertDialogDescription>
+   615→                    This action cannot be undone. The selected assets will be permanently removed from the
+   616→                    system along with their assignment history and images.
+   617→                  </AlertDialogDescription>
+   618→                </AlertDialogHeader>
+   619→                <AlertDialogFooter>
+   620→                  <AlertDialogCancel disabled={bulkLoading}>Cancel</AlertDialogCancel>
+   621→                  <AlertDialogAction
+   622→                    onClick={handleBulkDelete}
+   623→                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   624→                    disabled={bulkLoading}
+   625→                  >
+   626→                    {bulkLoading && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+   627→                    Delete {selectedCount} asset{selectedCount === 1 ? '' : 's'}
+   628→                  </AlertDialogAction>
+   629→                </AlertDialogFooter>
+   630→              </AlertDialogContent>
+   631→            </AlertDialog>
+   632→          </div>
+   633→        </div>
+   634→      )}
+   635→
+   636→      {/* Table */}
+   637→      <Card>
+   638→        <div className="overflow-x-auto scrollbar-thin">
+   639→          <Table>
+   640→            <TableHeader>
+   641→              <TableRow>
+   642→                <TableHead className="w-10">
+   643→                  <Checkbox
+   644→                    checked={allOnPageSelected ? true : someOnPageSelected ? 'indeterminate' : false}
+   645→                    onCheckedChange={toggleSelectAllOnPage}
+   646→                    aria-label="Select all on page"
+   647→                  />
+   648→                </TableHead>
+   649→                <TableHead className="cursor-pointer" onClick={() => toggleSort('assetTag')}>Asset Tag</TableHead>
+   650→                <TableHead className="cursor-pointer" onClick={() => toggleSort('type')}>Type</TableHead>
+   651→                <TableHead className="cursor-pointer" onClick={() => toggleSort('make')}>Make / Model</TableHead>
+   652→                <TableHead>Serial Number</TableHead>
+   653→                <TableHead>Assigned To</TableHead>
+   654→                <TableHead>Department</TableHead>
+   655→                <TableHead>Location</TableHead>
+   656→                <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>Status</TableHead>
+   657→                <TableHead className="min-w-[140px]">Tags</TableHead>
+   658→                <TableHead className="cursor-pointer" onClick={() => toggleSort('cost')}>Cost</TableHead>
+   659→                <TableHead className="text-right">Actions</TableHead>
+   660→              </TableRow>
+   661→            </TableHeader>
+   662→            <TableBody>
+   663→              {isLoading ? (
+   664→                Array.from({ length: 8 }).map((_, i) => (
+   665→                  <TableRow key={i}>
+   666→                    {Array.from({ length: 12 }).map((__, j) => (
+   667→                      <TableCell key={j}><Skeleton className="h-5 w-full shimmer-bg" /></TableCell>
+   668→                    ))}
+   669→                  </TableRow>
+   670→                ))
+   671→              ) : !data || data.data.length === 0 ? (
+   672→                <TableRow>
+   673→                  <TableCell colSpan={12} className="h-32 text-center">
+   674→                    <EmptyState
+   675→                      icon={PackageOpen}
+   676→                      title="No assets found"
+   677→                      description="Try adjusting your filters or add a new asset to get started."
+   678→                      action={{ label: 'Add Asset', onClick: () => navigate('asset-new'), icon: Plus }}
+   679→                      className="empty-state-pattern rounded-lg border border-dashed"
+   680→                    />
+   681→                  </TableCell>
+   682→                </TableRow>
+   683→              ) : (
+   684→                data.data.map((asset) => {
+   685→                  const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
+   686→                  const assetTags = asset.tags || []
+   687→                  const isRowSelected = selectedIds.has(asset.id)
+   688→                  const assetName = `${asset.make} ${asset.model}`.trim()
+   689→                  return (
+   690→                    <TableRow
+   691→                      key={asset.id}
+   692→                      className={`cursor-pointer hover:bg-muted/40 hover-lift transition-all ${isRowSelected ? 'bg-primary/5' : ''}`}
+   693→                      onClick={() => navigate('asset-detail', { id: asset.id })}
+   694→                    >
+   695→                      <TableCell
+   696→                        className="w-10"
+   697→                        onClick={(e) => e.stopPropagation()}
+   698→                      >
+   699→                        <Checkbox
+   700→                          checked={isRowSelected}
+   701→                          onCheckedChange={() => toggleRowSelection(asset.id)}
+   702→                          aria-label={`Select asset ${asset.assetTag || asset.id}`}
+   703→                        />
+   704→                      </TableCell>
+   705→                      <TableCell className="font-mono text-xs">{asset.assetTag || '—'}</TableCell>
+   706→                      <TableCell>
+   707→                        <Badge variant="outline" className="font-normal">{asset.assetType?.name || '—'}</Badge>
+   708→                      </TableCell>
+   709→                      <TableCell>
+   710→                        <div
+   711→                          className="font-medium truncate max-w-[200px]"
+   712→                          title={assetName}
+   713→                        >
+   714→                          {assetName || '—'}
+   715→                        </div>
+   716→                        {asset.modelNumber && <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={asset.modelNumber}>{asset.modelNumber}</div>}
+   717→                      </TableCell>
+   718→                      <TableCell className="font-mono text-xs">{asset.serialNumber || '—'}</TableCell>
+   719→                      <TableCell>{asset.assignedTo?.fullName || <span className="text-muted-foreground">—</span>}</TableCell>
+   720→                      <TableCell>{asset.department?.name || <span className="text-muted-foreground">—</span>}</TableCell>
+   721→                      <TableCell>{asset.location?.name || <span className="text-muted-foreground">—</span>}</TableCell>
+   722→                      <TableCell>
+   723→                        <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1`}>
+   724→                          <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   725→                          {asset.status}
+   726→                        </Badge>
+   727→                      </TableCell>
+   728→                      <TableCell onClick={(e) => e.stopPropagation()}>
+   729→                        <div className="flex flex-wrap gap-1 max-w-[180px]">
+   730→                          {assetTags.length > 0 ? (
+   731→                            <>
+   732→                              {assetTags.slice(0, 2).map((tag) => {
+   733→                                const tc = getTagColorConfig(tag.color)
+   734→                                const active = selectedTagIds.includes(tag.id)
+   735→                                return (
+   736→                                  <button
+   737→                                    key={tag.id}
+   738→                                    type="button"
+   739→                                    onClick={() => toggleTag(tag.id)}
+   740→                                    title={tag.description || tag.name}
+   741→                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] cursor-pointer transition-all hover:scale-105 ${tc.bg} ${tc.text} ${active ? 'ring-1 ring-primary' : ''}`}
+   742→                                  >
+   743→                                    <span className={`h-1 w-1 rounded-full ${tc.dot}`} />
+   744→                                    {tag.name}
+   745→                                  </button>
+   746→                                )
+   747→                              })}
+   748→                              {assetTags.length > 2 && (
+   749→                                <span
+   750→                                  className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+   751→                                  title={assetTags.slice(2).map((t) => t.name).join(', ')}
+   752→                                >
+   753→                                  +{assetTags.length - 2}
+   754→                                </span>
+   755→                              )}
+   756→                            </>
+   757→                          ) : (
+   758→                            <span className="text-muted-foreground">—</span>
+   759→                          )}
+   760→                        </div>
+   761→                      </TableCell>
+   762→                      <TableCell className="tabular-nums">{asset.cost != null ? formatCurrency(asset.cost, asset.currency) : '—'}</TableCell>
+   763→                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+   764→                        <DropdownMenu>
+   765→                          <DropdownMenuTrigger asChild>
+   766→                            <Button variant="ghost" size="icon" className="h-7 w-7">
+   767→                              <Eye className="h-3.5 w-3.5" />
+   768→                            </Button>
+   769→                          </DropdownMenuTrigger>
+   770→                          <DropdownMenuContent align="end">
+   771→                            <DropdownMenuItem onClick={() => navigate('asset-detail', { id: asset.id })}>
+   772→                              <Eye className="h-3.5 w-3.5 mr-2" /> View Details
+   773→                            </DropdownMenuItem>
+   774→                            <DropdownMenuItem onClick={() => navigate('asset-edit', { id: asset.id })}>
+   775→                              <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+   776→                            </DropdownMenuItem>
+   777→                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(asset.id)}>
+   778→                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+   779→                            </DropdownMenuItem>
+   780→                          </DropdownMenuContent>
+   781→                        </DropdownMenu>
+   782→                      </TableCell>
+   783→                    </TableRow>
+   784→                  )
+   785→                })
+   786→              )}
+   787→            </TableBody>
+   788→          </Table>
+   789→        </div>
+   790→      </Card>
+   791→
+   792→      {/* Pagination */}
+   793→      {totalPages > 1 && (
+   794→        <Pagination className="justify-end">
+   795→          <PaginationContent>
+   796→            <PaginationItem>
+   797→              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+   798→                <ChevronLeft className="h-4 w-4" /> Prev
+   799→              </Button>
+   800→            </PaginationItem>
+   801→            <PaginationItem className="text-sm">
+   802→              <span className="px-3">Page {page} of {totalPages}</span>
+   803→            </PaginationItem>
+   804→            <PaginationItem>
+   805→              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+   806→                Next <ChevronRight className="h-4 w-4" />
+   807→              </Button>
+   808→            </PaginationItem>
+   809→          </PaginationContent>
+   810→        </Pagination>
+   811→      )}
+   812→    </div>
+   813→  )
+   814→}
+   815→

@@ -1368,3 +1368,311 @@
   box-shadow: 0 0 12px oklch(0.7 0.15 240 / 0.25);
 }
 
+/* ============================================================
+   Round 9 — Task 9-C — Styling Polish
+   10 NEW utilities (shimmer-underline, card-3d-tilt,
+   bg-radial-spotlight, text-gradient-warm, glass-panel-hover,
+   badge-shine, hover-ripple, progress-stripes, chart-bar-grow,
+   skeleton-text). All animations respect prefers-reduced-motion.
+   ============================================================ */
+
+/* 13. Animated shimmer underline (left → right sweep) on hover.
+   Sits 2px below the text via a ::after pseudo-element. Useful
+   for nav links, table headers, or section titles. */
+.shimmer-underline {
+  position: relative;
+  padding-bottom: 2px;
+}
+.shimmer-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    currentColor 30%,
+    currentColor 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: -100% 0;
+  background-repeat: no-repeat;
+  opacity: 0.35;
+  transition: background-position 0.6s ease, opacity 0.3s ease;
+}
+.shimmer-underline:hover::after {
+  background-position: 200% 0;
+  opacity: 0.9;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-underline::after {
+    transition: none;
+  }
+  .shimmer-underline:hover::after {
+    background-position: 0 0;
+  }
+}
+
+/* 14. Subtle 3D perspective tilt on hover. Useful for KPI /
+   summary cards. Respects prefers-reduced-motion. */
+.card-3d-tilt {
+  transform: perspective(800px) rotateX(0deg) rotateY(0deg) scale(1);
+  transition: transform 200ms ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.card-3d-tilt:hover {
+  transform: perspective(800px) rotateX(2deg) rotateY(-2deg) scale(1.01);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-3d-tilt {
+    transition: none;
+  }
+  .card-3d-tilt:hover {
+    transform: none;
+  }
+}
+
+/* 15. Radial gradient "spotlight" background — draws the eye
+   toward a hero / header section. Light + dark variants. */
+.bg-radial-spotlight {
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      oklch(0.7 0.15 240 / 0.10),
+      transparent 70%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      oklch(0.7 0.15 290 / 0.06),
+      transparent 60%
+    );
+}
+.dark .bg-radial-spotlight {
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      oklch(0.65 0.18 240 / 0.18),
+      transparent 70%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      oklch(0.6 0.2 290 / 0.12),
+      transparent 60%
+    );
+}
+
+/* 16. Warm gradient text (amber → rose → violet). Good for
+   "expiring" / "warning" / "needs attention" headings. */
+.text-gradient-warm {
+  background: linear-gradient(
+    135deg,
+    oklch(0.75 0.18 50) 0%,
+    oklch(0.65 0.22 20) 50%,
+    oklch(0.6 0.25 290) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+@media (prefers-color-scheme: dark) {
+  .dark .text-gradient-warm {
+    background: linear-gradient(
+      135deg,
+      oklch(0.82 0.17 60) 0%,
+      oklch(0.72 0.21 25) 50%,
+      oklch(0.68 0.22 295) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* 17. Hover state for glass panels: increases backdrop blur +
+   adds an inner highlight + soft outer shadow. */
+.glass-panel-hover {
+  transition:
+    backdrop-filter 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+.glass-panel-hover:hover {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.1),
+    0 8px 32px oklch(0 0 0 / 0.08);
+}
+.dark .glass-panel-hover:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.08),
+    0 8px 32px oklch(0 0 0 / 0.4);
+}
+
+/* 18. Animated shine sweep across a badge. A ::before
+   pseudo-element with a diagonal light gradient translates
+   across the badge on a 3s loop. */
+.badge-shine {
+  position: relative;
+  overflow: hidden;
+}
+.badge-shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(
+    120deg,
+    transparent 30%,
+    oklch(1 0 0 / 0.4) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: badge-shine-sweep 3s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes badge-shine-sweep {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge-shine::before {
+    animation: none;
+    display: none;
+  }
+}
+
+/* 19. Material-style ripple on click. Apply to a button /
+   clickable element. Requires the parent to be
+   `position: relative; overflow: hidden;` (the utility adds
+   these automatically). */
+.hover-ripple {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.hover-ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: oklch(1 0 0 / 0.35);
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+.hover-ripple:active::after {
+  animation: hover-ripple-spread 0.6s linear;
+}
+@keyframes hover-ripple-spread {
+  0%   { transform: translate(-50%, -50%) scale(0);  opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(20); opacity: 0;   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hover-ripple:active::after {
+    animation: none;
+  }
+}
+
+/* 20. Animated diagonal stripes overlay for progress bars.
+   Apply to the FILL element of a progress bar — it layers a
+   moving stripe pattern over the existing background. */
+.progress-stripes {
+  position: relative;
+}
+.progress-stripes::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    45deg,
+    oklch(1 0 0 / 0.18) 25%,
+    transparent 25%,
+    transparent 50%,
+    oklch(1 0 0 / 0.18) 50%,
+    oklch(1 0 0 / 0.18) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 1rem 1rem;
+  animation: progress-stripes-move 1s linear infinite;
+  pointer-events: none;
+  border-radius: inherit;
+}
+@keyframes progress-stripes-move {
+  0%   { background-position: 0 0; }
+  100% { background-position: 1rem 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-stripes::after {
+    animation: none;
+  }
+}
+
+/* 21. Entrance animation for chart bars. Apply to the bar
+   wrapper (or the chart card) so bars "grow up" on view.
+   Respects prefers-reduced-motion. */
+.chart-bar-grow {
+  animation: chart-bar-grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: bottom;
+}
+@keyframes chart-bar-grow {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-bar-grow {
+    animation: none;
+  }
+}
+
+/* 22. Gradient placeholder for text lines. Renders a
+   horizontal bar that looks like a loading text line.
+   Pairs nicely with the existing `.skeleton-shimmer` (which
+   is a full-block shimmer). `skeleton-text` is specifically
+   sized + shaped like a text line. */
+@keyframes skeletonTextShimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.skeleton-text {
+  display: block;
+  width: 100%;
+  height: 0.875rem;
+  border-radius: 0.25rem;
+  background: linear-gradient(
+    90deg,
+    oklch(0.92 0.005 240) 0%,
+    oklch(0.85 0.01 240 / 0.55) 50%,
+    oklch(0.92 0.005 240) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonTextShimmer 1.5s ease-in-out infinite;
+}
+.dark .skeleton-text {
+  background: linear-gradient(
+    90deg,
+    oklch(0.25 0.01 240) 0%,
+    oklch(0.38 0.015 240 / 0.7) 50%,
+    oklch(0.25 0.01 240) 100%
+  );
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-text {
+    animation: none;
+  }
+}
+

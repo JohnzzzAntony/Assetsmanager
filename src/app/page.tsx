@@ -29,6 +29,7 @@ import { ExpirationsView } from '@/components/views/expirations-view'
 import { UtilizationView } from '@/components/views/utilization-view'
 import { AssetMapView } from '@/components/views/asset-map-view'
 import { AssetTimelineView } from '@/components/views/asset-timeline-view'
+import { AuditsView } from '@/components/views/audits-view'
 import { useQuery } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -136,6 +137,8 @@ function ViewRouter() {
       return <AssetMapView />
     case 'asset-timeline':
       return <AssetTimelineView assetId={params.id} />
+    case 'audits':
+      return <AuditsView />
     default:
       return <DashboardView />
   }

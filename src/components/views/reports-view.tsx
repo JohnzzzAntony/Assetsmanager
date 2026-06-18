@@ -434,7 +434,7 @@ export function ReportsView() {
 
       {/* KPI cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#10b981' }}>
+        <Card className="border-l-4 hover-lift card-3d-tilt" style={{ borderLeftColor: '#10b981' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
@@ -447,7 +447,7 @@ export function ReportsView() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#8b5cf6' }}>
+        <Card className="border-l-4 hover-lift card-3d-tilt" style={{ borderLeftColor: '#8b5cf6' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
@@ -460,7 +460,7 @@ export function ReportsView() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#f59e0b' }}>
+        <Card className="border-l-4 hover-lift card-3d-tilt" style={{ borderLeftColor: '#f59e0b' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
@@ -473,7 +473,7 @@ export function ReportsView() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 hover-lift" style={{ borderLeftColor: '#06b6d4' }}>
+        <Card className="border-l-4 hover-lift card-3d-tilt" style={{ borderLeftColor: '#06b6d4' }}>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
@@ -490,9 +490,9 @@ export function ReportsView() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Acquisition trend */}
-        <Card className="hover-lift">
+        <Card className="hover-lift chart-bar-grow">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Asset Acquisition Trend</CardTitle>
+            <CardTitle className="text-base shimmer-underline">Asset Acquisition Trend</CardTitle>
             <CardDescription>Assets purchased per month (last 12 months)</CardDescription>
           </CardHeader>
           <CardContent>
@@ -519,9 +519,9 @@ export function ReportsView() {
         </Card>
 
         {/* Cost Trend Over Time */}
-        <Card className="hover-lift">
+        <Card className="hover-lift chart-bar-grow">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 shimmer-underline">
               <LineChartIcon className="h-4 w-4 text-violet-600" /> Cost Trend Over Time
             </CardTitle>
             <CardDescription>Monthly purchase, maintenance, and disposal costs</CardDescription>
@@ -551,9 +551,9 @@ export function ReportsView() {
         </Card>
 
         {/* Status donut */}
-        <Card className="hover-lift">
+        <Card className="hover-lift chart-bar-grow">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Status Distribution</CardTitle>
+            <CardTitle className="text-base shimmer-underline">Status Distribution</CardTitle>
             <CardDescription>Asset count by status</CardDescription>
           </CardHeader>
           <CardContent>
@@ -1629,7 +1629,7 @@ export function ReportsView() {
       <div className="section-accent-bar mt-2">
         <h3 className="flex items-center gap-2 text-base font-semibold">
           <TrendingUp className="h-5 w-5 text-violet-600" />
-          Cost Forecast Analytics
+          <span className="text-gradient-warm">Cost Forecast Analytics</span>
         </h3>
         <p className="mt-0.5 text-sm text-muted-foreground">
           12-month historical spend + 6-month forecast based on linear regression per category

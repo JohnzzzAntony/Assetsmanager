@@ -36,6 +36,7 @@ import {
   Gauge,
   Map as MapIcon,
   GitBranch,
+  ClipboardCheck,
 } from 'lucide-react'
 import type { ViewName } from '@/lib/nav'
 
@@ -61,7 +62,7 @@ function SidebarFooter() {
         </div>
         <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <CircleDot className="h-3 w-3 text-emerald-500 animate-pulse" />
-          <span>v2.5 · Round 8</span>
+          <span>v2.6 · Round 9</span>
         </div>
       </div>
     </div>
@@ -94,6 +95,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Location Map', view: 'asset-map', icon: MapIcon, group: 'Overview', badge: 'new' },
   { label: 'Reports', view: 'reports', icon: BarChart3, group: 'Overview' },
   { label: 'Audit Log', view: 'audit-log', icon: ScrollText, group: 'Overview', badge: 'new' },
+  { label: 'Asset Audits', view: 'audits', icon: ClipboardCheck, group: 'Overview', badge: 'new' },
   { label: 'Notifications', view: 'notifications', icon: Bell, group: 'Overview', badge: 'new' },
   { label: 'Add Asset', view: 'asset-new', icon: Boxes, group: 'Create' },
   { label: 'Add via Image (OCR)', view: 'ocr-upload', icon: ScanText, group: 'Create' },

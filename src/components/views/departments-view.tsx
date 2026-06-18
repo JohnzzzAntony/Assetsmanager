@@ -86,25 +86,25 @@ export function DepartmentsView() {
     <div className="space-y-4 animate-fade-in-up">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold flex items-center gap-2">
+          <h2 className="text-lg font-bold flex items-center gap-2 shimmer-underline inline-block">
             <Building2 className="h-5 w-5" /> Departments
           </h2>
           <p className="text-sm text-muted-foreground">{depts?.length || 0} departments</p>
         </div>
-        <Button onClick={openNew}>
+        <Button onClick={openNew} className="hover-ripple">
           <Plus className="h-4 w-4 mr-1.5" /> Add Department
         </Button>
       </div>
 
-      <Card>
+      <Card className="card-3d-tilt">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Assets</TableHead>
-              <TableHead>Persons</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="shimmer-underline">Name</TableHead>
+              <TableHead className="shimmer-underline">Code</TableHead>
+              <TableHead className="shimmer-underline">Assets</TableHead>
+              <TableHead className="shimmer-underline">Persons</TableHead>
+              <TableHead className="text-right shimmer-underline">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -123,7 +123,7 @@ export function DepartmentsView() {
                       {d.name}
                     </div>
                   </TableCell>
-                  <TableCell><Badge variant="outline" className="font-mono">{d.code || '—'}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className="font-mono badge-shine">{d.code || '—'}</Badge></TableCell>
                   <TableCell>
                     <span className="inline-flex items-center gap-1 text-sm">
                       <Package className="h-3.5 w-3.5 text-muted-foreground" />
@@ -137,10 +137,10 @@ export function DepartmentsView() {
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(d)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 hover-ripple" onClick={() => openEdit(d)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(d)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover-ripple" onClick={() => handleDelete(d)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>

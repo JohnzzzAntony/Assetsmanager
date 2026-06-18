@@ -1612,7 +1612,25 @@ function POReceiveDialog({
               const pct = qty > 0 ? Math.min(100, (recv / qty) * 100) : 0
               const fullyReceived = recv >= qty && qty > 0
               const rawValue = receiveMap[it.id] ?? String(remaining)
-              const willCreateAssets = !!it.assetTypeId
+              // Round 9-B: dynamic Auto-creates Asset badge — only show the emerald badge when
+              // receiving would actually create new assets:
+              //   - assetTypeId is set (line auto-creates Asset rows), AND
+              //   - user has entered a receivedQty > 0, AND
+              //   - the line won't be fully received by this batch (receivedQty + existing < quantity).
+              // The count of newly created assets = parsedReceived (since parsed < remaining,
+              // every parsed unit will create an Asset row).
+              const parsedReceived =
+                rawValue === undefined || rawValue === ''
+                  ? 0
+                  : Math.max(0, Math.floor(Number(rawValue) || 0))
+              const willCreateAssets =
+                !!it.assetTypeId &&
+                parsedReceived > 0 &&
+                parsedReceived + recv < qty
+              const willCreateCount = willCreateAssets
+                ? Math.min(parsedReceived, Math.max(0, qty - recv))
+                : 0
+              const hasAssetType = !!it.assetTypeId
               return (
                 <div
                   key={it.id}
@@ -1653,17 +1671,28 @@ function POReceiveDialog({
                     />
                   </div>
 
-                  {/* Receive Now input + Round 8 "Auto-creates Asset" badge */}
+                  {/* Receive Now input + Round 9-B dynamic "Auto-creates Asset" badge */}
                   <div className="mt-2 flex items-end justify-end gap-2 flex-wrap">
-                    {willCreateAssets && (
+                    {willCreateAssets ? (
                       <Badge
                         variant="outline"
-                        className="text-emerald-600 border-emerald-500/30 bg-emerald-500/5"
+                        className="text-emerald-600 border-emerald-500/30 bg-emerald-500/5 badge-shine"
+                        aria-label={`Auto-creates ${willCreateCount} asset${willCreateCount === 1 ? '' : 's'}`}
                       >
                         <Sparkles className="h-3 w-3 mr-1" />
-                        <span className="text-[10px] uppercase tracking-wide">Auto-creates Asset</span>
+                        <span className="text-[10px] uppercase tracking-wide">
+                          Auto-creates {willCreateCount} asset{willCreateCount === 1 ? '' : 's'}
+                        </span>
                       </Badge>
-                    )}
+                    ) : hasAssetType ? (
+                      <Badge
+                        variant="outline"
+                        className="text-muted-foreground border-muted-foreground/20 bg-muted/30"
+                        aria-label="Will auto-create on receive"
+                      >
+                        <span className="text-[10px] uppercase tracking-wide">Will auto-create on receive</span>
+                      </Badge>
+                    ) : null}
                     <div className="w-32 space-y-1">
                       <Label htmlFor={`recv-${it.id}`} className="text-[10px] uppercase tracking-wide text-muted-foreground">
                         Receive Now

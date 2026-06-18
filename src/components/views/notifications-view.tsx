@@ -149,7 +149,7 @@ export function NotificationsView() {
           <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
             Notifications
             {stats.unread > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white badge-shine">
                 {stats.unread}
               </span>
             )}
@@ -159,10 +159,10 @@ export function NotificationsView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRegenerate}>
+          <Button variant="outline" size="sm" className="hover-ripple" onClick={handleRegenerate}>
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh Alerts
           </Button>
-          <Button variant="outline" size="sm" onClick={handleMarkAllRead} disabled={stats.unread === 0}>
+          <Button variant="outline" size="sm" className="hover-ripple" onClick={handleMarkAllRead} disabled={stats.unread === 0}>
             <CheckCheck className="h-3.5 w-3.5 mr-1.5" /> Mark all read
           </Button>
         </div>
@@ -296,7 +296,7 @@ export function NotificationsView() {
                   return (
                     <div
                       key={n.id}
-                      className={`group flex items-start gap-3 rounded-lg border p-3 transition-all ${n.isRead ? 'bg-card/50' : 'bg-card shadow-sm'} hover:shadow-md cursor-pointer ${hasAction ? 'hover:border-primary/30' : ''}`}
+                      className={`group flex items-start gap-3 rounded-lg border p-3 transition-all glass-panel-hover ${n.isRead ? 'bg-card/50' : 'bg-card shadow-sm'} hover:shadow-md cursor-pointer ${hasAction ? 'hover:border-primary/30' : ''}`}
                       onClick={() => hasAction && handleAction(n)}
                     >
                       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${cfg.bg}`}>
@@ -320,7 +320,7 @@ export function NotificationsView() {
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             {!n.isRead && (
                               <Button
-                                size="icon" variant="ghost" className="h-7 w-7"
+                                size="icon" variant="ghost" className="h-7 w-7 hover-ripple"
                                 onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id) }}
                                 title="Mark as read"
                               >
@@ -328,7 +328,7 @@ export function NotificationsView() {
                               </Button>
                             )}
                             <Button
-                              size="icon" variant="ghost" className="h-7 w-7 text-destructive"
+                              size="icon" variant="ghost" className="h-7 w-7 text-destructive hover-ripple"
                               onClick={(e) => { e.stopPropagation(); handleDelete(n.id) }}
                               title="Delete"
                             >

@@ -88,11 +88,11 @@ function InfoRow({ label, value, icon: Icon }: { label: string; value?: React.Re
 
 function SectionCard({ title, icon: Icon, children, action }: { title: string; icon: typeof Cpu; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <Card>
+    <Card className="glass-panel-hover">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-muted-foreground" />
-          <CardTitle className="text-sm">{title}</CardTitle>
+          <CardTitle className="text-sm shimmer-underline">{title}</CardTitle>
         </div>
         {action}
       </CardHeader>
@@ -239,7 +239,7 @@ export function AssetDetailView({ id }: { id: string }) {
   return (
     <div className="space-y-5 animate-fade-in-up">
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between bg-radial-spotlight -mx-2 px-2 py-1 rounded-lg">
         <div className="flex items-start gap-4">
           <Button variant="ghost" size="icon" onClick={back} className="-ml-2">
             <ArrowLeft className="h-4 w-4" />
@@ -252,7 +252,7 @@ export function AssetDetailView({ id }: { id: string }) {
               <h2 className="text-xl font-bold tracking-tight">
                 {asset.make} {asset.model}
               </h2>
-              <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1`}>
+              <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1 ${asset.status === 'Repair' || asset.status === 'Lost' ? 'badge-shine' : ''}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
                 {asset.status}
               </Badge>

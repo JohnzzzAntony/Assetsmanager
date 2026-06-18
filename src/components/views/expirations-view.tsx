@@ -1,9 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { expirationsApi, vendorsApi } from '@/lib/api'
-import type { ExpirationItem, ExpirationUrgency, ExpiryRenewResult, Vendor } from '@/lib/types'
+import type {
+  ExpirationItem,
+  ExpirationUrgency,
+  ExpiryRenewResult,
+  ExpiryBulkRenewPayload,
+  ExpiryBulkRenewResult,
+  Vendor,
+} from '@/lib/types'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,6 +53,8 @@ import {
   Loader2,
   ShoppingCart,
   CheckCircle2,
+  X,
+  Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/format'
@@ -60,7 +70,7 @@ interface StatTileProps {
 
 function StatTile({ label, value, icon: Icon, color, hint }: StatTileProps) {
   return (
-    <Card className="stat-tile-gradient card-hover-lift overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
+    <Card className="stat-tile-gradient card-hover-lift card-3d-tilt overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
@@ -107,14 +117,27 @@ function handleExportCsv() {
   toast.success('Exported CSV')
 }
 
+function isRenewable(item: ExpirationItem): boolean {
+  // Per spec: only kind='license' or kind='warranty' (asset warranty) items can be bulk-renewed.
+  // Today the ExpirationItem.kind union is exactly 'warranty' | 'license' — so all items qualify —
+  // but we gate explicitly so future kinds are safely excluded by default.
+  return item.kind === 'warranty' || item.kind === 'license'
+}
+
 function ItemRow({
   item,
   onRenew,
   renewed,
+  selectable,
+  selected,
+  onToggleSelect,
 }: {
   item: ExpirationItem
   onRenew: (item: ExpirationItem) => void
   renewed: boolean
+  selectable: boolean
+  selected: boolean
+  onToggleSelect: (item: ExpirationItem) => void
 }) {
   const navigate = useNav((s) => s.navigate)
   const isLicense = item.kind === 'license'
@@ -141,6 +164,8 @@ function ItemRow({
     <Card
       className={`urgency-${item.urgency} cursor-pointer border transition-shadow hover:shadow-md ${
         renewed ? 'ring-2 ring-emerald-500/40' : ''
+      } ${
+        selected ? 'ring-2 ring-sky-500/40 bg-sky-500/5' : ''
       }`}
       onClick={onClick}
       role="button"
@@ -153,6 +178,21 @@ function ItemRow({
       }}
     >
       <CardContent className="flex items-center gap-3 p-4">
+        {/* Leftmost: bulk-select checkbox (disabled for non-renewable kinds) */}
+        <div
+          className="flex shrink-0 items-center"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          role="presentation"
+        >
+          <Checkbox
+            aria-label={`Select ${item.name} for bulk renew`}
+            checked={selected}
+            disabled={!selectable}
+            onCheckedChange={() => onToggleSelect(item)}
+          />
+        </div>
+
         {/* Left: icon */}
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
@@ -226,10 +266,14 @@ function ItemList({
   items,
   onRenew,
   renewedItemId,
+  selectedIds,
+  onToggleSelect,
 }: {
   items: ExpirationItem[]
   onRenew: (item: ExpirationItem) => void
   renewedItemId: string | null
+  selectedIds: Set<string>
+  onToggleSelect: (item: ExpirationItem) => void
 }) {
   if (items.length === 0) {
     return (
@@ -267,6 +311,9 @@ function ItemList({
               item={item}
               onRenew={onRenew}
               renewed={renewedItemId === item.id}
+              selectable={isRenewable(item)}
+              selected={selectedIds.has(item.id)}
+              onToggleSelect={onToggleSelect}
             />
           ))}
         </div>
@@ -467,7 +514,224 @@ function RenewDialog({
   )
 }
 
+// ---- Round 9-B: Bulk Renew dialog (multiple expirations → one renewal PO) ----
+function BulkRenewForm({
+  selectedItems,
+  vendors,
+  onSuccess,
+  onClose,
+}: {
+  selectedItems: ExpirationItem[]
+  vendors: Vendor[] | undefined
+  onSuccess: (result: ExpiryBulkRenewResult) => void
+  onClose: () => void
+}) {
+  const navigate = useNav((s) => s.navigate)
+  const [vendorId, setVendorId] = useState('')
+  const [expectedDate, setExpectedDate] = useState<string>(defaultExpectedDate())
+  const [notes, setNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const totalCost = useMemo(
+    () => selectedItems.reduce((s, it) => s + (Number(it.cost) || 0), 0),
+    [selectedItems]
+  )
+  const warrantyCount = selectedItems.filter((i) => i.kind === 'warranty').length
+  const licenseCount = selectedItems.filter((i) => i.kind === 'license').length
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!vendorId) {
+      toast.error('Please choose a vendor for this renewal.')
+      return
+    }
+    if (selectedItems.length === 0) {
+      toast.error('No items selected for bulk renewal.')
+      return
+    }
+    setSubmitting(true)
+    const payload: ExpiryBulkRenewPayload = {
+      vendorId,
+      items: selectedItems.map((it) =>
+        it.kind === 'license' ? { licenseId: it.entityId } : { assetId: it.entityId }
+      ),
+      expectedDate: expectedDate || undefined,
+      notes: notes.trim() || undefined,
+    }
+    try {
+      const result = await expirationsApi.renewBulk(payload)
+      toast.success(
+        `Renewal PO ${result.po.poNumber} created with ${result.renewedItems.length} line item${result.renewedItems.length === 1 ? '' : 's'}`,
+        {
+          action: {
+            label: 'View PO',
+            onClick: () => navigate('purchase-orders'),
+          },
+        }
+      )
+      onSuccess(result)
+      onClose()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create bulk renewal PO'
+      toast.error(msg)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-emerald-600" />
+          Bulk Renew — {selectedItems.length} item{selectedItems.length === 1 ? '' : 's'}
+        </DialogTitle>
+        <DialogDescription>
+          Create a single draft Purchase Order with one renewal line per selected expiry.
+        </DialogDescription>
+      </DialogHeader>
+      <form onSubmit={onSubmit}>
+        {/* Summary list */}
+        <div className="max-h-44 space-y-1.5 overflow-y-auto scrollbar-thin rounded-md border bg-muted/30 p-2">
+          {selectedItems.map((it) => (
+            <div
+              key={it.id}
+              className="flex items-center justify-between gap-2 rounded px-2 py-1 text-xs"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    it.kind === 'license'
+                      ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                      : 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                  }
+                >
+                  {it.kind === 'license' ? 'License' : 'Warranty'}
+                </Badge>
+                <span className="truncate font-medium text-foreground">{it.name}</span>
+              </div>
+              <span className="shrink-0 tabular-nums text-muted-foreground">
+                {formatDate(it.expiryDate)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          {warrantyCount} warranty · {licenseCount} license ·{' '}
+          {formatCurrency(totalCost, 'USD')} total current cost
+        </p>
+
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label htmlFor="bulk-renew-vendor">
+              Vendor <span className="text-rose-600">*</span>
+            </Label>
+            <Select value={vendorId} onValueChange={setVendorId}>
+              <SelectTrigger id="bulk-renew-vendor" className="w-full">
+                <SelectValue placeholder="Choose a vendor…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(vendors ?? []).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                    {v.category ? <span className="text-muted-foreground"> · {v.category}</span> : null}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="bulk-renew-date">Expected date (optional)</Label>
+            <Input
+              id="bulk-renew-date"
+              type="date"
+              value={expectedDate}
+              onChange={(e) => setExpectedDate(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">Defaults to 30 days from today.</p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="bulk-renew-notes">Notes (optional)</Label>
+            <Textarea
+              id="bulk-renew-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Add any context about this bulk renewal (e.g. contract ref, fiscal year)…"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting || !vendorId || selectedItems.length === 0}>
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating…
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="h-4 w-4" />
+                Create Renewal PO
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </form>
+    </>
+  )
+}
+
+function BulkRenewDialog({
+  open,
+  onOpenChange,
+  selectedItems,
+  vendors,
+  onSuccess,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  selectedItems: ExpirationItem[]
+  vendors: Vendor[] | undefined
+  onSuccess: (result: ExpiryBulkRenewResult) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        {selectedItems.length > 0 ? (
+          <BulkRenewForm
+            selectedItems={selectedItems}
+            vendors={vendors}
+            onSuccess={onSuccess}
+            onClose={() => onOpenChange(false)}
+          />
+        ) : (
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-emerald-600" />
+              Bulk Renew
+            </DialogTitle>
+            <DialogDescription>Select at least one item to renew.</DialogDescription>
+          </DialogHeader>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ExpirationsView() {
+  const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['expirations'],
     queryFn: () => expirationsApi.list(),
@@ -485,6 +749,10 @@ export function ExpirationsView() {
   const [renewItem, setRenewItem] = useState<ExpirationItem | null>(null)
   const [renewedItemId, setRenewedItemId] = useState<string | null>(null)
 
+  // Round 9-B: bulk-select state — Set of selected item ids + a lookup map
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkRenewOpen, setBulkRenewOpen] = useState(false)
+
   const totals = data?.totals
 
   const filteredItems = useMemo(() => {
@@ -501,6 +769,35 @@ export function ExpirationsView() {
     })
   }, [data, search, tab])
 
+  // Selected items resolved against the (unfiltered) full data set so the
+  // bulk-renew dialog still has access to them after the user changes tabs.
+  const selectedItems = useMemo(() => {
+    if (!data?.items) return []
+    const map = new Map(data.items.map((it) => [it.id, it]))
+    const out: ExpirationItem[] = []
+    for (const id of selectedIds) {
+      const item = map.get(id)
+      if (item) out.push(item)
+    }
+    return out
+  }, [data, selectedIds])
+
+  const handleToggleSelect = useCallback((item: ExpirationItem) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(item.id)) {
+        next.delete(item.id)
+      } else {
+        next.add(item.id)
+      }
+      return next
+    })
+  }, [])
+
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+
   function openRenew(item: ExpirationItem) {
     setRenewItem(item)
     setRenewOpen(true)
@@ -512,6 +809,13 @@ export function ExpirationsView() {
     window.setTimeout(() => {
       setRenewedItemId((cur) => (cur === itemId ? null : cur))
     }, 5000)
+  }
+
+  // Round 9-B: bulk-renew success handler — refetch the expirations list + clear selection.
+  function handleBulkRenewSuccess(_result: ExpiryBulkRenewResult) {
+    clearSelection()
+    void qc.invalidateQueries({ queryKey: ['expirations'] })
+    void qc.invalidateQueries({ queryKey: ['purchase-orders'] })
   }
 
   return (
@@ -626,11 +930,50 @@ export function ExpirationsView() {
               </div>
             </div>
 
+            {/* Round 9-B: floating bulk-action bar — visible whenever at least one item is selected */}
+            {selectedIds.size > 0 && (
+              <div
+                className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 shadow-sm glass-panel-hover"
+                role="region"
+                aria-label="Bulk actions"
+              >
+                <div className="flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-300">
+                  <Layers className="h-4 w-4" />
+                  <span>
+                    {selectedIds.size} item{selectedIds.size === 1 ? '' : 's'} selected
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearSelection}
+                    aria-label="Clear selection"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="btn-press bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => setBulkRenewOpen(true)}
+                    disabled={selectedItems.length === 0}
+                    aria-label="Bulk renew selected items"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Bulk Renew
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <TabsContent value="all" className="mt-4">
               <ItemList
                 items={filteredItems}
                 onRenew={openRenew}
                 renewedItemId={renewedItemId}
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
               />
             </TabsContent>
             <TabsContent value="warranty" className="mt-4">
@@ -638,6 +981,8 @@ export function ExpirationsView() {
                 items={filteredItems}
                 onRenew={openRenew}
                 renewedItemId={renewedItemId}
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
               />
             </TabsContent>
             <TabsContent value="license" className="mt-4">
@@ -645,6 +990,8 @@ export function ExpirationsView() {
                 items={filteredItems}
                 onRenew={openRenew}
                 renewedItemId={renewedItemId}
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
               />
             </TabsContent>
           </Tabs>
@@ -678,6 +1025,14 @@ export function ExpirationsView() {
         item={renewItem}
         vendors={vendors}
         onSuccess={handleRenewSuccess}
+      />
+
+      <BulkRenewDialog
+        open={bulkRenewOpen}
+        onOpenChange={setBulkRenewOpen}
+        selectedItems={selectedItems}
+        vendors={vendors}
+        onSuccess={handleBulkRenewSuccess}
       />
     </div>
   )

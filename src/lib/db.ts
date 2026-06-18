@@ -417,6 +417,48 @@ export function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_saved_report_name ON SavedReport(name);
     CREATE INDEX IF NOT EXISTS idx_saved_report_section ON SavedReport(section);
+
+    -- ============ Round 9: Asset Audit / Physical Inventory ============
+    -- An AssetAudit represents a periodic physical inventory check.
+    -- Each audit covers a scope (all assets, a location, a department, or an asset type)
+    -- and produces a list of AssetAuditItem rows — one per expected asset plus any "Extra"
+    -- assets scanned that weren't on the expected list.
+    CREATE TABLE IF NOT EXISTS AssetAudit (
+      id TEXT PRIMARY KEY,
+      auditNumber TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'all',
+      scopeId TEXT,
+      status TEXT NOT NULL DEFAULT 'Open',
+      startedAt TEXT,
+      completedAt TEXT,
+      startedById TEXT REFERENCES Person(id) ON DELETE SET NULL,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS AssetAuditItem (
+      id TEXT PRIMARY KEY,
+      auditId TEXT NOT NULL REFERENCES AssetAudit(id) ON DELETE CASCADE,
+      assetId TEXT REFERENCES Asset(id) ON DELETE CASCADE,
+      assetTag TEXT,
+      status TEXT NOT NULL DEFAULT 'Pending',
+      -- Expected: was this asset on the expected list (true) or scanned as Extra (false)?
+      expected INTEGER NOT NULL DEFAULT 1,
+      scannedAt TEXT,
+      scannedByName TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_number ON AssetAudit(auditNumber);
+    CREATE INDEX IF NOT EXISTS idx_audit_status ON AssetAudit(status);
+    CREATE INDEX IF NOT EXISTS idx_audit_scope ON AssetAudit(scope, scopeId);
+    CREATE INDEX IF NOT EXISTS idx_audititem_audit ON AssetAuditItem(auditId);
+    CREATE INDEX IF NOT EXISTS idx_audititem_asset ON AssetAuditItem(assetId);
+    CREATE INDEX IF NOT EXISTS idx_audititem_status ON AssetAuditItem(status);
   `)
 }
 

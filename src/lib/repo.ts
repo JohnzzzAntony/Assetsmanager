@@ -45,6 +45,16 @@ import type {
   CostForecastPoint,
   ExpiryRenewPayload,
   ExpiryRenewResult,
+  AssetAudit,
+  AssetAuditItem,
+  AssetAuditCreatePayload,
+  AssetAuditScanPayload,
+  AssetAuditScanResult,
+  AuditScope,
+  AuditStatus,
+  AuditItemStatus,
+  ExpiryBulkRenewPayload,
+  ExpiryBulkRenewResult,
 } from './types'
 
 // Ensure DB is initialized before any query
@@ -3253,8 +3263,10 @@ export const expiryRenewRepo = {
 
     const now = new Date().toISOString()
     const today = now.slice(0, 10)
-    // Generate PO number: RENEW-YYYYMMDD-HHMMSS
-    const poNumber = `RENEW-${today.replace(/-/g, '')}-${now.slice(11, 19).replace(/:/g, '')}`
+    // Generate PO number: RENEW-YYYYMMDD-HHMMSS-XXXX (4-char random suffix prevents collision
+    // when multiple renewals happen in the same second — Round 9 fix)
+    const randSuffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+    const poNumber = `RENEW-${today.replace(/-/g, '')}-${now.slice(11, 19).replace(/:/g, '')}-${randSuffix}`
 
     const poId = generateId()
     const expectedDate = payload.expectedDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -3573,6 +3585,581 @@ export const costForecastRepo = {
         trendDirection,
         trendPct: trendPct != null ? Math.round(trendPct * 1000) / 1000 : null,
       },
+    }
+  },
+}
+
+// ============ Round 9: Asset Audit / Physical Inventory ============
+function csvEscape(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return ''
+  const s = String(v)
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`
+  }
+  return s
+}
+
+export const assetAuditRepo = {
+  /** List all audits with stats + scope name + startedBy name, newest first. */
+  list(): AssetAudit[] {
+    ensure()
+    const r = db.prepare(`
+      SELECT a.*,
+             p.fullName AS startedByName
+      FROM AssetAudit a
+      LEFT JOIN Person p ON a.startedById = p.id
+      ORDER BY a.createdAt DESC
+    `).all()
+    const audits = rows<AssetAudit & { startedByName?: string | null }>(r)
+    return audits.map((a) => {
+      let scopeName: string | null = null
+      if (a.scopeId) {
+        if (a.scope === 'location') {
+          const loc = row<{ name: string }>(db.prepare('SELECT name FROM Location WHERE id = ?').get(a.scopeId))
+          scopeName = loc?.name ?? null
+        } else if (a.scope === 'department') {
+          const d = row<{ name: string }>(db.prepare('SELECT name FROM Department WHERE id = ?').get(a.scopeId))
+          scopeName = d?.name ?? null
+        } else if (a.scope === 'type') {
+          const t = row<{ name: string }>(db.prepare('SELECT name FROM AssetType WHERE id = ?').get(a.scopeId))
+          scopeName = t?.name ?? null
+        }
+      }
+      return { ...a, scopeName, stats: this.getStats(a.id) }
+    })
+  },
+
+  /** Return one audit + all items joined with Asset + AssetType for display. */
+  get(id: string): { audit: AssetAudit; items: AssetAuditItem[] } | null {
+    ensure()
+    const a = row<AssetAudit & { startedByName?: string | null }>(
+      db.prepare(`
+        SELECT a.*, p.fullName AS startedByName
+        FROM AssetAudit a
+        LEFT JOIN Person p ON a.startedById = p.id
+        WHERE a.id = ?
+      `).get(id)
+    )
+    if (!a) return null
+    let scopeName: string | null = null
+    if (a.scopeId) {
+      if (a.scope === 'location') {
+        const loc = row<{ name: string }>(db.prepare('SELECT name FROM Location WHERE id = ?').get(a.scopeId))
+        scopeName = loc?.name ?? null
+      } else if (a.scope === 'department') {
+        const d = row<{ name: string }>(db.prepare('SELECT name FROM Department WHERE id = ?').get(a.scopeId))
+        scopeName = d?.name ?? null
+      } else if (a.scope === 'type') {
+        const t = row<{ name: string }>(db.prepare('SELECT name FROM AssetType WHERE id = ?').get(a.scopeId))
+        scopeName = t?.name ?? null
+      }
+    }
+    const audit: AssetAudit = { ...a, scopeName, stats: this.getStats(id) }
+
+    const itemRows = db.prepare(`
+      SELECT i.*,
+             ast.assetTag AS _assetTag2,
+             ast.make AS _make,
+             ast.model AS _model,
+             ast.assetTypeId AS _assetTypeId,
+             t.name AS _assetTypeName
+      FROM AssetAuditItem i
+      LEFT JOIN Asset ast ON i.assetId = ast.id
+      LEFT JOIN AssetType t ON ast.assetTypeId = t.id
+      WHERE i.auditId = ?
+      ORDER BY CASE i.status
+        WHEN 'Verified' THEN 0
+        WHEN 'Extra' THEN 1
+        WHEN 'Pending' THEN 2
+        WHEN 'Found' THEN 3
+        WHEN 'Missing' THEN 4
+        ELSE 5
+      END, i.assetTag
+    `).all(id)
+    const items: AssetAuditItem[] = rows<
+      AssetAuditItem & {
+        _assetTag2?: string | null
+        _make?: string | null
+        _model?: string | null
+        _assetTypeId?: string | null
+        _assetTypeName?: string | null
+      }
+    >(itemRows).map((it) => {
+      const { _assetTag2, _make, _model, _assetTypeId, _assetTypeName, ...rest } = it
+      void _assetTypeId
+      const make = _make || ''
+      const model = _model || ''
+      const assetName = `${make} ${model}`.trim() || _assetTag2 || it.assetTag || ''
+      return {
+        ...rest,
+        assetTag: it.assetTag || _assetTag2 || null,
+        assetName,
+        assetTypeName: _assetTypeName || null,
+        expected: toBool(it.expected),
+      } as AssetAuditItem
+    })
+    return { audit, items }
+  },
+
+  /** Create a new audit (status=Open) and auto-populate expected items per scope. */
+  create(payload: AssetAuditCreatePayload): AssetAudit {
+    ensure()
+    if (!payload.title || !payload.title.trim()) throw new Error('Title is required')
+    const scope: AuditScope = payload.scope || 'all'
+    if (scope !== 'all' && !payload.scopeId) {
+      throw new Error(`scopeId is required when scope is "${scope}"`)
+    }
+
+    const now = new Date().toISOString()
+    const today = now.slice(0, 10).replace(/-/g, '')
+    // AUD-YYYYMMDD-XXXX (4-char random suffix)
+    const randSuffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+    const auditNumber = `AUD-${today}-${randSuffix}`
+    const id = generateId()
+
+    db.prepare(`
+      INSERT INTO AssetAudit (id, auditNumber, title, scope, scopeId, status, startedAt, completedAt, startedById, notes, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, 'Open', ?, NULL, ?, ?, ?, ?)
+    `).run(
+      id,
+      auditNumber,
+      payload.title.trim(),
+      scope,
+      payload.scopeId ?? null,
+      now,
+      payload.startedById ?? null,
+      payload.notes ?? null,
+      now,
+      now
+    )
+
+    // Auto-populate expected items: query matching active assets (exclude Retired/Lost)
+    let scopeWhere = `status NOT IN ('Retired', 'Lost')`
+    const scopeParams: unknown[] = []
+    if (scope === 'location') {
+      scopeWhere += ` AND locationId = ?`
+      scopeParams.push(payload.scopeId)
+    } else if (scope === 'department') {
+      scopeWhere += ` AND departmentId = ?`
+      scopeParams.push(payload.scopeId)
+    } else if (scope === 'type') {
+      scopeWhere += ` AND assetTypeId = ?`
+      scopeParams.push(payload.scopeId)
+    }
+    const assetRows = db.prepare(
+      `SELECT id, assetTag FROM Asset WHERE ${scopeWhere} ORDER BY assetTag`
+    ).all(...scopeParams)
+    const assets = rows<{ id: string; assetTag: string | null }>(assetRows)
+
+    const insItem = db.prepare(`
+      INSERT INTO AssetAuditItem (id, auditId, assetId, assetTag, status, expected, scannedAt, scannedByName, notes, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, 'Pending', 1, NULL, NULL, NULL, ?, ?)
+    `)
+    for (const a of assets) {
+      insItem.run(generateId(), id, a.id, a.assetTag ?? null, now, now)
+    }
+
+    activityLogRepo.log(
+      'audit.created',
+      'AssetAudit',
+      id,
+      `Created audit ${auditNumber} (${scope}${payload.scopeId ? `:${payload.scopeId}` : ''}) with ${assets.length} expected item(s)`
+    )
+
+    const created = this.get(id)
+    return created!.audit
+  },
+
+  /** Scan an asset during an audit — verify/extra/found logic. */
+  scan(auditId: string, payload: AssetAuditScanPayload): AssetAuditScanResult {
+    ensure()
+    const audit = row<AssetAudit>(db.prepare('SELECT * FROM AssetAudit WHERE id = ?').get(auditId))
+    if (!audit) throw new Error('Audit not found')
+    if (audit.status === 'Completed' || audit.status === 'Cancelled') {
+      throw new Error(`Cannot scan: audit is ${audit.status}`)
+    }
+
+    // Find asset by assetId OR assetTag
+    let asset: { id: string; assetTag: string | null } | null = null
+    if (payload.assetId) {
+      asset = row<{ id: string; assetTag: string | null }>(
+        db.prepare('SELECT id, assetTag FROM Asset WHERE id = ?').get(payload.assetId)
+      )
+    } else if (payload.assetTag) {
+      asset = row<{ id: string; assetTag: string | null }>(
+        db.prepare('SELECT id, assetTag FROM Asset WHERE assetTag = ?').get(payload.assetTag)
+      )
+    }
+    if (!asset) throw new Error('Asset not found')
+
+    const now = new Date().toISOString()
+    const scannedByName = payload.scannedByName ?? null
+
+    const existing = row<AssetAuditItem>(
+      db.prepare('SELECT * FROM AssetAuditItem WHERE auditId = ? AND assetId = ?').get(auditId, asset.id)
+    )
+
+    let item: AssetAuditItem
+    let wasExpected = false
+    let newlyVerified = false
+
+    if (existing) {
+      wasExpected = toBool(existing.expected)
+      const status = existing.status as AuditItemStatus
+      let nextStatus: AuditItemStatus = status
+      let setScannedAt = false
+      if (payload.status) {
+        nextStatus = payload.status
+        if (payload.status !== 'Missing' && payload.status !== 'Pending') {
+          setScannedAt = true
+        }
+      } else if (status === 'Pending') {
+        nextStatus = 'Verified'
+        newlyVerified = true
+        setScannedAt = true
+      } else if (status === 'Missing') {
+        nextStatus = 'Found'
+        setScannedAt = true
+      }
+      // Verified / Found / Extra → no-op on status
+      const finalScannedAt = setScannedAt ? now : existing.scannedAt
+      const finalScannedBy = scannedByName ?? existing.scannedByName
+      if (payload.notes != null && payload.notes.trim() !== '') {
+        db.prepare(`
+          UPDATE AssetAuditItem
+          SET status = ?, scannedAt = ?, scannedByName = ?, notes = ?, updatedAt = ?
+          WHERE id = ?
+        `).run(nextStatus, finalScannedAt, finalScannedBy, payload.notes, now, existing.id)
+      } else {
+        db.prepare(`
+          UPDATE AssetAuditItem
+          SET status = ?, scannedAt = ?, scannedByName = ?, updatedAt = ?
+          WHERE id = ?
+        `).run(nextStatus, finalScannedAt, finalScannedBy, now, existing.id)
+      }
+      const refreshed = row<AssetAuditItem>(
+        db.prepare('SELECT * FROM AssetAuditItem WHERE id = ?').get(existing.id)
+      )
+      item = { ...refreshed!, expected: toBool(refreshed!.expected) }
+    } else {
+      // New "Extra" item — asset was not on expected list
+      const newId = generateId()
+      db.prepare(`
+        INSERT INTO AssetAuditItem (id, auditId, assetId, assetTag, status, expected, scannedAt, scannedByName, notes, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, 'Extra', 0, ?, ?, ?, ?, ?)
+      `).run(newId, auditId, asset.id, asset.assetTag ?? null, now, scannedByName, payload.notes ?? null, now, now)
+      const created = row<AssetAuditItem>(db.prepare('SELECT * FROM AssetAuditItem WHERE id = ?').get(newId))
+      item = { ...created!, expected: toBool(created!.expected) }
+      wasExpected = false
+      newlyVerified = false
+    }
+
+    // If audit is Open, transition to In Progress on first scan
+    if (audit.status === 'Open') {
+      db.prepare(`UPDATE AssetAudit SET status = 'In Progress', updatedAt = ? WHERE id = ?`).run(now, auditId)
+    }
+
+    activityLogRepo.log(
+      'audit.scan',
+      'AssetAudit',
+      auditId,
+      `Scanned ${asset.assetTag || asset.id.slice(0, 8)} → ${item.status}`
+    )
+
+    return { auditId, item, wasExpected, newlyVerified }
+  },
+
+  /** Mark an expected item as Missing (used during reconciliation). */
+  markMissing(auditId: string, assetId: string): AssetAuditItem | null {
+    ensure()
+    const existing = row<AssetAuditItem>(
+      db.prepare('SELECT * FROM AssetAuditItem WHERE auditId = ? AND assetId = ?').get(auditId, assetId)
+    )
+    if (!existing) return null
+    const now = new Date().toISOString()
+    db.prepare(`UPDATE AssetAuditItem SET status = 'Missing', updatedAt = ? WHERE id = ?`).run(now, existing.id)
+    const refreshed = row<AssetAuditItem>(db.prepare('SELECT * FROM AssetAuditItem WHERE id = ?').get(existing.id))
+    return refreshed ? { ...refreshed, expected: toBool(refreshed.expected) } : null
+  },
+
+  /** Finalize: mark all remaining Pending as Missing, set status=Completed. */
+  complete(auditId: string): AssetAudit {
+    ensure()
+    const audit = row<AssetAudit>(db.prepare('SELECT * FROM AssetAudit WHERE id = ?').get(auditId))
+    if (!audit) throw new Error('Audit not found')
+    if (audit.status === 'Completed') throw new Error('Audit is already completed')
+    if (audit.status === 'Cancelled') throw new Error('Cannot complete a cancelled audit')
+
+    const now = new Date().toISOString()
+    // Auto-reconcile: any Pending → Missing
+    db.prepare(`
+      UPDATE AssetAuditItem SET status = 'Missing', updatedAt = ?
+      WHERE auditId = ? AND status = 'Pending'
+    `).run(now, auditId)
+
+    db.prepare(`
+      UPDATE AssetAudit SET status = 'Completed', completedAt = ?, updatedAt = ?
+      WHERE id = ?
+    `).run(now, now, auditId)
+
+    activityLogRepo.log(
+      'audit.completed',
+      'AssetAudit',
+      auditId,
+      `Completed audit ${audit.auditNumber}`
+    )
+    const refreshed = this.get(auditId)
+    return refreshed!.audit
+  },
+
+  /** Cancel: status=Cancelled, items remain as-is. */
+  cancel(auditId: string): AssetAudit {
+    ensure()
+    const audit = row<AssetAudit>(db.prepare('SELECT * FROM AssetAudit WHERE id = ?').get(auditId))
+    if (!audit) throw new Error('Audit not found')
+    if (audit.status === 'Completed') throw new Error('Cannot cancel a completed audit')
+    if (audit.status === 'Cancelled') throw new Error('Audit is already cancelled')
+
+    const now = new Date().toISOString()
+    db.prepare(`UPDATE AssetAudit SET status = 'Cancelled', updatedAt = ? WHERE id = ?`).run(now, auditId)
+    activityLogRepo.log(
+      'audit.cancelled',
+      'AssetAudit',
+      auditId,
+      `Cancelled audit ${audit.auditNumber}`
+    )
+    const refreshed = this.get(auditId)
+    return refreshed!.audit
+  },
+
+  /** Compute stats (counts by status + accuracyPct). */
+  getStats(auditId: string): AssetAudit['stats'] {
+    ensure()
+    const r = db.prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'Verified' THEN 1 ELSE 0 END) AS verified,
+        SUM(CASE WHEN status = 'Missing' THEN 1 ELSE 0 END) AS missing,
+        SUM(CASE WHEN status = 'Found' THEN 1 ELSE 0 END) AS found,
+        SUM(CASE WHEN status = 'Extra' THEN 1 ELSE 0 END) AS extra,
+        SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS pending
+      FROM AssetAuditItem
+      WHERE auditId = ?
+    `).get(auditId) as
+      | {
+          total: number
+          verified: number
+          missing: number
+          found: number
+          extra: number
+          pending: number
+        }
+      | null
+    const total = r?.total || 0
+    const verified = r?.verified || 0
+    const missing = r?.missing || 0
+    const found = r?.found || 0
+    const extra = r?.extra || 0
+    const pending = r?.pending || 0
+    const denom = verified + missing
+    const accuracyPct = denom > 0 ? Math.round((verified / denom) * 1000) / 10 : 0
+    return { total, verified, missing, found, extra, pending, accuracyPct }
+  },
+
+  /** Build a CSV export of audit items + summary footer. */
+  exportCsv(auditId: string): string {
+    ensure()
+    const data = this.get(auditId)
+    if (!data) throw new Error('Audit not found')
+    const { audit, items } = data
+    const header = [
+      'auditNumber',
+      'title',
+      'assetTag',
+      'assetName',
+      'assetType',
+      'expected',
+      'status',
+      'scannedAt',
+      'scannedByName',
+      'notes',
+    ]
+    const rowsOut = items.map((it) => [
+      audit.auditNumber,
+      audit.title,
+      it.assetTag || '',
+      it.assetName || '',
+      it.assetTypeName || '',
+      it.expected ? 'Yes' : 'No',
+      it.status,
+      it.scannedAt ? it.scannedAt.replace('T', ' ').slice(0, 19) : '',
+      it.scannedByName || '',
+      it.notes || '',
+    ])
+    const csv = [header, ...rowsOut].map((r) => r.map(csvEscape).join(',')).join('\r\n')
+    const stats = audit.stats || this.getStats(auditId)
+    const summary = [
+      '',
+      `# Audit ${audit.auditNumber} — ${audit.title}`,
+      `# Status,${audit.status}`,
+      `# Scope,${audit.scope}${audit.scopeName ? ` (${audit.scopeName})` : ''}`,
+      `# Total,${stats.total}`,
+      `# Verified,${stats.verified}`,
+      `# Missing,${stats.missing}`,
+      `# Found,${stats.found}`,
+      `# Extra,${stats.extra}`,
+      `# Pending,${stats.pending}`,
+      `# AccuracyPct,${stats.accuracyPct}`,
+    ].join('\r\n')
+    return csv + '\r\n' + summary
+  },
+}
+
+// ============ Round 9-B: Expiry Center Bulk Renew ============
+// Creates ONE Draft Purchase Order with multiple renewal line items (one per
+// selected warranty or license). Mirrors expiryRenewRepo.renew but batches
+// many expirations into a single PO with one line per item.
+export const expiryBulkRenewRepo = {
+  renewBulk(payload: ExpiryBulkRenewPayload): ExpiryBulkRenewResult {
+    ensure()
+    if (!payload.vendorId) throw new Error('vendorId is required')
+    if (!Array.isArray(payload.items) || payload.items.length === 0) {
+      throw new Error('At least one renewal item is required')
+    }
+
+    // Validate every item: assetId XOR licenseId must be set (exactly one).
+    const renewedItems: ExpiryBulkRenewResult['renewedItems'] = []
+    // Each line descriptor: { description, unitPrice, assetTypeId? }
+    const lines: { description: string; unitPrice: number; assetTypeId?: string | null }[] = []
+
+    for (const item of payload.items) {
+      const hasAsset = !!item.assetId
+      const hasLicense = !!item.licenseId
+      if (hasAsset === hasLicense) {
+        // Both set OR both unset → invalid (must be exactly one)
+        throw new Error('Each renewal item must specify exactly one of assetId or licenseId')
+      }
+
+      if (hasAsset) {
+        const asset = row<{
+          id: string
+          assetTag: string | null
+          make: string | null
+          model: string | null
+          warrantyExpiry: string | null
+          cost: number | null
+          assetTypeId: string
+        }>(
+          db
+            .prepare(
+              'SELECT id, assetTag, make, model, warrantyExpiry, cost, assetTypeId FROM Asset WHERE id = ?'
+            )
+            .get(item.assetId)
+        )
+        if (!asset) throw new Error(`Asset not found: ${item.assetId}`)
+        const entityName =
+          `${asset.make || ''} ${asset.model || ''}`.trim() ||
+          asset.assetTag ||
+          asset.id.slice(0, 8)
+        const description = `Warranty renewal for ${entityName}${asset.assetTag ? ` (${asset.assetTag})` : ''}`
+        const unitPrice = Number(asset.cost) || 0
+        lines.push({ description, unitPrice, assetTypeId: asset.assetTypeId })
+        renewedItems.push({
+          expiryType: 'warranty',
+          entityId: asset.id,
+          entityName,
+          currentExpiry: asset.warrantyExpiry,
+        })
+      } else {
+        const lic = row<{
+          id: string
+          name: string
+          vendor: string | null
+          expiryDate: string | null
+          cost: number | null
+          seatsTotal: number
+        }>(
+          db
+            .prepare(
+              'SELECT id, name, vendor, expiryDate, cost, seatsTotal FROM SoftwareLicense WHERE id = ?'
+            )
+            .get(item.licenseId)
+        )
+        if (!lic) throw new Error(`Software license not found: ${item.licenseId}`)
+        const description = `License renewal for ${lic.name}`
+        const unitPrice = Number(lic.cost) || 0
+        lines.push({ description, unitPrice, assetTypeId: null })
+        renewedItems.push({
+          expiryType: 'license',
+          entityId: lic.id,
+          entityName: lic.name,
+          currentExpiry: lic.expiryDate,
+        })
+      }
+    }
+
+    const now = new Date().toISOString()
+    const today = now.slice(0, 10)
+    // Generate PO number: RENEW-BULK-YYYYMMDD-HHMMSS-XXXX (4-char random suffix
+    // prevents collision when multiple bulk renewals happen in the same second)
+    const randSuffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+    const poNumber = `RENEW-BULK-${today.replace(/-/g, '')}-${now.slice(11, 19).replace(/:/g, '')}-${randSuffix}`
+
+    const poId = generateId()
+    const subtotal = lines.reduce((s, l) => s + (Number(l.unitPrice) || 0), 0)
+    const expectedDate =
+      payload.expectedDate ||
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    const summaryLine = `${renewedItems.length} renewal item${renewedItems.length === 1 ? '' : 's'} · ${renewedItems.filter((r) => r.expiryType === 'warranty').length} warranty + ${renewedItems.filter((r) => r.expiryType === 'license').length} license`
+    const notes = payload.notes?.trim()
+      ? `${payload.notes.trim()}\n${summaryLine}`
+      : `Auto-generated bulk renewal PO · ${summaryLine}`
+
+    db.prepare(`
+      INSERT INTO PurchaseOrder (id, poNumber, vendorId, status, orderDate, expectedDate, subtotal, taxRate, taxAmount, shippingCost, totalAmount, currency, notes, createdAt, updatedAt)
+      VALUES (?, ?, ?, 'Draft', ?, ?, ?, 0, 0, 0, ?, 'USD', ?, ?, ?)
+    `).run(
+      poId,
+      poNumber,
+      payload.vendorId,
+      today,
+      expectedDate,
+      subtotal,
+      subtotal,
+      notes,
+      now,
+      now
+    )
+
+    // Insert one line per renewal item
+    for (const line of lines) {
+      const itemId = generateId()
+      db.prepare(`
+        INSERT INTO PurchaseOrderItem (id, poId, assetTypeId, description, quantity, unitPrice, totalPrice, receivedQuantity, notes, createdAt)
+        VALUES (?, ?, ?, ?, 1, ?, ?, 0, ?, ?)
+      `).run(
+        itemId,
+        poId,
+        line.assetTypeId ?? null,
+        line.description,
+        line.unitPrice,
+        line.unitPrice,
+        'Auto-generated line item from bulk renewal',
+        now
+      )
+    }
+
+    activityLogRepo.log(
+      'po.renew.bulk_created',
+      'PurchaseOrder',
+      poId,
+      `Bulk renewal PO ${poNumber} drafted with ${renewedItems.length} line item(s) for vendor ${payload.vendorId}`
+    )
+
+    return {
+      po: purchaseOrderRepo.get(poId)!,
+      renewedItems,
     }
   },
 }

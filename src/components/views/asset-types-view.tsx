@@ -61,10 +61,10 @@ export function AssetTypesView() {
     <div className="space-y-4 animate-fade-in-up">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold flex items-center gap-2"><Layers className="h-5 w-5" /> Asset Types</h2>
+          <h2 className="text-lg font-bold flex items-center gap-2 shimmer-underline inline-block"><Layers className="h-5 w-5" /> Asset Types</h2>
           <p className="text-sm text-muted-foreground">{types?.length || 0} types</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1.5" /> Add Type</Button>
+        <Button onClick={openNew} className="hover-ripple"><Plus className="h-4 w-4 mr-1.5" /> Add Type</Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -76,7 +76,7 @@ export function AssetTypesView() {
           <Card className="col-span-full p-8 text-center text-muted-foreground">No asset types yet</Card>
         ) : (
           types.map((t) => (
-            <Card key={t.id} className="card-hover">
+            <Card key={t.id} className="card-hover card-3d-tilt">
               <div className="flex items-start justify-between p-4">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -85,14 +85,14 @@ export function AssetTypesView() {
                   <div>
                     <div className="font-semibold">{t.name}</div>
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{t.description || 'No description'}</p>
-                    <Badge variant="secondary" className="mt-2 text-[10px]">
+                    <Badge variant="secondary" className="mt-2 text-[10px] badge-shine">
                       <Package className="h-3 w-3 mr-1" />{t._count?.assets || 0} assets
                     </Badge>
                   </div>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(t)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 hover-ripple" onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover-ripple" onClick={() => handleDelete(t)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
             </Card>

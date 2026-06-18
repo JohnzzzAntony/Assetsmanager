@@ -107,7 +107,7 @@ function LocationCard({ loc }: { loc: LocationAssetSummary }) {
   const topAssets = loc.topAssets.slice(0, 3)
 
   return (
-    <Card className="map-tile card-hover-lift overflow-hidden">
+    <Card className="map-tile card-hover-lift card-3d-tilt overflow-hidden">
       <CardContent className="relative p-4">
         {/* Top: pin + name + address */}
         <div className="flex items-start gap-3">
@@ -142,7 +142,7 @@ function LocationCard({ loc }: { loc: LocationAssetSummary }) {
           </div>
           <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
-              className="util-bar-fill progress-fill-anim h-full rounded-full"
+              className="util-bar-fill progress-fill-anim progress-stripes h-full rounded-full"
               style={{ width: `${Math.max(pct, 2)}%`, background: color }}
             />
           </div>
@@ -327,7 +327,7 @@ export function AssetMapView() {
   return (
     <div className="space-y-5 animate-fade-in-up">
       {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-radial-spotlight -mx-2 px-2 py-1 rounded-lg">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-bold tracking-tight">Asset Location Map</h2>
@@ -436,7 +436,7 @@ export function AssetMapView() {
           {/* Locations grid */}
           <div>
             <div className="section-accent-bar dot-pattern-bg mb-3 rounded-lg px-3 py-2">
-              <h3 className="flex items-center gap-2 text-base font-semibold">
+              <h3 className="flex items-center gap-2 text-base font-semibold shimmer-underline inline-block">
                 <Layers className="h-5 w-5 text-violet-600" />
                 Locations
                 <Badge variant="secondary" className="ml-1">{data.locations.length}</Badge>
@@ -453,9 +453,9 @@ export function AssetMapView() {
           </div>
 
           {/* Bottom bar chart */}
-          <Card>
+          <Card className="chart-bar-grow">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
+              <CardTitle className="flex items-center gap-2 text-base shimmer-underline inline-block">
                 <TrendingUp className="h-4 w-4 text-sky-600" />
                 Assets by Location
               </CardTitle>

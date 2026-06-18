@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { timelineApi } from '@/lib/api'
+import { timelineApi, exportApi } from '@/lib/api'
 import type { TimelineEvent, AssetTimeline } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,9 +31,41 @@ import {
   XCircle,
   ClipboardList,
   FilterX,
+  Download,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { formatDate, formatRelative } from '@/lib/format'
 import { useNav } from '@/lib/nav'
+
+// Round 9-B: persist the active event-type filter across reloads.
+// Stored as a JSON-encoded array of active filter names so the schema supports
+// multi-select in the future; today the UI is single-select so we read the first element.
+const TIMELINE_FILTERS_STORAGE_KEY = 'assethub:asset-timeline-filters'
+
+function loadTimelineFilterFromStorage(): string {
+  if (typeof window === 'undefined') return 'All'
+  try {
+    const raw = window.localStorage.getItem(TIMELINE_FILTERS_STORAGE_KEY)
+    if (!raw) return 'All'
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return 'All'
+    const first = String(parsed[0])
+    // Only accept known category keys; otherwise fall back to 'All'.
+    const known = new Set(FILTER_CATEGORIES.map((c) => c.key))
+    return known.has(first) ? first : 'All'
+  } catch {
+    return 'All'
+  }
+}
+
+function saveTimelineFilterToStorage(filter: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(TIMELINE_FILTERS_STORAGE_KEY, JSON.stringify([filter]))
+  } catch {
+    // localStorage may be unavailable — fail silently.
+  }
+}
 
 // ---- Icon map: event.icon string → Lucide component (default = Activity) ----
 const iconMap: Record<string, LucideIcon> = {
@@ -194,7 +226,7 @@ interface StatTileProps {
 
 function StatTile({ label, value, icon: Icon, color, hint }: StatTileProps) {
   return (
-    <Card className="stat-tile-gradient card-hover-lift overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
+    <Card className="stat-tile-gradient card-hover-lift card-3d-tilt overflow-hidden border-l-4" style={{ borderLeftColor: color }}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
@@ -428,11 +460,23 @@ function FilterChip({ category, count, active, onClick }: FilterChipProps) {
 // ---- Main view ----
 export function AssetTimelineView({ assetId }: { assetId: string }) {
   const navigate = useNav((s) => s.navigate)
-  const [activeFilter, setActiveFilter] = useState<string>('All')
+  // Round 9-B: initial filter restored from localStorage (default 'All').
+  const [activeFilter, setActiveFilter] = useState<string>(() => loadTimelineFilterFromStorage())
   const { data, isLoading, isError } = useQuery<AssetTimeline>({
     queryKey: ['asset-timeline', assetId],
     queryFn: () => timelineApi.getForAsset(assetId),
   })
+
+  // Round 9-B: persist filter changes to localStorage as a JSON array.
+  useEffect(() => {
+    saveTimelineFilterToStorage(activeFilter)
+  }, [activeFilter])
+
+  // Round 9-B: trigger a CSV download of the asset's timeline events.
+  function handleExportCsv() {
+    exportApi.download(timelineApi.exportCsvUrl(assetId))
+    toast.success('Exported timeline CSV')
+  }
 
   const events = data?.events
 
@@ -482,7 +526,7 @@ export function AssetTimelineView({ assetId }: { assetId: string }) {
           </Button>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-bold tracking-tight">Asset Timeline</h2>
+              <h2 className="text-xl font-bold tracking-tight shimmer-underline">Asset Timeline</h2>
               <span className="live-dot" aria-hidden />
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Live history
@@ -583,17 +627,31 @@ export function AssetTimelineView({ assetId }: { assetId: string }) {
           {/* Strong gradient divider between KPIs and filter chips */}
           <div className="gradient-divider-strong" aria-hidden />
 
-          {/* Filter chips */}
-          <div className="flex flex-wrap gap-2 mb-2">
-            {FILTER_CATEGORIES.map((cat) => (
-              <FilterChip
-                key={cat.key}
-                category={cat}
-                count={categoryCounts[cat.key] ?? 0}
-                active={activeFilter === cat.key}
-                onClick={() => setActiveFilter(cat.key)}
-              />
-            ))}
+          {/* Filter chips + Round 9-B: Export CSV button */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div className="flex flex-wrap gap-2">
+              {FILTER_CATEGORIES.map((cat) => (
+                <FilterChip
+                  key={cat.key}
+                  category={cat}
+                  count={categoryCounts[cat.key] ?? 0}
+                  active={activeFilter === cat.key}
+                  onClick={() => setActiveFilter(cat.key)}
+                />
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="btn-press shrink-0"
+              onClick={handleExportCsv}
+              aria-label="Export timeline as CSV"
+              title="Export this asset's full timeline as a CSV file"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </Button>
           </div>
 
           {/* First / Last event footer */}

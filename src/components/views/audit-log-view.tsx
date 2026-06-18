@@ -94,7 +94,7 @@ export function AuditLogView() {
   return (
     <div className="space-y-5 animate-fade-in-up">
       <div>
-        <h2 className="text-xl font-bold tracking-tight">Audit Log</h2>
+        <h2 className="text-xl font-bold tracking-tight shimmer-underline inline-block">Audit Log</h2>
         <p className="text-sm text-muted-foreground">
           Complete activity history across assets, maintenance, and licenses.
         </p>
@@ -186,7 +186,7 @@ export function AuditLogView() {
       {/* Timeline */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Activity Timeline</CardTitle>
+          <CardTitle className="text-base shimmer-underline inline-block">Activity Timeline</CardTitle>
           <CardDescription>Chronological log of all system events</CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,10 +194,10 @@ export function AuditLogView() {
             <div className="space-y-3 py-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
-                  <div className="flex-1 space-y-1">
-                    <div className="h-3 w-1/3 bg-muted animate-pulse rounded" />
-                    <div className="h-2 w-1/2 bg-muted animate-pulse rounded" />
+                  <div className="h-9 w-9 rounded-full bg-muted animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <span className="skeleton-text" style={{ width: '33%' }} />
+                    <span className="skeleton-text" style={{ width: '55%' }} />
                   </div>
                 </div>
               ))}

@@ -30,6 +30,7 @@ export type ViewName =
   | 'utilization'
   | 'asset-map'
   | 'asset-timeline'
+  | 'audits'
 
 interface NavState {
   view: ViewName
