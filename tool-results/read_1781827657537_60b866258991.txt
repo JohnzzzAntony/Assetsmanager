@@ -1,0 +1,791 @@
+     1→'use client'
+     2→
+     3→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     4→import { assetsApi, assetActivityApi, disposalsApi, tagsApi, bookingsApi } from '@/lib/api'
+     5→import { useNav } from '@/lib/nav'
+     6→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     7→import { Button } from '@/components/ui/button'
+     8→import { Badge } from '@/components/ui/badge'
+     9→import { Separator } from '@/components/ui/separator'
+    10→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    11→import { formatDate, formatDateTime, formatCurrency, formatRelative, warrantyStatus, initials } from '@/lib/format'
+    12→import { STATUS_CONFIG, MAINTENANCE_STATUS_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG } from '@/lib/types'
+    13→import {
+    14→  Pencil,
+    15→  ArrowLeft,
+    16→  Trash2,
+    17→  Package,
+    18→  Cpu,
+    19→  MemoryStick,
+    20→  HardDrive,
+    21→  Monitor,
+    22→  Keyboard,
+    23→  Mouse,
+    24→  Smartphone,
+    25→  User,
+    26→  Building2,
+    27→  MapPin,
+    28→  Calendar,
+    29→  DollarSign,
+    30→  ShieldCheck,
+    31→  Image as ImageIcon,
+    32→  History,
+    33→  ScanText,
+    34→  Printer,
+    35→  FileText,
+    36→  CircleDot,
+    37→  Wrench,
+    38→  Activity,
+    39→  QrCode,
+    40→  Archive,
+    41→  AlertTriangle,
+    42→  CheckCircle2,
+    43→  Boxes,
+    44→  KeyRound,
+    45→  ArrowLeftRight,
+    46→  Recycle,
+    47→  Gift,
+    48→  Undo2,
+    49→  Tag,
+    50→  CalendarClock,
+    51→  Plus,
+    52→  X,
+    53→  GitBranch,
+    54→} from 'lucide-react'
+    55→import { toast } from 'sonner'
+    56→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+    57→import {
+    58→  AlertDialog,
+    59→  AlertDialogAction,
+    60→  AlertDialogCancel,
+    61→  AlertDialogContent,
+    62→  AlertDialogDescription,
+    63→  AlertDialogFooter,
+    64→  AlertDialogHeader,
+    65→  AlertDialogTitle,
+    66→  AlertDialogTrigger,
+    67→} from '@/components/ui/alert-dialog'
+    68→import {
+    69→  DropdownMenu,
+    70→  DropdownMenuContent,
+    71→  DropdownMenuItem,
+    72→  DropdownMenuLabel,
+    73→  DropdownMenuSeparator,
+    74→  DropdownMenuTrigger,
+    75→} from '@/components/ui/dropdown-menu'
+    76→
+    77→function InfoRow({ label, value, icon: Icon }: { label: string; value?: React.ReactNode; icon?: typeof Cpu }) {
+    78→  return (
+    79→    <div className="flex items-start justify-between gap-4 py-2">
+    80→      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    81→        {Icon && <Icon className="h-3.5 w-3.5" />}
+    82→        {label}
+    83→      </div>
+    84→      <div className="text-sm font-medium text-right">{value || <span className="text-muted-foreground">—</span>}</div>
+    85→    </div>
+    86→  )
+    87→}
+    88→
+    89→function SectionCard({ title, icon: Icon, children, action }: { title: string; icon: typeof Cpu; children: React.ReactNode; action?: React.ReactNode }) {
+    90→  return (
+    91→    <Card className="glass-panel-hover">
+    92→      <CardHeader className="flex flex-row items-center justify-between pb-3">
+    93→        <div className="flex items-center gap-2">
+    94→          <Icon className="h-4 w-4 text-muted-foreground" />
+    95→          <CardTitle className="text-sm shimmer-underline">{title}</CardTitle>
+    96→        </div>
+    97→        {action}
+    98→      </CardHeader>
+    99→      <CardContent className="pt-0">{children}</CardContent>
+   100→    </Card>
+   101→  )
+   102→}
+   103→
+   104→export function AssetDetailView({ id }: { id: string }) {
+   105→  const { navigate, back } = useNav()
+   106→  const qc = useQueryClient()
+   107→
+   108→  const { data: asset, isLoading } = useQuery({
+   109→    queryKey: ['asset', id],
+   110→    queryFn: () => assetsApi.get(id),
+   111→    enabled: !!id,
+   112→  })
+   113→
+   114→  const { data: maintenance } = useQuery({
+   115→    queryKey: ['asset-maintenance', id],
+   116→    queryFn: () => assetActivityApi.maintenance(id),
+   117→    enabled: !!id,
+   118→  })
+   119→
+   120→  const { data: activity } = useQuery({
+   121→    queryKey: ['asset-activity', id],
+   122→    queryFn: () => assetActivityApi.activity(id),
+   123→    enabled: !!id,
+   124→  })
+   125→
+   126→  const { data: licenses } = useQuery({
+   127→    queryKey: ['asset-licenses', id],
+   128→    queryFn: () => assetActivityApi.maintenance(id).then(() => licensesForAsset(id)),
+   129→    enabled: !!id,
+   130→  })
+   131→
+   132→  const { data: disposals } = useQuery({
+   133→    queryKey: ['asset-disposals', id],
+   134→    queryFn: () => disposalsApi.listForAsset(id),
+   135→    enabled: !!id,
+   136→  })
+   137→
+   138→  const { data: bookings } = useQuery({
+   139→    queryKey: ['asset-bookings', id],
+   140→    queryFn: () => bookingsApi.listForAsset(id),
+   141→    enabled: !!id,
+   142→  })
+   143→
+   144→  const { data: allTags } = useQuery({
+   145→    queryKey: ['tags'],
+   146→    queryFn: () => tagsApi.list(),
+   147→  })
+   148→
+   149→  async function toggleTag(tagId: string, currentlyAttached: boolean) {
+   150→    if (!asset) return
+   151→    try {
+   152→      if (currentlyAttached) {
+   153→        await tagsApi.detachFromAsset(asset.id, tagId)
+   154→        toast.success('Tag removed')
+   155→      } else {
+   156→        await tagsApi.attachToAsset(asset.id, tagId)
+   157→        toast.success('Tag added')
+   158→      }
+   159→      qc.invalidateQueries({ queryKey: ['asset', id] })
+   160→      qc.invalidateQueries({ queryKey: ['tags'] })
+   161→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   162→    } catch (e) {
+   163→      toast.error('Tag update failed: ' + String(e))
+   164→    }
+   165→  }
+   166→
+   167→  async function cancelBooking(bookingId: string) {
+   168→    try {
+   169→      await bookingsApi.update(bookingId, { status: 'Cancelled' })
+   170→      toast.success('Booking cancelled')
+   171→      qc.invalidateQueries({ queryKey: ['asset-bookings', id] })
+   172→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   173→    } catch (e) {
+   174→      toast.error('Cancel failed: ' + String(e))
+   175→    }
+   176→  }
+   177→
+   178→  async function approveBooking(bookingId: string) {
+   179→    try {
+   180→      await bookingsApi.approve(bookingId)
+   181→      toast.success('Booking approved')
+   182→      qc.invalidateQueries({ queryKey: ['asset-bookings', id] })
+   183→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   184→    } catch (e) {
+   185→      toast.error('Approve failed: ' + String(e))
+   186→    }
+   187→  }
+   188→
+   189→  // Helper to fetch licenses (workaround for missing direct call)
+   190→  async function licensesForAsset(assetId: string) {
+   191→    const res = await fetch(`/api/assets/${assetId}/licenses`)
+   192→    return res.json()
+   193→  }
+   194→
+   195→  async function quickStatus(newStatus: string) {
+   196→    if (!asset) return
+   197→    try {
+   198→      await assetsApi.update(id, { status: newStatus })
+   199→      toast.success(`Marked as ${newStatus}`)
+   200→      qc.invalidateQueries({ queryKey: ['asset', id] })
+   201→      qc.invalidateQueries({ queryKey: ['assets'] })
+   202→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   203→      qc.invalidateQueries({ queryKey: ['asset-activity', id] })
+   204→    } catch (e) {
+   205→      toast.error('Update failed: ' + String(e))
+   206→    }
+   207→  }
+   208→
+   209→  async function handleDelete() {
+   210→    try {
+   211→      await assetsApi.delete(id)
+   212→      toast.success('Asset deleted')
+   213→      qc.invalidateQueries({ queryKey: ['assets'] })
+   214→      navigate('assets')
+   215→    } catch (e) {
+   216→      toast.error('Delete failed: ' + String(e))
+   217→    }
+   218→  }
+   219→
+   220→  if (isLoading || !asset) {
+   221→    return (
+   222→      <div className="space-y-4">
+   223→        <div className="h-24 shimmer rounded-lg" />
+   224→        <div className="grid gap-4 md:grid-cols-3">
+   225→          {Array.from({ length: 6 }).map((_, i) => (
+   226→            <div key={i} className="h-40 shimmer rounded-lg" />
+   227→          ))}
+   228→        </div>
+   229→      </div>
+   230→    )
+   231→  }
+   232→
+   233→  const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
+   234→  const isMobile = ['Mobile', 'Tablet'].includes(asset.assetType?.name || '')
+   235→  const warranty = warrantyStatus(asset.warrantyExpiry)
+   236→  const maintCount = maintenance?.length || 0
+   237→  const activityCount = activity?.length || 0
+   238→
+   239→  return (
+   240→    <div className="space-y-5 animate-fade-in-up">
+   241→      {/* Header */}
+   242→      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between bg-radial-spotlight -mx-2 px-2 py-1 rounded-lg">
+   243→        <div className="flex items-start gap-4">
+   244→          <Button variant="ghost" size="icon" onClick={back} className="-ml-2">
+   245→            <ArrowLeft className="h-4 w-4" />
+   246→          </Button>
+   247→          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border">
+   248→            <Package className="h-7 w-7 text-primary" />
+   249→          </div>
+   250→          <div className="space-y-1">
+   251→            <div className="flex items-center gap-2 flex-wrap">
+   252→              <h2 className="text-xl font-bold tracking-tight">
+   253→                {asset.make} {asset.model}
+   254→              </h2>
+   255→              <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 gap-1 ${asset.status === 'Repair' || asset.status === 'Lost' ? 'badge-shine' : ''}`}>
+   256→                <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   257→                {asset.status}
+   258→              </Badge>
+   259→              <Badge variant="secondary">{asset.assetType?.name}</Badge>
+   260→            </div>
+   261→            <p className="text-sm text-muted-foreground">
+   262→              <span className="font-mono">{asset.assetTag || 'No tag'}</span>
+   263→              {asset.serialNumber && <> · S/N: <span className="font-mono">{asset.serialNumber}</span></>}
+   264→              {asset.modelNumber && <> · {asset.modelNumber}</>}
+   265→            </p>
+   266→          </div>
+   267→        </div>
+   268→        <div className="flex items-center gap-2 flex-wrap">
+   269→          <Button variant="outline" size="sm" onClick={() => window.open(assetActivityApi.qrUrl(id), '_blank')}>
+   270→            <QrCode className="h-4 w-4 mr-1.5" /> Label
+   271→          </Button>
+   272→          <Button variant="outline" size="sm" onClick={() => window.print()}>
+   273→            <Printer className="h-4 w-4 mr-1.5" /> Print
+   274→          </Button>
+   275→          <DropdownMenu>
+   276→            <DropdownMenuTrigger asChild>
+   277→              <Button variant="outline" size="sm">
+   278→                <Activity className="h-4 w-4 mr-1.5" /> Quick Action
+   279→              </Button>
+   280→            </DropdownMenuTrigger>
+   281→            <DropdownMenuContent align="end">
+   282→              <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+   283→              <DropdownMenuSeparator />
+   284→              <DropdownMenuItem onClick={() => quickStatus('In Use')} disabled={asset.status === 'In Use'}>
+   285→                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Mark In Use
+   286→              </DropdownMenuItem>
+   287→              <DropdownMenuItem onClick={() => quickStatus('In Stock')} disabled={asset.status === 'In Stock'}>
+   288→                <Boxes className="h-3.5 w-3.5 mr-2 text-slate-600" /> Move to Stock
+   289→              </DropdownMenuItem>
+   290→              <DropdownMenuItem onClick={() => quickStatus('Repair')} disabled={asset.status === 'Repair'}>
+   291→                <Wrench className="h-3.5 w-3.5 mr-2 text-amber-600" /> Send to Repair
+   292→              </DropdownMenuItem>
+   293→              <DropdownMenuItem onClick={() => quickStatus('Retired')} disabled={asset.status === 'Retired'}>
+   294→                <Archive className="h-3.5 w-3.5 mr-2 text-rose-600" /> Retire Asset
+   295→              </DropdownMenuItem>
+   296→              <DropdownMenuItem onClick={() => quickStatus('Lost')} disabled={asset.status === 'Lost'}>
+   297→                <AlertTriangle className="h-3.5 w-3.5 mr-2 text-red-600" /> Mark as Lost
+   298→              </DropdownMenuItem>
+   299→              <DropdownMenuSeparator />
+   300→              <DropdownMenuItem onClick={() => navigate('asset-edit', { id: asset.id })}>
+   301→                <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Asset
+   302→              </DropdownMenuItem>
+   303→              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+   304→                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Asset
+   305→              </DropdownMenuItem>
+   306→            </DropdownMenuContent>
+   307→          </DropdownMenu>
+   308→          <Button variant="outline" size="sm" onClick={() => navigate('asset-edit', { id: asset.id })}>
+   309→            <Pencil className="h-4 w-4 mr-1.5" /> Edit
+   310→          </Button>
+   311→          <Button variant="outline" size="sm" onClick={() => navigate('asset-timeline', { id: asset.id })}>
+   312→            <GitBranch className="h-4 w-4 mr-1.5" /> Timeline
+   313→          </Button>
+   314→          <Button variant="outline" size="sm" onClick={() => navigate('checkouts')}>
+   315→            <ArrowLeftRight className="h-4 w-4 mr-1.5" /> Check-out
+   316→          </Button>
+   317→        </div>
+   318→      </div>
+   319→
+   320→      <Tabs defaultValue="overview">
+   321→        <TabsList className="grid w-full grid-cols-3 md:grid-cols-10 h-auto">
+   322→          <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
+   323→          <TabsTrigger value="hardware" className="text-xs">Hardware</TabsTrigger>
+   324→          {isMobile && <TabsTrigger value="mobile" className="text-xs">Mobile</TabsTrigger>}
+   325→          <TabsTrigger value="peripherals" className="text-xs">Peripherals</TabsTrigger>
+   326→          <TabsTrigger value="maintenance" className="text-xs">Maintenance ({maintCount})</TabsTrigger>
+   327→          <TabsTrigger value="images" className="text-xs">Images ({asset._count?.images || 0})</TabsTrigger>
+   328→          <TabsTrigger value="history" className="text-xs">History ({asset._count?.history || 0})</TabsTrigger>
+   329→          <TabsTrigger value="disposals" className="text-xs">Disposals ({disposals?.length || 0})</TabsTrigger>
+   330→          <TabsTrigger value="tags" className="text-xs">Tags ({asset.tags?.length || 0})</TabsTrigger>
+   331→          <TabsTrigger value="bookings" className="text-xs">Bookings ({bookings?.length || 0})</TabsTrigger>
+   332→        </TabsList>
+   333→
+   334→        {/* Overview */}
+   335→        <TabsContent value="overview" className="space-y-4 mt-4">
+   336→          <div className="grid gap-4 md:grid-cols-3">
+   337→            <SectionCard title="Asset Information" icon={Package}>
+   338→              <InfoRow label="Asset Tag" value={<span className="font-mono">{asset.assetTag}</span>} />
+   339→              <InfoRow label="Type" value={asset.assetType?.name} />
+   340→              <InfoRow label="Make" value={asset.make} />
+   341→              <InfoRow label="Model" value={asset.model} />
+   342→              <InfoRow label="Model Number" value={asset.modelNumber} />
+   343→              <InfoRow label="Serial Number" value={<span className="font-mono">{asset.serialNumber}</span>} />
+   344→              <InfoRow label="Part Number" value={asset.partNumber} />
+   345→              <InfoRow label="Status" value={<Badge variant="outline" className={cfg.bg + ' ' + cfg.text}>{asset.status}</Badge>} />
+   346→            </SectionCard>
+   347→
+   348→            <SectionCard title="Assignment" icon={User}>
+   349→              {asset.assignedTo ? (
+   350→                <div className="mb-3 flex items-center gap-3 rounded-lg border p-3">
+   351→                  <Avatar>
+   352→                    <AvatarFallback>{initials(asset.assignedTo.fullName)}</AvatarFallback>
+   353→                  </Avatar>
+   354→                  <div>
+   355→                    <div className="text-sm font-medium">{asset.assignedTo.fullName}</div>
+   356→                    {asset.assignedTo.email && <div className="text-xs text-muted-foreground">{asset.assignedTo.email}</div>}
+   357→                    {asset.assignedTo.role && <div className="text-xs text-muted-foreground">{asset.assignedTo.role}</div>}
+   358→                  </div>
+   359→                </div>
+   360→              ) : (
+   361→                <div className="mb-3 rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">
+   362→                  Not assigned to anyone
+   363→                </div>
+   364→              )}
+   365→              <InfoRow label="Department" value={asset.department?.name} icon={Building2} />
+   366→              <InfoRow label="Location" value={asset.location?.name} icon={MapPin} />
+   367→              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => navigate('asset-edit', { id: asset.id })}>
+   368→                <User className="h-3.5 w-3.5 mr-1.5" /> Reassign
+   369→              </Button>
+   370→            </SectionCard>
+   371→
+   372→            <SectionCard title="Financial & Warranty" icon={DollarSign}>
+   373→              <InfoRow label="Purchase Cost" value={asset.cost != null ? formatCurrency(asset.cost, asset.currency) : undefined} icon={DollarSign} />
+   374→              <InfoRow label="Purchase Date" value={formatDate(asset.purchaseDate)} icon={Calendar} />
+   375→              <InfoRow label="Warranty Expiry" value={
+   376→                <div className="flex items-center gap-2 justify-end">
+   377→                  {formatDate(asset.warrantyExpiry)}
+   378→                  {warranty.daysLeft !== null && (
+   379→                    <Badge variant={warranty.variant} className="text-[10px]">{warranty.label}</Badge>
+   380→                  )}
+   381→                </div>
+   382→              } icon={ShieldCheck} />
+   383→              <InfoRow label="Operating System" value={asset.os} icon={CircleDot} />
+   384→              <Separator className="my-2" />
+   385→              <InfoRow label="Created" value={formatDateTime(asset.createdAt)} />
+   386→              <InfoRow label="Last Updated" value={formatRelative(asset.updatedAt)} />
+   387→            </SectionCard>
+   388→          </div>
+   389→
+   390→          {asset.comments && (
+   391→            <SectionCard title="Notes / Comments" icon={FileText}>
+   392→              <p className="text-sm whitespace-pre-wrap">{asset.comments}</p>
+   393→            </SectionCard>
+   394→          )}
+   395→        </TabsContent>
+   396→
+   397→        {/* Hardware */}
+   398→        <TabsContent value="hardware" className="mt-4">
+   399→          <div className="grid gap-4 md:grid-cols-2">
+   400→            <SectionCard title="Processor" icon={Cpu}>
+   401→              <InfoRow label="CPU" value={asset.cpu} />
+   402→              <InfoRow label="GPU" value={asset.gpu} />
+   403→            </SectionCard>
+   404→            <SectionCard title="Memory & Storage" icon={MemoryStick}>
+   405→              <InfoRow label="RAM" value={asset.ram} icon={MemoryStick} />
+   406→              <InfoRow label="Storage" value={asset.storage} icon={HardDrive} />
+   407→            </SectionCard>
+   408→            <SectionCard title="Software" icon={CircleDot}>
+   409→              <InfoRow label="Operating System" value={asset.os} />
+   410→              <InfoRow label="OS License Key" value={asset.osKey ? <span className="font-mono text-xs">{asset.osKey}</span> : undefined} />
+   411→              <InfoRow label="Office License Key" value={asset.officeKey ? <span className="font-mono text-xs">{asset.officeKey}</span> : undefined} />
+   412→            </SectionCard>
+   413→            <SectionCard title="Physical" icon={Package}>
+   414→              <InfoRow label="Color" value={asset.color} />
+   415→              <InfoRow label="Asset Tag" value={<span className="font-mono">{asset.assetTag}</span>} />
+   416→            </SectionCard>
+   417→          </div>
+   418→        </TabsContent>
+   419→
+   420→        {/* Mobile */}
+   421→        {isMobile && (
+   422→          <TabsContent value="mobile" className="mt-4">
+   423→            <div className="grid gap-4 md:grid-cols-2">
+   424→              <SectionCard title="Device Identity" icon={Smartphone}>
+   425→                <InfoRow label="IMEI 1" value={<span className="font-mono">{asset.imei1}</span>} />
+   426→                <InfoRow label="IMEI 2" value={<span className="font-mono">{asset.imei2}</span>} />
+   427→                <InfoRow label="Color" value={asset.color} />
+   428→              </SectionCard>
+   429→              <SectionCard title="Memory" icon={MemoryStick}>
+   430→                <InfoRow label="RAM" value={asset.ram} />
+   431→                <InfoRow label="ROM / Storage" value={asset.rom || asset.storage} />
+   432→              </SectionCard>
+   433→              <SectionCard title="Accounts" icon={User}>
+   434→                <InfoRow label="OTP Mobile" value={asset.otpMobileNumber} />
+   435→                <InfoRow label="Google/Apple ID" value={asset.googleAppleAccount} />
+   436→              </SectionCard>
+   437→            </div>
+   438→          </TabsContent>
+   439→        )}
+   440→
+   441→        {/* Peripherals */}
+   442→        <TabsContent value="peripherals" className="mt-4">
+   443→          <div className="grid gap-4 md:grid-cols-3">
+   444→            <SectionCard title="Monitor" icon={Monitor}>
+   445→              <InfoRow label="Make" value={asset.monitorMake} />
+   446→              <InfoRow label="Model" value={asset.monitorModel} />
+   447→              <InfoRow label="Serial" value={<span className="font-mono text-xs">{asset.monitorSn}</span>} />
+   448→              <InfoRow label="Size" value={asset.monitorSize} />
+   449→            </SectionCard>
+   450→            <SectionCard title="Keyboard" icon={Keyboard}>
+   451→              <InfoRow label="Make" value={asset.keyboardMake} />
+   452→              <InfoRow label="Model" value={asset.keyboardModel} />
+   453→              <InfoRow label="Serial" value={<span className="font-mono text-xs">{asset.keyboardSn}</span>} />
+   454→            </SectionCard>
+   455→            <SectionCard title="Mouse" icon={Mouse}>
+   456→              <InfoRow label="Make" value={asset.mouseMake} />
+   457→              <InfoRow label="Model" value={asset.mouseModel} />
+   458→              <InfoRow label="Serial" value={<span className="font-mono text-xs">{asset.mouseSn}</span>} />
+   459→            </SectionCard>
+   460→          </div>
+   461→        </TabsContent>
+   462→
+   463→        {/* Maintenance */}
+   464→        <TabsContent value="maintenance" className="mt-4 space-y-4">
+   465→          <SectionCard
+   466→            title="Maintenance History"
+   467→            icon={Wrench}
+   468→            action={
+   469→              <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
+   470→                View All <ArrowLeft className="h-3 w-3 ml-1 rotate-180" />
+   471→              </Button>
+   472→            }
+   473→          >
+   474→            {!maintenance || maintenance.length === 0 ? (
+   475→              <div className="flex flex-col items-center gap-2 py-12 text-center">
+   476→                <Wrench className="h-10 w-10 text-muted-foreground/50" />
+   477→                <p className="text-sm text-muted-foreground">No maintenance records for this asset</p>
+   478→                <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
+   479→                  <Wrench className="h-3.5 w-3.5 mr-1.5" /> Schedule Maintenance
+   480→                </Button>
+   481→              </div>
+   482→            ) : (
+   483→              <div className="space-y-2">
+   484→                {maintenance.map((m) => {
+   485→                  const mcfg = MAINTENANCE_STATUS_CONFIG[m.status as keyof typeof MAINTENANCE_STATUS_CONFIG] || MAINTENANCE_STATUS_CONFIG.Scheduled
+   486→                  return (
+   487→                    <div key={m.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
+   488→                      <div className="flex items-start justify-between gap-3">
+   489→                        <div className="flex items-start gap-3 flex-1 min-w-0">
+   490→                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${mcfg.bg}`}>
+   491→                            <Wrench className={`h-4 w-4 ${mcfg.text}`} />
+   492→                          </div>
+   493→                          <div className="flex-1 min-w-0">
+   494→                            <div className="flex items-center gap-2 flex-wrap">
+   495→                              <span className="font-medium text-sm">{m.title}</span>
+   496→                              <Badge variant="outline" className={`${mcfg.bg} ${mcfg.text} border-0 text-[10px] gap-1`}>
+   497→                                <span className={`h-1 w-1 rounded-full ${mcfg.dot}`} />
+   498→                                {m.status}
+   499→                              </Badge>
+   500→                              <Badge variant="outline" className="text-[10px]">{m.type}</Badge>
+   501→                            </div>
+   502→                            {m.description && <p className="text-xs text-muted-foreground mt-1">{m.description}</p>}
+   503→                            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
+   504→                              <span><Calendar className="h-3 w-3 inline mr-0.5" />{formatDate(m.scheduledFor)}</span>
+   505→                              {m.completedAt && <span><CheckCircle2 className="h-3 w-3 inline mr-0.5" />{formatDate(m.completedAt)}</span>}
+   506→                              {m.performedBy && <span><User className="h-3 w-3 inline mr-0.5" />{m.performedBy}</span>}
+   507→                              {m.cost != null && <span><DollarSign className="h-3 w-3 inline mr-0.5" />{formatCurrency(m.cost)}</span>}
+   508→                            </div>
+   509→                            {m.notes && <p className="text-xs italic text-muted-foreground mt-1">"{m.notes}"</p>}
+   510→                          </div>
+   511→                        </div>
+   512→                      </div>
+   513→                    </div>
+   514→                  )
+   515→                })}
+   516→              </div>
+   517→            )}
+   518→          </SectionCard>
+   519→
+   520→          <SectionCard title="Recent Activity Log" icon={Activity}>
+   521→            {!activity || activity.length === 0 ? (
+   522→              <div className="flex flex-col items-center gap-2 py-8 text-center">
+   523→                <Activity className="h-8 w-8 text-muted-foreground/50" />
+   524→                <p className="text-sm text-muted-foreground">No activity logged for this asset</p>
+   525→              </div>
+   526→            ) : (
+   527→              <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
+   528→                {activity.map((log) => (
+   529→                  <div key={log.id} className="flex items-start gap-2 rounded-md border p-2 text-sm hover:bg-accent/30">
+   530→                    <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+   531→                    <div className="flex-1 min-w-0">
+   532→                      <div className="flex items-center justify-between gap-2">
+   533→                        <span className="font-medium">{log.action}</span>
+   534→                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatRelative(log.createdAt)}</span>
+   535→                      </div>
+   536→                      {log.details && <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>}
+   537→                    </div>
+   538→                  </div>
+   539→                ))}
+   540→              </div>
+   541→            )}
+   542→          </SectionCard>
+   543→        </TabsContent>
+   544→
+   545→        {/* Images */}
+   546→        <TabsContent value="images" className="mt-4">
+   547→          <SectionCard title="Asset Images" icon={ImageIcon} action={
+   548→            <Button size="sm" variant="outline" onClick={() => navigate('ocr-upload')}>
+   549→              <ScanText className="h-3.5 w-3.5 mr-1.5" /> Upload via OCR
+   550→            </Button>
+   551→          }>
+   552→            {!asset.images || asset.images.length === 0 ? (
+   553→              <div className="flex flex-col items-center gap-2 py-12 text-center">
+   554→                <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
+   555→                <p className="text-sm text-muted-foreground">No images uploaded yet</p>
+   556→              </div>
+   557→            ) : (
+   558→              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   559→                {asset.images.map((img) => (
+   560→                  <div key={img.id} className="overflow-hidden rounded-lg border">
+   561→                    <img src={`/api/images/${img.id}`} alt={img.fileName} className="aspect-video w-full object-cover" />
+   562→                    <div className="p-2">
+   563→                      <div className="flex items-center justify-between text-xs">
+   564→                        <span className="truncate font-medium">{img.fileName}</span>
+   565→                        <Badge variant={img.ocrStatus === 'Success' ? 'default' : 'secondary'} className="text-[10px]">{img.ocrStatus}</Badge>
+   566→                      </div>
+   567→                      {img.processedText && (
+   568→                        <details className="mt-1">
+   569→                          <summary className="text-[11px] text-muted-foreground cursor-pointer">View OCR text</summary>
+   570→                          <pre className="mt-1 max-h-32 overflow-y-auto scrollbar-thin rounded bg-muted p-2 text-[10px] whitespace-pre-wrap">{img.processedText}</pre>
+   571→                        </details>
+   572→                      )}
+   573→                    </div>
+   574→                  </div>
+   575→                ))}
+   576→              </div>
+   577→            )}
+   578→          </SectionCard>
+   579→        </TabsContent>
+   580→
+   581→        {/* History */}
+   582→        <TabsContent value="history" className="mt-4">
+   583→          <SectionCard title="Assignment History" icon={History}>
+   584→            {!asset.history || asset.history.length === 0 ? (
+   585→              <div className="flex flex-col items-center gap-2 py-12 text-center">
+   586→                <History className="h-10 w-10 text-muted-foreground/50" />
+   587→                <p className="text-sm text-muted-foreground">No assignment history yet</p>
+   588→              </div>
+   589→            ) : (
+   590→              <div className="relative space-y-4 pl-4">
+   591→                <div className="absolute left-0 top-2 bottom-2 w-px bg-border" />
+   592→                {asset.history.map((h) => (
+   593→                  <div key={h.id} className="relative">
+   594→                    <div className="absolute -left-[18px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-primary" />
+   595→                    <div className="flex items-start justify-between gap-3">
+   596→                      <div>
+   597→                        <div className="flex items-center gap-2">
+   598→                          <Badge variant="outline" className="text-[10px]">{h.action}</Badge>
+   599→                          <span className="text-sm font-medium">{h.person?.fullName || 'Unassigned'}</span>
+   600→                        </div>
+   601→                        {h.department && <p className="text-xs text-muted-foreground mt-0.5">{h.department.name} · {h.location?.name}</p>}
+   602→                        {h.reason && <p className="text-xs text-muted-foreground italic mt-0.5">{h.reason}</p>}
+   603→                      </div>
+   604→                      <div className="text-xs text-muted-foreground text-right">
+   605→                        <div>{formatDate(h.assignedOn)}</div>
+   606→                        {h.unassignedOn && <div className="text-[10px]">until {formatDate(h.unassignedOn)}</div>}
+   607→                      </div>
+   608→                    </div>
+   609→                  </div>
+   610→                ))}
+   611→              </div>
+   612→            )}
+   613→          </SectionCard>
+   614→        </TabsContent>
+   615→
+   616→        {/* Disposals */}
+   617→        <TabsContent value="disposals" className="mt-4">
+   618→          <SectionCard title="Disposal History" icon={Trash2}>
+   619→            {!disposals || disposals.length === 0 ? (
+   620→              <div className="flex flex-col items-center gap-2 py-12 text-center">
+   621→                <Trash2 className="h-10 w-10 text-muted-foreground/50" />
+   622→                <p className="text-sm text-muted-foreground">No disposal records yet</p>
+   623→                <p className="text-xs text-muted-foreground">When this asset is disposed, sold, or recycled, the record will appear here.</p>
+   624→              </div>
+   625→            ) : (
+   626→              <div className="space-y-3">
+   627→                {disposals.map((d) => {
+   628→                  const methodIcon = (m: string) => {
+   629→                    if (m === 'Recycled') return Recycle
+   630→                    if (m === 'Donated') return Gift
+   631→                    if (m === 'Returned to Vendor') return Undo2
+   632→                    if (m === 'Sold' || m === 'Trade-in') return DollarSign
+   633→                    return Trash2
+   634→                  }
+   635→                  const Icon = methodIcon(d.method)
+   636→                  return (
+   637→                    <div key={d.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
+   638→                      <div className="flex items-start justify-between gap-3">
+   639→                        <div className="flex items-start gap-3">
+   640→                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${d.netProceeds >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
+   641→                            <Icon className={`h-4 w-4 ${d.netProceeds >= 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
+   642→                          </div>
+   643→                          <div>
+   644→                            <div className="flex items-center gap-2">
+   645→                              <span className="text-sm font-medium">{d.method}</span>
+   646→                              <Badge variant="outline" className="text-[10px] font-mono">{d.disposalNumber}</Badge>
+   647→                              {d.environmentalCompliant && (
+   648→                                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-0">
+   649→                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Eco
+   650→                                </Badge>
+   651→                              )}
+   652→                            </div>
+   653→                            <p className="text-xs text-muted-foreground mt-0.5">
+   654→                              {formatDate(d.disposalDate)} · {d.buyerRecipient || 'No recipient'}
+   655→                            </p>
+   656→                            {d.reason && <p className="text-xs text-muted-foreground italic mt-1">{d.reason}</p>}
+   657→                            {d.certificateNumber && (
+   658→                              <p className="text-[11px] text-muted-foreground mt-1">Certificate: <span className="font-mono">{d.certificateNumber}</span></p>
+   659→                            )}
+   660→                          </div>
+   661→                        </div>
+   662→                        <div className="text-right">
+   663→                          <p className="text-xs text-muted-foreground">Net Proceeds</p>
+   664→                          <p className={`text-base font-bold tabular-nums ${d.netProceeds >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+   665→                            {formatCurrency(d.netProceeds)}
+   666→                          </p>
+   667→                          <p className="text-[10px] text-muted-foreground mt-0.5">
+   668→                            Residual {formatCurrency(d.residualValue)} − Cost {formatCurrency(d.disposalCost)}
+   669→                          </p>
+   670→                        </div>
+   671→                      </div>
+   672→                    </div>
+   673→                  )
+   674→                })}
+   675→              </div>
+   676→            )}
+   677→          </SectionCard>
+   678→        </TabsContent>
+   679→
+   680→        {/* Tags */}
+   681→        <TabsContent value="tags" className="mt-4 space-y-4">
+   682→          <SectionCard title="Asset Tags" icon={Tag}>
+   683→            {asset.tags && asset.tags.length > 0 ? (
+   684→              <div className="mb-4 flex flex-wrap gap-2">
+   685→                {asset.tags.map((t) => {
+   686→                  const cfg = getTagColorConfig(t.color)
+   687→                  return (
+   688→                    <span
+   689→                      key={t.id}
+   690→                      className={`inline-flex items-center gap-1.5 rounded-md border ${cfg.bg} ${cfg.text} ${cfg.border} px-2.5 py-1 text-xs font-medium`}
+   691→                    >
+   692→                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   693→                      {t.name}
+   694→                      <button
+   695→                        onClick={() => toggleTag(t.id, true)}
+   696→                        className="ml-0.5 rounded-sm hover:bg-foreground/10 p-0.5"
+   697→                        aria-label={`Remove ${t.name}`}
+   698→                      >
+   699→                        <X className="h-3 w-3" />
+   700→                      </button>
+   701→                    </span>
+   702→                  )
+   703→                })}
+   704→              </div>
+   705→            ) : (
+   706→              <div className="mb-4 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+   707→                No tags assigned to this asset yet.
+   708→              </div>
+   709→            )}
+   710→            <Separator className="my-3" />
+   711→            <div>
+   712→              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Available Tags</div>
+   713→              <div className="flex flex-wrap gap-2">
+   714→                {allTags?.filter((t) => !asset.tags?.some((at) => at.id === t.id)).map((t) => {
+   715→                  const cfg = getTagColorConfig(t.color)
+   716→                  return (
+   717→                    <button
+   718→                      key={t.id}
+   719→                      onClick={() => toggleTag(t.id, false)}
+   720→                      className={`inline-flex items-center gap-1.5 rounded-md border border-dashed ${cfg.bg} ${cfg.text} ${cfg.border} px-2.5 py-1 text-xs font-medium transition-colors hover:bg-foreground/5`}
+   721→                    >
+   722→                      <Plus className="h-3 w-3" />
+   723→                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+   724→                      {t.name}
+   725→                    </button>
+   726→                  )
+   727→                })}
+   728→                {allTags?.length === 0 && (
+   729→                  <p className="text-xs text-muted-foreground">No tags exist yet. Create some in the Tags view.</p>
+   730→                )}
+   731→              </div>
+   732→            </div>
+   733→          </SectionCard>
+   734→        </TabsContent>
+   735→
+   736→        {/* Bookings */}
+   737→        <TabsContent value="bookings" className="mt-4 space-y-4">
+   738→          <SectionCard title="Booking History" icon={CalendarClock}>
+   739→            {bookings && bookings.length > 0 ? (
+   740→              <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-thin">
+   741→                {bookings.map((b) => {
+   742→                  const cfg = BOOKING_STATUS_CONFIG[b.status as keyof typeof BOOKING_STATUS_CONFIG] || BOOKING_STATUS_CONFIG.Pending
+   743→                  return (
+   744→                    <div key={b.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
+   745→                      <div className="flex items-start justify-between gap-3">
+   746→                        <div className="flex-1 min-w-0">
+   747→                          <div className="flex items-center gap-2 mb-1">
+   748→                            <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
+   749→                            <span className="text-sm font-medium truncate">{b.title}</span>
+   750→                          </div>
+   751→                          {b.purpose && <p className="text-xs text-muted-foreground mb-1.5 line-clamp-2">{b.purpose}</p>}
+   752→                          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+   753→                            <span><Calendar className="inline h-3 w-3 mr-1" />{formatDate(b.startDate)} → {formatDate(b.endDate)}</span>
+   754→                            {b.bookedBy && <span><User className="inline h-3 w-3 mr-1" />{b.bookedBy.fullName}</span>}
+   755→                          </div>
+   756→                        </div>
+   757→                        <Badge variant="outline" className={`${cfg.bg} ${cfg.text} text-[10px]`}>{b.status}</Badge>
+   758→                      </div>
+   759→                      {b.status === 'Pending' && (
+   760→                        <div className="mt-2 flex gap-2">
+   761→                          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => approveBooking(b.id)}>
+   762→                            <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
+   763→                          </Button>
+   764→                          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => cancelBooking(b.id)}>
+   765→                            Cancel
+   766→                          </Button>
+   767→                        </div>
+   768→                      )}
+   769→                      {(b.status === 'Approved' || b.status === 'Active') && (
+   770→                        <div className="mt-2">
+   771→                          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => cancelBooking(b.id)}>
+   772→                            Cancel Booking
+   773→                          </Button>
+   774→                        </div>
+   775→                      )}
+   776→                    </div>
+   777→                  )
+   778→                })}
+   779→              </div>
+   780→            ) : (
+   781→              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+   782→                No bookings for this asset.
+   783→              </div>
+   784→            )}
+   785→          </SectionCard>
+   786→        </TabsContent>
+   787→      </Tabs>
+   788→    </div>
+   789→  )
+   790→}
+   791→

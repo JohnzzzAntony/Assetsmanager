@@ -1,0 +1,252 @@
+/home/z/my-project/src/components/command-palette.tsx:55:  { label: 'Utilization', view: 'utilization', icon: Gauge },
+/home/z/my-project/src/components/command-palette.tsx:65:  { label: 'Maintenance', view: 'maintenance', icon: Wrench },
+/home/z/my-project/src/components/command-palette.tsx:66:  { label: 'Depreciation', view: 'depreciation', icon: TrendingDown },
+/home/z/my-project/src/components/command-palette.tsx:68:  { label: 'Asset Disposals', view: 'disposals', icon: Trash2 },
+/home/z/my-project/src/components/app-shell.tsx:74:    maintenance: 'Maintenance Schedule',
+/home/z/my-project/src/components/app-shell.tsx:79:    depreciation: 'Asset Depreciation',
+/home/z/my-project/src/components/app-shell.tsx:83:    disposals: 'Asset Disposals',
+/home/z/my-project/src/components/app-shell.tsx:87:    utilization: 'Asset Utilization',
+/home/z/my-project/src/components/app-shell.tsx:88:    'asset-map': 'Asset Location Map',
+/home/z/my-project/src/components/views/utilization-view.tsx:6:  utilizationApi,
+/home/z/my-project/src/components/views/utilization-view.tsx:8:  disposalsApi,
+/home/z/my-project/src/components/views/utilization-view.tsx:91:const IDLE_THRESHOLD_STORAGE_KEY = 'assethub:utilization-idle-threshold'
+/home/z/my-project/src/components/views/utilization-view.tsx:143:// Returns bar color by utilization rate
+/home/z/my-project/src/components/views/utilization-view.tsx:169:        const pct = Math.round(b.utilizationRate * 100)
+/home/z/my-project/src/components/views/utilization-view.tsx:170:        const label = rateLabel(b.utilizationRate)
+/home/z/my-project/src/components/views/utilization-view.tsx:193:                  style={{ width: `${pct}%`, background: rateColor(b.utilizationRate) }}
+/home/z/my-project/src/components/views/utilization-view.tsx:218:        .sort((a, b) => b.utilizationRate - a.utilizationRate)
+/home/z/my-project/src/components/views/utilization-view.tsx:221:          rate: Math.round(b.utilizationRate * 100),
+/home/z/my-project/src/components/views/utilization-view.tsx:458:      await qc.invalidateQueries({ queryKey: ['utilization'] })
+/home/z/my-project/src/components/views/utilization-view.tsx:614:      await disposalsApi.create({
+/home/z/my-project/src/components/views/utilization-view.tsx:623:      await qc.invalidateQueries({ queryKey: ['utilization'] })
+/home/z/my-project/src/components/views/utilization-view.tsx:753:    queryKey: ['utilization', idleThresholdDays],
+/home/z/my-project/src/components/views/utilization-view.tsx:754:    queryFn: () => utilizationApi.report(idleThresholdDays),
+/home/z/my-project/src/components/views/utilization-view.tsx:821:                  {Math.round(overall.utilizationRate * 100)}%
+/home/z/my-project/src/components/views/asset-detail-view.tsx:4:import { assetsApi, assetActivityApi, disposalsApi, tagsApi, bookingsApi } from '@/lib/api'
+/home/z/my-project/src/components/views/asset-detail-view.tsx:114:  const { data: maintenance } = useQuery({
+/home/z/my-project/src/components/views/asset-detail-view.tsx:115:    queryKey: ['asset-maintenance', id],
+/home/z/my-project/src/components/views/asset-detail-view.tsx:116:    queryFn: () => assetActivityApi.maintenance(id),
+/home/z/my-project/src/components/views/asset-detail-view.tsx:128:    queryFn: () => assetActivityApi.maintenance(id).then(() => licensesForAsset(id)),
+/home/z/my-project/src/components/views/asset-detail-view.tsx:132:  const { data: disposals } = useQuery({
+/home/z/my-project/src/components/views/asset-detail-view.tsx:133:    queryKey: ['asset-disposals', id],
+/home/z/my-project/src/components/views/asset-detail-view.tsx:134:    queryFn: () => disposalsApi.listForAsset(id),
+/home/z/my-project/src/components/views/asset-detail-view.tsx:236:  const maintCount = maintenance?.length || 0
+/home/z/my-project/src/components/views/asset-detail-view.tsx:326:          <TabsTrigger value="maintenance" className="text-xs">Maintenance ({maintCount})</TabsTrigger>
+/home/z/my-project/src/components/views/asset-detail-view.tsx:329:          <TabsTrigger value="disposals" className="text-xs">Disposals ({disposals?.length || 0})</TabsTrigger>
+/home/z/my-project/src/components/views/asset-detail-view.tsx:464:        <TabsContent value="maintenance" className="mt-4 space-y-4">
+/home/z/my-project/src/components/views/asset-detail-view.tsx:469:              <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
+/home/z/my-project/src/components/views/asset-detail-view.tsx:474:            {!maintenance || maintenance.length === 0 ? (
+/home/z/my-project/src/components/views/asset-detail-view.tsx:477:                <p className="text-sm text-muted-foreground">No maintenance records for this asset</p>
+/home/z/my-project/src/components/views/asset-detail-view.tsx:478:                <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
+/home/z/my-project/src/components/views/asset-detail-view.tsx:484:                {maintenance.map((m) => {
+/home/z/my-project/src/components/views/asset-detail-view.tsx:617:        <TabsContent value="disposals" className="mt-4">
+/home/z/my-project/src/components/views/asset-detail-view.tsx:619:            {!disposals || disposals.length === 0 ? (
+/home/z/my-project/src/components/views/asset-detail-view.tsx:627:                {disposals.map((d) => {
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:98:    case 'maintenance.scheduled':
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:99:    case 'maintenance.cancelled':
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:100:      return 'event-maintenance'
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:101:    case 'maintenance.completed':
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:102:      return 'event-maintenance-completed'
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:123:    case 'maintenance.completed':
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:132:    case 'maintenance.scheduled':
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:133:    case 'maintenance.cancelled':
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:177:    types: ['maintenance.scheduled', 'maintenance.completed', 'maintenance.cancelled'],
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:395:          Activity for this asset will appear here once it has assignments, maintenance, bookings, or other lifecycle events.
+/home/z/my-project/src/components/views/asset-timeline-view.tsx:592:              value={data.stats.maintenanceCount}
+/home/z/my-project/src/components/views/audit-log-view.tsx:44:  'maintenance.created': { icon: Wrench, color: '#0ea5e9', bg: 'bg-sky-500/10', label: 'Maintenance Created' },
+/home/z/my-project/src/components/views/audit-log-view.tsx:45:  'maintenance.updated': { icon: Wrench, color: '#f59e0b', bg: 'bg-amber-500/10', label: 'Maintenance Updated' },
+/home/z/my-project/src/components/views/audit-log-view.tsx:46:  'maintenance.completed': { icon: Wrench, color: '#10b981', bg: 'bg-emerald-500/10', label: 'Maintenance Completed' },
+/home/z/my-project/src/components/views/audit-log-view.tsx:47:  'maintenance.deleted': { icon: Trash2, color: '#f43f5e', bg: 'bg-rose-500/10', label: 'Maintenance Deleted' },
+/home/z/my-project/src/components/views/audit-log-view.tsx:99:          Complete activity history across assets, maintenance, and licenses.
+/home/z/my-project/src/components/views/depreciation-view.tsx:5:import { depreciationApi, assetsApi, assetTypesApi } from '@/lib/api'
+/home/z/my-project/src/components/views/depreciation-view.tsx:84:    queryKey: ['depreciation-stats'],
+/home/z/my-project/src/components/views/depreciation-view.tsx:85:    queryFn: () => depreciationApi.stats(),
+/home/z/my-project/src/components/views/depreciation-view.tsx:88:    queryKey: ['depreciation-calcs'],
+/home/z/my-project/src/components/views/depreciation-view.tsx:89:    queryFn: () => depreciationApi.calculate() as Promise<any[]>,
+/home/z/my-project/src/components/views/depreciation-view.tsx:92:    queryKey: ['depreciation-rules'],
+/home/z/my-project/src/components/views/depreciation-view.tsx:93:    queryFn: () => depreciationApi.listRules(),
+/home/z/my-project/src/components/views/depreciation-view.tsx:109:    if (!confirm('Delete this depreciation rule?')) return
+/home/z/my-project/src/components/views/depreciation-view.tsx:111:      await depreciationApi.deleteRule(id)
+/home/z/my-project/src/components/views/depreciation-view.tsx:113:      qc.invalidateQueries({ queryKey: ['depreciation-rules'] })
+/home/z/my-project/src/components/views/depreciation-view.tsx:114:      qc.invalidateQueries({ queryKey: ['depreciation-calcs'] })
+/home/z/my-project/src/components/views/depreciation-view.tsx:115:      qc.invalidateQueries({ queryKey: ['depreciation-stats'] })
+/home/z/my-project/src/components/views/depreciation-view.tsx:128:            Track asset value depreciation over time using configurable rules.
+/home/z/my-project/src/components/views/depreciation-view.tsx:143:          sub={`-${formatCurrency((stats?.totalPurchaseValue ?? 0) - (stats?.totalCurrentValue ?? 0))} total depreciation`} />
+/home/z/my-project/src/components/views/depreciation-view.tsx:214:                      const depPct = Math.min(100, calc.depreciationPercent)
+/home/z/my-project/src/components/views/depreciation-view.tsx:238:                                <span className="tabular-nums">{formatCurrency(calc.depreciation)}</span>
+/home/z/my-project/src/components/views/depreciation-view.tsx:287:                      <p>No depreciation rules configured</p>
+/home/z/my-project/src/components/views/depreciation-view.tsx:337:  const { data: rules } = useQuery({ queryKey: ['depreciation-rules'], queryFn: () => depreciationApi.listRules() })
+/home/z/my-project/src/components/views/depreciation-view.tsx:372:        await depreciationApi.updateRule(editingId, payload)
+/home/z/my-project/src/components/views/depreciation-view.tsx:375:        await depreciationApi.createRule(payload)
+/home/z/my-project/src/components/views/depreciation-view.tsx:378:      qc.invalidateQueries({ queryKey: ['depreciation-rules'] })
+/home/z/my-project/src/components/views/depreciation-view.tsx:379:      qc.invalidateQueries({ queryKey: ['depreciation-calcs'] })
+/home/z/my-project/src/components/views/depreciation-view.tsx:380:      qc.invalidateQueries({ queryKey: ['depreciation-stats'] })
+/home/z/my-project/src/components/views/disposals-view.tsx:5:import { disposalsApi, assetsApi, personsApi, exportApi } from '@/lib/api'
+/home/z/my-project/src/components/views/disposals-view.tsx:151:  const { data: disposals, isLoading } = useQuery({
+/home/z/my-project/src/components/views/disposals-view.tsx:152:    queryKey: ['disposals'],
+/home/z/my-project/src/components/views/disposals-view.tsx:153:    queryFn: () => disposalsApi.list(),
+/home/z/my-project/src/components/views/disposals-view.tsx:157:    if (!disposals) return []
+/home/z/my-project/src/components/views/disposals-view.tsx:158:    return disposals.filter((d) => {
+/home/z/my-project/src/components/views/disposals-view.tsx:171:  }, [disposals, search, methodFilter])
+/home/z/my-project/src/components/views/disposals-view.tsx:174:    if (!disposals) return { total: 0, recovered: 0, cost: 0, pending: 0 }
+/home/z/my-project/src/components/views/disposals-view.tsx:177:      total: disposals.length,
+/home/z/my-project/src/components/views/disposals-view.tsx:178:      recovered: disposals
+/home/z/my-project/src/components/views/disposals-view.tsx:181:      cost: disposals.reduce((s, d) => s + (d.disposalCost || 0), 0),
+/home/z/my-project/src/components/views/disposals-view.tsx:182:      pending: disposals.filter((d) => !d.approvedById).length,
+/home/z/my-project/src/components/views/disposals-view.tsx:184:  }, [disposals])
+/home/z/my-project/src/components/views/disposals-view.tsx:186:  const viewing = disposals?.find((d) => d.id === viewingId) || null
+/home/z/my-project/src/components/views/disposals-view.tsx:187:  const deleting = disposals?.find((d) => d.id === deleteId) || null
+/home/z/my-project/src/components/views/disposals-view.tsx:191:      await disposalsApi.delete(id)
+/home/z/my-project/src/components/views/disposals-view.tsx:193:      qc.invalidateQueries({ queryKey: ['disposals'] })
+/home/z/my-project/src/components/views/disposals-view.tsx:211:          <Button variant="outline" onClick={() => exportApi.download(exportApi.disposals())}>
+/home/z/my-project/src/components/views/disposals-view.tsx:275:            {filtered.length} of {disposals?.length ?? 0} records
+/home/z/my-project/src/components/views/disposals-view.tsx:620:  const { data: disposals } = useQuery({ queryKey: ['disposals'], queryFn: () => disposalsApi.list() })
+/home/z/my-project/src/components/views/disposals-view.tsx:627:  const editing = disposals?.find((d) => d.id === editingId)
+/home/z/my-project/src/components/views/disposals-view.tsx:675:      toast.error(`Certificate number is required for ${method} disposals`)
+/home/z/my-project/src/components/views/disposals-view.tsx:695:        await disposalsApi.update(editingId, payload)
+/home/z/my-project/src/components/views/disposals-view.tsx:698:        await disposalsApi.create(payload)
+/home/z/my-project/src/components/views/disposals-view.tsx:701:      qc.invalidateQueries({ queryKey: ['disposals'] })
+/home/z/my-project/src/components/views/disposals-view.tsx:844:                  Required for {method} disposals (environmental compliance)
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:96: * Compute the "bar end" date for a maintenance task.
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:118:  maintenances: MaintenanceSchedule[]
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:125:  maintenances,
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:152:  // Map each visible day → list of maintenance tasks whose bar overlaps that day
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:158:      const overlaps = (maintenances ?? []).filter((m) => {
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:174:  }, [gridDays, maintenances, now])
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:181:    return (maintenances ?? []).find((m) => m.id === selectedId) || null
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:182:  }, [selectedId, maintenances])
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:197:  // Count distinct maintenances visible in the current 6-week grid
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:208:  // Empty state: no maintenance visible in the current grid
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:226:                  Visualize scheduled and ongoing maintenance across a month grid. Click any bar for details and actions.
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:268:              <p className="text-base font-semibold">No maintenance scheduled this month</p>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:270:                Try moving to a different month, or clear any active filters to see all maintenance tasks.
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:390:        maintenance={selected}
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:411:  maintenance: MaintenanceSchedule | null
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:419:  maintenance,
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:427:  const status = (maintenance?.status as MaintenanceStatus) || 'Scheduled'
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:429:  const dur = maintenance && maintenance.completedAt
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:430:    ? durationDays(maintenance.scheduledFor, maintenance.completedAt)
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:438:        {maintenance && (
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:443:                <span className="flex-1 break-words">{maintenance.title}</span>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:458:                  <Wrench className="h-2.5 w-2.5" /> {maintenance.type}
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:473:                onClick={() => navigate('asset-detail', { id: maintenance.assetId })}
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:478:                  {maintenance.asset
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:479:                    ? `${maintenance.asset.make ?? ''} ${maintenance.asset.model ?? ''}`.trim() || 'Untitled asset'
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:482:                {maintenance.asset?.assetTag && (
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:484:                    {maintenance.asset.assetTag}
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:491:              {maintenance.performedBy && (
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:500:                    <p className="text-sm font-medium truncate">{maintenance.performedBy}</p>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:513:                  <p className="text-sm font-medium">{formatDateTime(maintenance.scheduledFor)}</p>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:514:                  <p className="text-[10px] text-muted-foreground">{formatRelative(maintenance.scheduledFor)}</p>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:520:                  <p className="text-sm font-medium">{formatDateTime(maintenance.completedAt)}</p>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:521:                  <p className="text-[10px] text-muted-foreground">{formatRelative(maintenance.completedAt)}</p>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:534:                {maintenance.cost != null && (
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:540:                    {formatCurrency(maintenance.cost)}
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:546:              {maintenance.description && (
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:552:                    {maintenance.description}
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:558:              {maintenance.notes && (
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:564:                    {maintenance.notes}
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:573:              <Button variant="outline" size="sm" onClick={() => onEdit(maintenance.id)}>
+/home/z/my-project/src/components/views/maintenance-calendar-view.tsx:579:                onClick={() => onDelete(maintenance.id)}
+/home/z/my-project/src/components/views/notifications-view.tsx:44:  maintenance_overdue: 'Maintenance Overdue',
+/home/z/my-project/src/components/views/notifications-view.tsx:45:  maintenance_scheduled: 'Maintenance Scheduled',
+/home/z/my-project/src/components/views/notifications-view.tsx:132:      } else if (n.actionUrl === 'maintenance') {
+/home/z/my-project/src/components/views/notifications-view.tsx:133:        navigate('maintenance')
+/home/z/my-project/src/components/views/notifications-view.tsx:158:            Stay on top of warranty, maintenance, license, and checkout alerts.
+/home/z/my-project/src/components/views/dashboard-view.tsx:4:import { dashboardApi, assetsApi, maintenanceApi, auditLogApi } from '@/lib/api'
+/home/z/my-project/src/components/views/dashboard-view.tsx:160:    queryKey: ['maintenance-upcoming'],
+/home/z/my-project/src/components/views/dashboard-view.tsx:161:    queryFn: () => maintenanceApi.upcoming(),
+/home/z/my-project/src/components/views/dashboard-view.tsx:250:          trend={`${Math.round((stats.inUse / totalByStatus) * 100)}% utilization`}
+/home/z/my-project/src/components/views/dashboard-view.tsx:328:          onClick={() => navigate('depreciation')}
+/home/z/my-project/src/components/views/dashboard-view.tsx:338:              {formatCurrency(stats.depreciation?.totalCurrentValue ?? 0)}
+/home/z/my-project/src/components/views/dashboard-view.tsx:341:              <span>of {formatCurrency(stats.depreciation?.totalPurchaseValue ?? 0)} purchase</span>
+/home/z/my-project/src/components/views/dashboard-view.tsx:342:              <span className="text-rose-600 font-medium">-{formatCurrency(stats.depreciation?.totalDepreciation ?? 0)}</span>
+/home/z/my-project/src/components/views/dashboard-view.tsx:405:                <span className="text-2xl font-bold">{stats.maintenance?.total ?? 0}</span>
+/home/z/my-project/src/components/views/dashboard-view.tsx:416:              <p className="text-lg font-bold text-sky-600">{stats.maintenance?.scheduled ?? 0}</p>
+/home/z/my-project/src/components/views/dashboard-view.tsx:420:              <p className="text-lg font-bold text-amber-600">{stats.maintenance?.inProgress ?? 0}</p>
+/home/z/my-project/src/components/views/dashboard-view.tsx:424:              <p className="text-lg font-bold text-rose-600">{stats.maintenance?.overdue ?? 0}</p>
+/home/z/my-project/src/components/views/dashboard-view.tsx:489:            <Button variant="ghost" size="sm" className="mt-1 h-6 w-full text-xs" onClick={() => navigate('maintenance')}>
+/home/z/my-project/src/components/views/dashboard-view.tsx:682:            onClick={() => navigate('asset-map')}
+/home/z/my-project/src/components/views/dashboard-view.tsx:855:          onClick={() => navigate('disposals')}
+/home/z/my-project/src/components/views/dashboard-view.tsx:864:            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.disposals?.total ?? 0}</div>
+/home/z/my-project/src/components/views/dashboard-view.tsx:866:              <span className="text-emerald-600 font-medium">+{formatCurrency(stats.disposals?.totalRecovered ?? 0)}</span>
+/home/z/my-project/src/components/views/dashboard-view.tsx:867:              <span className="text-rose-600 font-medium">-{formatCurrency(stats.disposals?.totalCost ?? 0)}</span>
+/home/z/my-project/src/components/views/dashboard-view.tsx:869:            {(stats.disposals?.pendingApproval ?? 0) > 0 && (
+/home/z/my-project/src/components/views/dashboard-view.tsx:871:                {stats.disposals?.pendingApproval} awaiting approval
+/home/z/my-project/src/components/views/maintenance-view.tsx:5:import { maintenanceApi, assetsApi } from '@/lib/api'
+/home/z/my-project/src/components/views/maintenance-view.tsx:63:import { MaintenanceCalendarView } from './maintenance-calendar-view'
+/home/z/my-project/src/components/views/maintenance-view.tsx:95:    queryKey: ['maintenance', filterStatus, filterType],
+/home/z/my-project/src/components/views/maintenance-view.tsx:96:    queryFn: () => maintenanceApi.list({
+/home/z/my-project/src/components/views/maintenance-view.tsx:104:    queryKey: ['maintenance-upcoming'],
+/home/z/my-project/src/components/views/maintenance-view.tsx:105:    queryFn: () => maintenanceApi.upcoming(),
+/home/z/my-project/src/components/views/maintenance-view.tsx:130:    if (!confirm('Delete this maintenance schedule?')) return
+/home/z/my-project/src/components/views/maintenance-view.tsx:132:      await maintenanceApi.delete(id)
+/home/z/my-project/src/components/views/maintenance-view.tsx:134:      qc.invalidateQueries({ queryKey: ['maintenance'] })
+/home/z/my-project/src/components/views/maintenance-view.tsx:135:      qc.invalidateQueries({ queryKey: ['maintenance-upcoming'] })
+/home/z/my-project/src/components/views/maintenance-view.tsx:145:      await maintenanceApi.update(id, updates)
+/home/z/my-project/src/components/views/maintenance-view.tsx:147:      qc.invalidateQueries({ queryKey: ['maintenance'] })
+/home/z/my-project/src/components/views/maintenance-view.tsx:148:      qc.invalidateQueries({ queryKey: ['maintenance-upcoming'] })
+/home/z/my-project/src/components/views/maintenance-view.tsx:161:            Plan and track preventive, corrective, and upgrade maintenance for assets.
+/home/z/my-project/src/components/views/maintenance-view.tsx:246:          maintenances={filtered}
+/home/z/my-project/src/components/views/maintenance-view.tsx:287:                      title="No maintenance scheduled"
+/home/z/my-project/src/components/views/maintenance-view.tsx:288:                      description="Plan preventive maintenance to keep assets in top condition."
+/home/z/my-project/src/components/views/maintenance-view.tsx:380:    queryKey: ['maintenance', editingId],
+/home/z/my-project/src/components/views/maintenance-view.tsx:381:    queryFn: () => maintenanceApi.list({ assetId: undefined }).then((all) => all.find((m) => m.id === editingId)),
+/home/z/my-project/src/components/views/maintenance-view.tsx:421:        await maintenanceApi.update(editingId, payload)
+/home/z/my-project/src/components/views/maintenance-view.tsx:424:        await maintenanceApi.create(payload)
+/home/z/my-project/src/components/views/maintenance-view.tsx:427:      qc.invalidateQueries({ queryKey: ['maintenance'] })
+/home/z/my-project/src/components/views/maintenance-view.tsx:428:      qc.invalidateQueries({ queryKey: ['maintenance-upcoming'] })
+/home/z/my-project/src/components/views/maintenance-view.tsx:443:            {editingId ? 'Update maintenance details' : 'Plan a new maintenance activity for an asset'}
+/home/z/my-project/src/components/views/maintenance-view.tsx:462:            <Input value={String(form.title || '')} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g., Quarterly preventive maintenance" />
+/home/z/my-project/src/components/views/asset-map-view.tsx:104:  const pct = Math.round(loc.utilizationRate * 100)
+/home/z/my-project/src/components/views/asset-map-view.tsx:105:  const color = rateColor(loc.utilizationRate)
+/home/z/my-project/src/components/views/asset-map-view.tsx:141:            <span className={`font-semibold tabular-nums ${rateTextClass(loc.utilizationRate)}`}>{pct}%</span>
+/home/z/my-project/src/components/views/asset-map-view.tsx:231:  utilizationRate: number
+/home/z/my-project/src/components/views/asset-map-view.tsx:243:  const pct = Math.round(d.utilizationRate * 100)
+/home/z/my-project/src/components/views/asset-map-view.tsx:251:        Utilization: <span className="font-medium" style={{ color: rateColor(d.utilizationRate) }}>{pct}%</span>
+/home/z/my-project/src/components/views/asset-map-view.tsx:309:    queryKey: ['asset-map'],
+/home/z/my-project/src/components/views/asset-map-view.tsx:321:        utilizationRate: l.utilizationRate,
+/home/z/my-project/src/components/views/asset-map-view.tsx:420:                    Assign a location to improve tracking and utilization analytics.
+/home/z/my-project/src/components/views/asset-map-view.tsx:445:                Asset distribution and utilization per site · click an asset to view details
+/home/z/my-project/src/components/views/asset-map-view.tsx:463:                Bar color reflects utilization rate (green ≥75%, blue ≥50%, amber ≥25%, rose &lt;25%)
+/home/z/my-project/src/components/views/asset-map-view.tsx:492:                      <Cell key={entry.locationId} fill={rateColor(entry.utilizationRate)} />
+/home/z/my-project/src/components/views/reports-view.tsx:5:import { dashboardApi, assetsApi, vendorsApi, purchaseOrdersApi, disposalsApi, depreciationApi, bookingsApi, tagsApi, exportApi, reportsApi } from '@/lib/api'
+/home/z/my-project/src/components/views/reports-view.tsx:70:  const { data: disposals } = useQuery({ queryKey: ['disposals-report'], queryFn: () => disposalsApi.list() })
+/home/z/my-project/src/components/views/reports-view.tsx:71:  const { data: deprStats } = useQuery({ queryKey: ['depr-stats-report'], queryFn: () => depreciationApi.stats() })
+/home/z/my-project/src/components/views/reports-view.tsx:141:  const { data: maintenanceCost } = useQuery({
+/home/z/my-project/src/components/views/reports-view.tsx:142:    queryKey: ['maintenance-cost', 12],
+/home/z/my-project/src/components/views/reports-view.tsx:143:    queryFn: () => reportsApi.maintenanceCost(12),
+/home/z/my-project/src/components/views/reports-view.tsx:277:  const utilization = stats.totalAssets > 0 ? Math.round((stats.inUse / stats.totalAssets) * 100) : 0
+/home/z/my-project/src/components/views/reports-view.tsx:442:                <p className="text-2xl font-bold animate-count-up">{utilization}%</p>
+/home/z/my-project/src/components/views/reports-view.tsx:527:            <CardDescription>Monthly purchase, maintenance, and disposal costs</CardDescription>
+/home/z/my-project/src/components/views/reports-view.tsx:531:             costTrend.data.every((p) => p.purchase === 0 && p.maintenance === 0 && p.disposal === 0) ? (
+/home/z/my-project/src/components/views/reports-view.tsx:545:                  <Line type="monotone" dataKey="maintenance" name="Maintenance" stroke="#f59e0b" strokeWidth={2} dot={false} />
+/home/z/my-project/src/components/views/reports-view.tsx:742:              <p className="py-12 text-center text-sm text-muted-foreground">No depreciation data</p>
+/home/z/my-project/src/components/views/reports-view.tsx:780:                    Total depreciation: <span className="font-medium text-rose-600">-{formatCurrency(deprStats.totalDepreciation)}</span>
+/home/z/my-project/src/components/views/reports-view.tsx:799:            {!disposals || disposals.length === 0 ? (
+/home/z/my-project/src/components/views/reports-view.tsx:806:                      disposals.reduce<Record<string, number>>((acc, d) => {
+/home/z/my-project/src/components/views/reports-view.tsx:824:                      {formatCurrency(disposals.reduce((s, d) => s + (d.method === 'Sold' || d.method === 'Trade-in' || d.method === 'Recycled' ? d.netProceeds : 0), 0))}
+/home/z/my-project/src/components/views/reports-view.tsx:830:                      {formatCurrency(disposals.reduce((s, d) => s + d.disposalCost, 0))}
+/home/z/my-project/src/components/views/reports-view.tsx:836:                      {disposals.filter((d) => d.environmentalCompliant).length}/{disposals.length}
+/home/z/my-project/src/components/views/reports-view.tsx:961:      <p className="text-sm text-muted-foreground mt-1">Purchase + maintenance + disposal costs vs residual value, by asset type</p>
+/home/z/my-project/src/components/views/reports-view.tsx:970:            <CardDescription>Stacked purchase, maintenance, and disposal costs by asset type</CardDescription>
+/home/z/my-project/src/components/views/reports-view.tsx:987:                  <Bar dataKey="maintenanceCost" name="Maintenance" stackId="cost" fill="#f59e0b" />
+/home/z/my-project/src/components/views/reports-view.tsx:1026:                        <td className="py-1.5 pr-2 text-right tabular-nums text-amber-700 dark:text-amber-400">{formatCurrency(row.maintenanceCost)}</td>
+/home/z/my-project/src/components/views/reports-view.tsx:1036:                      <td className="py-2 pr-2 text-right tabular-nums">{formatCurrency(lifecycle.totals.maintenanceCost)}</td>
+/home/z/my-project/src/components/views/reports-view.tsx:1069:                <p className="text-lg font-bold tabular-nums animate-count-up">{formatCurrency(lifecycle?.totals.maintenanceCost)}</p>
+/home/z/my-project/src/components/views/reports-view.tsx:1339:          Breakdown of maintenance spend over the last 12 months
+/home/z/my-project/src/components/views/reports-view.tsx:1343:      {!maintenanceCost || maintenanceCost.totals.totalEvents === 0 ? (
+/home/z/my-project/src/components/views/reports-view.tsx:1346:            No maintenance cost data available
+/home/z/my-project/src/components/views/reports-view.tsx:1359:                      {formatCurrency(maintenanceCost.totals.totalCost)}
+/home/z/my-project/src/components/views/reports-view.tsx:1374:                      {maintenanceCost.totals.totalEvents}
+/home/z/my-project/src/components/views/reports-view.tsx:1389:                      {formatCurrency(maintenanceCost.totals.avgCostPerEvent)}
+/home/z/my-project/src/components/views/reports-view.tsx:1391:                    {maintenanceCost.totals.trendDeltaPct !== null && (
+/home/z/my-project/src/components/views/reports-view.tsx:1394:                          maintenanceCost.totals.trendDeltaPct >= 0 ? 'tick-up' : 'tick-down'
+/home/z/my-project/src/components/views/reports-view.tsx:1397:                        {maintenanceCost.totals.trendDeltaPct >= 0 ? (
+/home/z/my-project/src/components/views/reports-view.tsx:1402:                        {maintenanceCost.totals.trendDeltaPct >= 0 ? '+' : ''}
+/home/z/my-project/src/components/views/reports-view.tsx:1403:                        {(maintenanceCost.totals.trendDeltaPct * 100).toFixed(1)}% MoM
+/home/z/my-project/src/components/views/reports-view.tsx:1423:                <CardDescription>Total maintenance cost per asset type</CardDescription>
+/home/z/my-project/src/components/views/reports-view.tsx:1428:                  height={Math.max(220, maintenanceCost.byType.length * 36)}
+/home/z/my-project/src/components/views/reports-view.tsx:1431:                    data={maintenanceCost.byType}
+
+[Showing results with pagination = limit: 250]

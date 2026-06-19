@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { assetsApi, assetActivityApi, disposalsApi, tagsApi, bookingsApi } from '@/lib/api'
+import { assetsApi, assetActivityApi, tagsApi, bookingsApi } from '@/lib/api'
 import { useNav } from '@/lib/nav'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDate, formatDateTime, formatCurrency, formatRelative, warrantyStatus, initials } from '@/lib/format'
-import { STATUS_CONFIG, MAINTENANCE_STATUS_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG } from '@/lib/types'
+import { STATUS_CONFIG, getTagColorConfig, BOOKING_STATUS_CONFIG } from '@/lib/types'
 import {
   Pencil,
   ArrowLeft,
@@ -43,9 +43,6 @@ import {
   Boxes,
   KeyRound,
   ArrowLeftRight,
-  Recycle,
-  Gift,
-  Undo2,
   Tag,
   CalendarClock,
   Plus,
@@ -111,12 +108,6 @@ export function AssetDetailView({ id }: { id: string }) {
     enabled: !!id,
   })
 
-  const { data: maintenance } = useQuery({
-    queryKey: ['asset-maintenance', id],
-    queryFn: () => assetActivityApi.maintenance(id),
-    enabled: !!id,
-  })
-
   const { data: activity } = useQuery({
     queryKey: ['asset-activity', id],
     queryFn: () => assetActivityApi.activity(id),
@@ -125,13 +116,7 @@ export function AssetDetailView({ id }: { id: string }) {
 
   const { data: licenses } = useQuery({
     queryKey: ['asset-licenses', id],
-    queryFn: () => assetActivityApi.maintenance(id).then(() => licensesForAsset(id)),
-    enabled: !!id,
-  })
-
-  const { data: disposals } = useQuery({
-    queryKey: ['asset-disposals', id],
-    queryFn: () => disposalsApi.listForAsset(id),
+    queryFn: () => licensesForAsset(id),
     enabled: !!id,
   })
 
@@ -233,7 +218,6 @@ export function AssetDetailView({ id }: { id: string }) {
   const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
   const isMobile = ['Mobile', 'Tablet'].includes(asset.assetType?.name || '')
   const warranty = warrantyStatus(asset.warrantyExpiry)
-  const maintCount = maintenance?.length || 0
   const activityCount = activity?.length || 0
 
   return (
@@ -318,15 +302,13 @@ export function AssetDetailView({ id }: { id: string }) {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-10 h-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-8 h-auto">
           <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
           <TabsTrigger value="hardware" className="text-xs">Hardware</TabsTrigger>
           {isMobile && <TabsTrigger value="mobile" className="text-xs">Mobile</TabsTrigger>}
           <TabsTrigger value="peripherals" className="text-xs">Peripherals</TabsTrigger>
-          <TabsTrigger value="maintenance" className="text-xs">Maintenance ({maintCount})</TabsTrigger>
           <TabsTrigger value="images" className="text-xs">Images ({asset._count?.images || 0})</TabsTrigger>
           <TabsTrigger value="history" className="text-xs">History ({asset._count?.history || 0})</TabsTrigger>
-          <TabsTrigger value="disposals" className="text-xs">Disposals ({disposals?.length || 0})</TabsTrigger>
           <TabsTrigger value="tags" className="text-xs">Tags ({asset.tags?.length || 0})</TabsTrigger>
           <TabsTrigger value="bookings" className="text-xs">Bookings ({bookings?.length || 0})</TabsTrigger>
         </TabsList>
@@ -342,6 +324,11 @@ export function AssetDetailView({ id }: { id: string }) {
               <InfoRow label="Model Number" value={asset.modelNumber} />
               <InfoRow label="Serial Number" value={<span className="font-mono">{asset.serialNumber}</span>} />
               <InfoRow label="Part Number" value={asset.partNumber} />
+              {asset.ipAddress && <InfoRow label="IP Address" value={<span className="font-mono">{asset.ipAddress}</span>} />}
+              {asset.fixedAssetsNumber && <InfoRow label="Fixed Assets Number" value={asset.fixedAssetsNumber} />}
+              {asset.storeName && <InfoRow label="Store Name" value={asset.storeName} />}
+              {asset.deviceType && <InfoRow label="Device Type" value={asset.deviceType} />}
+              {asset.qty != null && asset.qty > 0 && <InfoRow label="Quantity" value={String(asset.qty)} />}
               <InfoRow label="Status" value={<Badge variant="outline" className={cfg.bg + ' ' + cfg.text}>{asset.status}</Badge>} />
             </SectionCard>
 
@@ -381,6 +368,8 @@ export function AssetDetailView({ id }: { id: string }) {
                 </div>
               } icon={ShieldCheck} />
               <InfoRow label="Operating System" value={asset.os} icon={CircleDot} />
+              {asset.handoverDate && <InfoRow label="Handover Date" value={formatDate(asset.handoverDate)} icon={Calendar} />}
+              {asset.deliveryDate && <InfoRow label="Delivery Date" value={formatDate(asset.deliveryDate)} icon={Calendar} />}
               <Separator className="my-2" />
               <InfoRow label="Created" value={formatDateTime(asset.createdAt)} />
               <InfoRow label="Last Updated" value={formatRelative(asset.updatedAt)} />
@@ -413,6 +402,11 @@ export function AssetDetailView({ id }: { id: string }) {
             <SectionCard title="Physical" icon={Package}>
               <InfoRow label="Color" value={asset.color} />
               <InfoRow label="Asset Tag" value={<span className="font-mono">{asset.assetTag}</span>} />
+              {asset.manufactureYear && <InfoRow label="Manufacture Year" value={asset.manufactureYear} />}
+              {asset.hdd && <InfoRow label="HDD" value={asset.hdd} icon={HardDrive} />}
+              {asset.hddInstalledDate && <InfoRow label="HDD Installed Date" value={asset.hddInstalledDate} />}
+              {asset.routerType && <InfoRow label="Router Type" value={asset.routerType} />}
+              {asset.androidVersion && <InfoRow label="Android Version" value={asset.androidVersion} />}
             </SectionCard>
           </div>
         </TabsContent>
@@ -433,6 +427,8 @@ export function AssetDetailView({ id }: { id: string }) {
               <SectionCard title="Accounts" icon={User}>
                 <InfoRow label="OTP Mobile" value={asset.otpMobileNumber} />
                 <InfoRow label="Google/Apple ID" value={asset.googleAppleAccount} />
+                {asset.gmailLogin && <InfoRow label="Gmail Login" value={asset.gmailLogin} />}
+                {asset.fixedAssetsNumber && <InfoRow label="Fixed Assets Number" value={asset.fixedAssetsNumber} />}
               </SectionCard>
             </div>
           </TabsContent>
@@ -446,6 +442,7 @@ export function AssetDetailView({ id }: { id: string }) {
               <InfoRow label="Model" value={asset.monitorModel} />
               <InfoRow label="Serial" value={<span className="font-mono text-xs">{asset.monitorSn}</span>} />
               <InfoRow label="Size" value={asset.monitorSize} />
+              {asset.monitorPartNumber && <InfoRow label="Part #" value={asset.monitorPartNumber} />}
             </SectionCard>
             <SectionCard title="Keyboard" icon={Keyboard}>
               <InfoRow label="Make" value={asset.keyboardMake} />
@@ -456,91 +453,19 @@ export function AssetDetailView({ id }: { id: string }) {
               <InfoRow label="Make" value={asset.mouseMake} />
               <InfoRow label="Model" value={asset.mouseModel} />
               <InfoRow label="Serial" value={<span className="font-mono text-xs">{asset.mouseSn}</span>} />
+              {asset.mousePartNumber && <InfoRow label="Part #" value={asset.mousePartNumber} />}
             </SectionCard>
+            {(asset.barcodeScannerModel || asset.barcodeScannerSn || asset.tonerModel) && (
+              <SectionCard title="Other Peripherals" icon={Printer}>
+                {asset.barcodeScannerModel && <InfoRow label="Barcode Scanner Model" value={asset.barcodeScannerModel} />}
+                {asset.barcodeScannerSn && <InfoRow label="Barcode Scanner S/N" value={<span className="font-mono text-xs">{asset.barcodeScannerSn}</span>} />}
+                {asset.tonerModel && <InfoRow label="Toner Model" value={asset.tonerModel} />}
+              </SectionCard>
+            )}
           </div>
         </TabsContent>
 
-        {/* Maintenance */}
-        <TabsContent value="maintenance" className="mt-4 space-y-4">
-          <SectionCard
-            title="Maintenance History"
-            icon={Wrench}
-            action={
-              <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
-                View All <ArrowLeft className="h-3 w-3 ml-1 rotate-180" />
-              </Button>
-            }
-          >
-            {!maintenance || maintenance.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-12 text-center">
-                <Wrench className="h-10 w-10 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">No maintenance records for this asset</p>
-                <Button size="sm" variant="outline" onClick={() => navigate('maintenance')}>
-                  <Wrench className="h-3.5 w-3.5 mr-1.5" /> Schedule Maintenance
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {maintenance.map((m) => {
-                  const mcfg = MAINTENANCE_STATUS_CONFIG[m.status as keyof typeof MAINTENANCE_STATUS_CONFIG] || MAINTENANCE_STATUS_CONFIG.Scheduled
-                  return (
-                    <div key={m.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${mcfg.bg}`}>
-                            <Wrench className={`h-4 w-4 ${mcfg.text}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-sm">{m.title}</span>
-                              <Badge variant="outline" className={`${mcfg.bg} ${mcfg.text} border-0 text-[10px] gap-1`}>
-                                <span className={`h-1 w-1 rounded-full ${mcfg.dot}`} />
-                                {m.status}
-                              </Badge>
-                              <Badge variant="outline" className="text-[10px]">{m.type}</Badge>
-                            </div>
-                            {m.description && <p className="text-xs text-muted-foreground mt-1">{m.description}</p>}
-                            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
-                              <span><Calendar className="h-3 w-3 inline mr-0.5" />{formatDate(m.scheduledFor)}</span>
-                              {m.completedAt && <span><CheckCircle2 className="h-3 w-3 inline mr-0.5" />{formatDate(m.completedAt)}</span>}
-                              {m.performedBy && <span><User className="h-3 w-3 inline mr-0.5" />{m.performedBy}</span>}
-                              {m.cost != null && <span><DollarSign className="h-3 w-3 inline mr-0.5" />{formatCurrency(m.cost)}</span>}
-                            </div>
-                            {m.notes && <p className="text-xs italic text-muted-foreground mt-1">"{m.notes}"</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Recent Activity Log" icon={Activity}>
-            {!activity || activity.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <Activity className="h-8 w-8 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">No activity logged for this asset</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
-                {activity.map((log) => (
-                  <div key={log.id} className="flex items-start gap-2 rounded-md border p-2 text-sm hover:bg-accent/30">
-                    <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{log.action}</span>
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatRelative(log.createdAt)}</span>
-                      </div>
-                      {log.details && <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
-        </TabsContent>
+        {/* Maintenance section removed in Round 10 */}
 
         {/* Images */}
         <TabsContent value="images" className="mt-4">
@@ -613,69 +538,7 @@ export function AssetDetailView({ id }: { id: string }) {
           </SectionCard>
         </TabsContent>
 
-        {/* Disposals */}
-        <TabsContent value="disposals" className="mt-4">
-          <SectionCard title="Disposal History" icon={Trash2}>
-            {!disposals || disposals.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-12 text-center">
-                <Trash2 className="h-10 w-10 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">No disposal records yet</p>
-                <p className="text-xs text-muted-foreground">When this asset is disposed, sold, or recycled, the record will appear here.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {disposals.map((d) => {
-                  const methodIcon = (m: string) => {
-                    if (m === 'Recycled') return Recycle
-                    if (m === 'Donated') return Gift
-                    if (m === 'Returned to Vendor') return Undo2
-                    if (m === 'Sold' || m === 'Trade-in') return DollarSign
-                    return Trash2
-                  }
-                  const Icon = methodIcon(d.method)
-                  return (
-                    <div key={d.id} className="rounded-lg border p-3 hover:bg-accent/30 transition-colors">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${d.netProceeds >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
-                            <Icon className={`h-4 w-4 ${d.netProceeds >= 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{d.method}</span>
-                              <Badge variant="outline" className="text-[10px] font-mono">{d.disposalNumber}</Badge>
-                              {d.environmentalCompliant && (
-                                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-0">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Eco
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {formatDate(d.disposalDate)} · {d.buyerRecipient || 'No recipient'}
-                            </p>
-                            {d.reason && <p className="text-xs text-muted-foreground italic mt-1">{d.reason}</p>}
-                            {d.certificateNumber && (
-                              <p className="text-[11px] text-muted-foreground mt-1">Certificate: <span className="font-mono">{d.certificateNumber}</span></p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">Net Proceeds</p>
-                          <p className={`text-base font-bold tabular-nums ${d.netProceeds >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {formatCurrency(d.netProceeds)}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            Residual {formatCurrency(d.residualValue)} − Cost {formatCurrency(d.disposalCost)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </SectionCard>
-        </TabsContent>
+        {/* Disposals section removed in Round 10 */}
 
         {/* Tags */}
         <TabsContent value="tags" className="mt-4 space-y-4">

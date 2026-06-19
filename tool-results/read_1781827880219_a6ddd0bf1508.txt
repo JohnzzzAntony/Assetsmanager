@@ -1,0 +1,1190 @@
+     1→// IT Asset Manager - Core Types
+     2→
+     3→export type AssetStatus = 'In Use' | 'In Stock' | 'Repair' | 'Retired' | 'Lost'
+     4→
+     5→export const ASSET_STATUSES: AssetStatus[] = [
+     6→  'In Use',
+     7→  'In Stock',
+     8→  'Repair',
+     9→  'Retired',
+    10→  'Lost',
+    11→]
+    12→
+    13→export const STATUS_CONFIG: Record<
+    14→  AssetStatus,
+    15→  { label: string; color: string; bg: string; text: string; dot: string }
+    16→> = {
+    17→  'In Use': {
+    18→    label: 'In Use',
+    19→    color: 'emerald',
+    20→    bg: 'bg-emerald-500/10',
+    21→    text: 'text-emerald-700 dark:text-emerald-400',
+    22→    dot: 'bg-emerald-500',
+    23→  },
+    24→  'In Stock': {
+    25→    label: 'In Stock',
+    26→    color: 'slate',
+    27→    bg: 'bg-slate-500/10',
+    28→    text: 'text-slate-700 dark:text-slate-300',
+    29→    dot: 'bg-slate-400',
+    30→  },
+    31→  Repair: {
+    32→    label: 'Repair',
+    33→    color: 'amber',
+    34→    bg: 'bg-amber-500/10',
+    35→    text: 'text-amber-700 dark:text-amber-400',
+    36→    dot: 'bg-amber-500',
+    37→  },
+    38→  Retired: {
+    39→    label: 'Retired',
+    40→    color: 'rose',
+    41→    bg: 'bg-rose-500/10',
+    42→    text: 'text-rose-700 dark:text-rose-400',
+    43→    dot: 'bg-rose-500',
+    44→  },
+    45→  Lost: {
+    46→    label: 'Lost',
+    47→    color: 'red',
+    48→    bg: 'bg-red-500/10',
+    49→    text: 'text-red-700 dark:text-red-400',
+    50→    dot: 'bg-red-500',
+    51→  },
+    52→}
+    53→
+    54→export const ASSET_TYPE_ICONS: Record<string, string> = {
+    55→  Desktop: 'Monitor',
+    56→  Laptop: 'Laptop',
+    57→  Mobile: 'Smartphone',
+    58→  Tablet: 'Tablet',
+    59→  Monitor: 'Display',
+    60→  Peripheral: 'Mouse',
+    61→  Other: 'Package',
+    62→}
+    63→
+    64→export interface AssetType {
+    65→  id: string
+    66→  name: string
+    67→  description?: string | null
+    68→  icon?: string | null
+    69→  _count?: { assets: number }
+    70→}
+    71→
+    72→export interface Department {
+    73→  id: string
+    74→  name: string
+    75→  code?: string | null
+    76→  _count?: { assets: number; persons: number }
+    77→}
+    78→
+    79→export interface Location {
+    80→  id: string
+    81→  name: string
+    82→  address?: string | null
+    83→  _count?: { assets: number; persons: number }
+    84→}
+    85→
+    86→export interface Person {
+    87→  id: string
+    88→  fullName: string
+    89→  email?: string | null
+    90→  phone?: string | null
+    91→  role?: string | null
+    92→  departmentId?: string | null
+    93→  locationId?: string | null
+    94→  department?: Department | null
+    95→  location?: Location | null
+    96→  _count?: { assets: number }
+    97→}
+    98→
+    99→export interface Asset {
+   100→  id: string
+   101→  assetTag?: string | null
+   102→  assetTypeId: string
+   103→  make?: string | null
+   104→  model?: string | null
+   105→  modelNumber?: string | null
+   106→  serialNumber?: string | null
+   107→  partNumber?: string | null
+   108→  status: string
+   109→  purchaseDate?: string | null
+   110→  cost?: number | null
+   111→  currency: string
+   112→  warrantyExpiry?: string | null
+   113→  os?: string | null
+   114→  osKey?: string | null
+   115→  officeKey?: string | null
+   116→  cpu?: string | null
+   117→  gpu?: string | null
+   118→  ram?: string | null
+   119→  storage?: string | null
+   120→  color?: string | null
+   121→  imei1?: string | null
+   122→  imei2?: string | null
+   123→  rom?: string | null
+   124→  otpMobileNumber?: string | null
+   125→  googleAppleAccount?: string | null
+   126→  monitorMake?: string | null
+   127→  monitorModel?: string | null
+   128→  monitorSn?: string | null
+   129→  monitorSize?: string | null
+   130→  keyboardMake?: string | null
+   131→  keyboardModel?: string | null
+   132→  keyboardSn?: string | null
+   133→  mouseMake?: string | null
+   134→  mouseModel?: string | null
+   135→  mouseSn?: string | null
+   136→  assignedToId?: string | null
+   137→  departmentId?: string | null
+   138→  locationId?: string | null
+   139→  comments?: string | null
+   140→  createdAt: string
+   141→  updatedAt: string
+   142→  assetType?: AssetType
+   143→  assignedTo?: Person | null
+   144→  department?: Department | null
+   145→  location?: Location | null
+   146→  images?: AssetImage[]
+   147→  history?: AssignmentHistory[]
+   148→  tags?: AssetTag[]
+   149→  _count?: { images: number; history: number }
+   150→}
+   151→
+   152→export interface AssetImage {
+   153→  id: string
+   154→  assetId?: string | null
+   155→  fileName: string
+   156→  filePath: string
+   157→  mimeType: string
+   158→  fileSize: number
+   159→  processedText?: string | null
+   160→  ocrStatus: string
+   161→  ocrEngine?: string | null
+   162→  parsedFields?: string | null
+   163→  createdAt: string
+   164→  processedAt?: string | null
+   165→}
+   166→
+   167→export interface AssignmentHistory {
+   168→  id: string
+   169→  assetId: string
+   170→  personId?: string | null
+   171→  departmentId?: string | null
+   172→  locationId?: string | null
+   173→  assignedOn: string
+   174→  unassignedOn?: string | null
+   175→  reason?: string | null
+   176→  action: string
+   177→  notes?: string | null
+   178→  person?: Person | null
+   179→  department?: Department | null
+   180→  location?: Location | null
+   181→}
+   182→
+   183→export interface DashboardStats {
+   184→  totalAssets: number
+   185→  inUse: number
+   186→  inStock: number
+   187→  repair: number
+   188→  retired: number
+   189→  lost: number
+   190→  byType: { name: string; count: number }[]
+   191→  byDepartment: { name: string; count: number }[]
+   192→  byLocation: { name: string; count: number }[]
+   193→  byStatus: { status: string; count: number }[]
+   194→  recentActivity: (AssignmentHistory & {
+   195→    asset?: { id: string; assetTag?: string | null; make?: string | null; model?: string | null }
+   196→  })[]
+   197→  totalValue: number
+   198→  totalPersons: number
+   199→  totalDepartments: number
+   200→  totalLocations: number
+   201→  warrantyExpiringSoon: number
+   202→  maintenance?: {
+   203→    total: number
+   204→    scheduled: number
+   205→    inProgress: number
+   206→    completed: number
+   207→    overdue: number
+   208→  }
+   209→  licenses?: {
+   210→    total: number
+   211→    totalSeats: number
+   212→    usedSeats: number
+   213→    expiringSoon: number
+   214→    totalValue: number
+   215→  }
+   216→  auditLog?: ActivityLog[]
+   217→  checkouts?: {
+   218→    total: number
+   219→    pending: number
+   220→    checkedOut: number
+   221→    overdue: number
+   222→  }
+   223→  depreciation?: {
+   224→    totalAssets: number
+   225→    totalPurchaseValue: number
+   226→    totalCurrentValue: number
+   227→    totalDepreciation: number
+   228→    fullyDepreciatedCount: number
+   229→  }
+   230→  notifications?: {
+   231→    total: number
+   232→    unread: number
+   233→    critical: number
+   234→  }
+   235→  vendors?: {
+   236→    total: number
+   237→    active: number
+   238→  }
+   239→  procurement?: {
+   240→    totalPOs: number
+   241→    pendingApproval: number
+   242→    open: number
+   243→    received: number
+   244→    totalSpent: number
+   245→  }
+   246→  disposals?: {
+   247→    total: number
+   248→    totalRecovered: number
+   249→    totalCost: number
+   250→    pendingApproval: number
+   251→  }
+   252→  bookings?: {
+   253→    total: number
+   254→    pending: number
+   255→    active: number
+   256→    approved: number
+   257→    upcoming: number
+   258→  }
+   259→  tags?: {
+   260→    totalTags: number
+   261→    totalLinks: number
+   262→    topTags: { name: string; color: string; c: number }[]
+   263→  }
+   264→}
+   265→
+   266→export interface OcrResult {
+   267→  rawText: string
+   268→  parsed: {
+   269→    make?: string
+   270→    model?: string
+   271→    modelNumber?: string
+   272→    serialNumber?: string
+   273→    imei1?: string
+   274→    imei2?: string
+   275→    os?: string
+   276→    assetType?: string
+   277→  }
+   278→  imageId?: string
+   279→}
+   280→
+   281→// ============ Maintenance Schedule ============
+   282→export type MaintenanceType = 'Preventive' | 'Corrective' | 'Upgrade' | 'Inspection' | 'Cleaning'
+   283→export type MaintenanceStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Overdue' | 'Cancelled'
+   284→
+   285→export const MAINTENANCE_TYPES: MaintenanceType[] = [
+   286→  'Preventive',
+   287→  'Corrective',
+   288→  'Upgrade',
+   289→  'Inspection',
+   290→  'Cleaning',
+   291→]
+   292→
+   293→export const MAINTENANCE_STATUSES: MaintenanceStatus[] = [
+   294→  'Scheduled',
+   295→  'In Progress',
+   296→  'Completed',
+   297→  'Overdue',
+   298→  'Cancelled',
+   299→]
+   300→
+   301→export const MAINTENANCE_STATUS_CONFIG: Record<
+   302→  MaintenanceStatus,
+   303→  { bg: string; text: string; dot: string }
+   304→> = {
+   305→  Scheduled: {
+   306→    bg: 'bg-sky-500/10',
+   307→    text: 'text-sky-700 dark:text-sky-400',
+   308→    dot: 'bg-sky-500',
+   309→  },
+   310→  'In Progress': {
+   311→    bg: 'bg-amber-500/10',
+   312→    text: 'text-amber-700 dark:text-amber-400',
+   313→    dot: 'bg-amber-500',
+   314→  },
+   315→  Completed: {
+   316→    bg: 'bg-emerald-500/10',
+   317→    text: 'text-emerald-700 dark:text-emerald-400',
+   318→    dot: 'bg-emerald-500',
+   319→  },
+   320→  Overdue: {
+   321→    bg: 'bg-rose-500/10',
+   322→    text: 'text-rose-700 dark:text-rose-400',
+   323→    dot: 'bg-rose-500',
+   324→  },
+   325→  Cancelled: {
+   326→    bg: 'bg-slate-500/10',
+   327→    text: 'text-slate-700 dark:text-slate-400',
+   328→    dot: 'bg-slate-400',
+   329→  },
+   330→}
+   331→
+   332→export interface MaintenanceSchedule {
+   333→  id: string
+   334→  assetId: string
+   335→  type: MaintenanceType | string
+   336→  title: string
+   337→  description?: string | null
+   338→  scheduledFor: string
+   339→  completedAt?: string | null
+   340→  status: MaintenanceStatus | string
+   341→  cost?: number | null
+   342→  performedBy?: string | null
+   343→  notes?: string | null
+   344→  createdAt: string
+   345→  updatedAt: string
+   346→  asset?: Asset
+   347→}
+   348→
+   349→// ============ Audit Log / Activity Log ============
+   350→export interface ActivityLog {
+   351→  id: string
+   352→  action: string
+   353→  entityType: string
+   354→  entityId: string
+   355→  details?: string | null
+   356→  createdAt: string
+   357→  meta?: Record<string, unknown>
+   358→}
+   359→
+   360→// ============ Software License ============
+   361→export interface SoftwareLicense {
+   362→  id: string
+   363→  name: string
+   364→  vendor?: string | null
+   365→  key?: string | null
+   366→  seatsTotal: number
+   367→  seatsUsed: number
+   368→  purchaseDate?: string | null
+   369→  expiryDate?: string | null
+   370→  cost?: number | null
+   371→  currency: string
+   372→  category?: string | null
+   373→  notes?: string | null
+   374→  createdAt: string
+   375→  updatedAt: string
+   376→  _count?: { allocations: number }
+   377→  availableSeats?: number
+   378→}
+   379→
+   380→export interface AssetLicense {
+   381→  id: string
+   382→  assetId: string
+   383→  licenseId: string
+   384→  assignedAt: string
+   385→  createdAt: string
+   386→  license?: SoftwareLicense
+   387→  asset?: Asset
+   388→}
+   389→
+   390→// ============ Checkout Requests ============
+   391→export type CheckoutRequestType = 'Checkout' | 'Checkin' | 'Reserve'
+   392→export type CheckoutRequestStatus =
+   393→  | 'Pending'
+   394→  | 'Approved'
+   395→  | 'Rejected'
+   396→  | 'Checked Out'
+   397→  | 'Checked In'
+   398→  | 'Cancelled'
+   399→  | 'Overdue'
+   400→
+   401→export const CHECKOUT_STATUSES: CheckoutRequestStatus[] = [
+   402→  'Pending',
+   403→  'Approved',
+   404→  'Rejected',
+   405→  'Checked Out',
+   406→  'Checked In',
+   407→  'Cancelled',
+   408→  'Overdue',
+   409→]
+   410→
+   411→export const CHECKOUT_STATUS_CONFIG: Record<
+   412→  CheckoutRequestStatus,
+   413→  { bg: string; text: string; dot: string }
+   414→> = {
+   415→  Pending: { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', dot: 'bg-amber-500' },
+   416→  Approved: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500' },
+   417→  Rejected: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', dot: 'bg-rose-500' },
+   418→  'Checked Out': { bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', dot: 'bg-violet-500' },
+   419→  'Checked In': { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+   420→  Cancelled: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', dot: 'bg-slate-400' },
+   421→  Overdue: { bg: 'bg-red-500/10', text: 'text-red-700 dark:text-red-400', dot: 'bg-red-500' },
+   422→}
+   423→
+   424→export interface CheckoutRequest {
+   425→  id: string
+   426→  assetId: string
+   427→  requestedById: string
+   428→  requestType: CheckoutRequestType | string
+   429→  status: CheckoutRequestStatus | string
+   430→  reason?: string | null
+   431→  requestedStartDate: string
+   432→  requestedReturnDate?: string | null
+   433→  approvedById?: string | null
+   434→  approvedAt?: string | null
+   435→  decisionNotes?: string | null
+   436→  checkedOutAt?: string | null
+   437→  checkedInAt?: string | null
+   438→  actualReturnDate?: string | null
+   439→  conditionAtReturn?: string | null
+   440→  createdAt: string
+   441→  updatedAt: string
+   442→  asset?: Asset
+   443→  requestedBy?: Person
+   444→  approvedBy?: Person | null
+   445→}
+   446→
+   447→// ============ Depreciation ============
+   448→export type DepreciationMethod = 'straight-line' | 'declining-balance' | 'units-of-production'
+   449→
+   450→export const DEPRECIATION_METHODS: { value: DepreciationMethod; label: string; description: string }[] = [
+   451→  { value: 'straight-line', label: 'Straight Line', description: 'Equal depreciation each year' },
+   452→  { value: 'declining-balance', label: 'Declining Balance', description: 'Double declining balance (2x rate)' },
+   453→  { value: 'units-of-production', label: 'Units of Production', description: 'Based on usage' },
+   454→]
+   455→
+   456→export interface DepreciationRule {
+   457→  id: string
+   458→  name: string
+   459→  assetTypeId?: string | null
+   460→  method: DepreciationMethod | string
+   461→  usefulLifeYears: number
+   462→  salvageValuePercent: number
+   463→  description?: string | null
+   464→  isActive: boolean
+   465→  createdAt: string
+   466→  updatedAt: string
+   467→  assetType?: AssetType | null
+   468→}
+   469→
+   470→export interface DepreciationCalc {
+   471→  asset: Asset
+   472→  rule?: DepreciationRule | null
+   473→  purchaseCost: number
+   474→  currentValue: number
+   475→  depreciation: number
+   476→  depreciationPercent: number
+   477→  yearsElapsed: number
+   478→  yearsRemaining: number
+   479→  annualDepreciation: number
+   480→  salvageValue: number
+   481→  method: string
+   482→  isFullyDepreciated: boolean
+   483→}
+   484→
+   485→// ============ Notifications ============
+   486→export type NotificationType =
+   487→  | 'warranty_expiring'
+   488→  | 'maintenance_overdue'
+   489→  | 'maintenance_scheduled'
+   490→  | 'license_expiring'
+   491→  | 'license_expired'
+   492→  | 'checkout_request'
+   493→  | 'checkout_overdue'
+   494→  | 'low_stock'
+   495→  | 'asset_created'
+   496→  | 'system'
+   497→
+   498→export type NotificationSeverity = 'info' | 'warning' | 'critical' | 'success'
+   499→
+   500→export const NOTIFICATION_SEVERITY_CONFIG: Record<
+   501→  NotificationSeverity,
+   502→  { bg: string; text: string; icon: string }
+   503→> = {
+   504→  info: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', icon: 'Info' },
+   505→  warning: { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', icon: 'AlertTriangle' },
+   506→  critical: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', icon: 'AlertOctagon' },
+   507→  success: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', icon: 'CheckCircle2' },
+   508→}
+   509→
+   510→export interface AppNotification {
+   511→  id: string
+   512→  type: NotificationType | string
+   513→  severity: NotificationSeverity | string
+   514→  title: string
+   515→  message: string
+   516→  entityType?: string | null
+   517→  entityId?: string | null
+   518→  isRead: boolean
+   519→  actionUrl?: string | null
+   520→  actionLabel?: string | null
+   521→  createdAt: string
+   522→  readAt?: string | null
+   523→}
+   524→
+   525→// ============ Vendor / Supplier ============
+   526→export type VendorCategory =
+   527→  | 'Hardware'
+   528→  | 'Software'
+   529→  | 'Networking'
+   530→  | 'Peripherals'
+   531→  | 'Services'
+   532→  | 'Office Supplies'
+   533→  | 'Other'
+   534→
+   535→export const VENDOR_CATEGORIES: VendorCategory[] = [
+   536→  'Hardware',
+   537→  'Software',
+   538→  'Networking',
+   539→  'Peripherals',
+   540→  'Services',
+   541→  'Office Supplies',
+   542→  'Other',
+   543→]
+   544→
+   545→export interface Vendor {
+   546→  id: string
+   547→  name: string
+   548→  category?: string | null
+   549→  contactPerson?: string | null
+   550→  email?: string | null
+   551→  phone?: string | null
+   552→  website?: string | null
+   553→  address?: string | null
+   554→  taxId?: string | null
+   555→  paymentTerms?: string | null
+   556→  rating: number
+   557→  isActive: boolean
+   558→  notes?: string | null
+   559→  createdAt: string
+   560→  updatedAt: string
+   561→  _count?: { purchaseOrders: number }
+   562→  _sum?: { totalSpent: number }
+   563→}
+   564→
+   565→// ============ Purchase Orders ============
+   566→export type PurchaseOrderStatus =
+   567→  | 'Draft'
+   568→  | 'Pending Approval'
+   569→  | 'Approved'
+   570→  | 'Ordered'
+   571→  | 'Partially Received'
+   572→  | 'Received'
+   573→  | 'Cancelled'
+   574→  | 'Closed'
+   575→
+   576→export const PO_STATUSES: PurchaseOrderStatus[] = [
+   577→  'Draft',
+   578→  'Pending Approval',
+   579→  'Approved',
+   580→  'Ordered',
+   581→  'Partially Received',
+   582→  'Received',
+   583→  'Cancelled',
+   584→  'Closed',
+   585→]
+   586→
+   587→export const PO_STATUS_CONFIG: Record<
+   588→  PurchaseOrderStatus,
+   589→  { bg: string; text: string; dot: string }
+   590→> = {
+   591→  Draft: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', dot: 'bg-slate-400' },
+   592→  'Pending Approval': { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', dot: 'bg-amber-500' },
+   593→  Approved: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500' },
+   594→  Ordered: { bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', dot: 'bg-violet-500' },
+   595→  'Partially Received': { bg: 'bg-cyan-500/10', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500' },
+   596→  Received: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+   597→  Cancelled: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', dot: 'bg-rose-500' },
+   598→  Closed: { bg: 'bg-zinc-500/10', text: 'text-zinc-700 dark:text-zinc-400', dot: 'bg-zinc-500' },
+   599→}
+   600→
+   601→export interface PurchaseOrderItem {
+   602→  id: string
+   603→  poId: string
+   604→  assetTypeId?: string | null
+   605→  description: string
+   606→  quantity: number
+   607→  unitPrice: number
+   608→  totalPrice: number
+   609→  receivedQuantity: number
+   610→  notes?: string | null
+   611→  createdAt: string
+   612→  assetType?: AssetType | null
+   613→}
+   614→
+   615→export interface PurchaseOrder {
+   616→  id: string
+   617→  poNumber: string
+   618→  vendorId: string
+   619→  status: PurchaseOrderStatus | string
+   620→  orderDate: string
+   621→  expectedDate?: string | null
+   622→  receivedDate?: string | null
+   623→  subtotal: number
+   624→  taxRate: number
+   625→  taxAmount: number
+   626→  shippingCost: number
+   627→  totalAmount: number
+   628→  currency: string
+   629→  requestedById?: string | null
+   630→  approvedById?: string | null
+   631→  approvedAt?: string | null
+   632→  notes?: string | null
+   633→  createdAt: string
+   634→  updatedAt: string
+   635→  vendor?: Vendor
+   636→  requestedBy?: Person | null
+   637→  approvedBy?: Person | null
+   638→  items?: PurchaseOrderItem[]
+   639→  _count?: { items: number }
+   640→}
+   641→
+   642→// ============ Asset Disposal ============
+   643→export type DisposalMethod =
+   644→  | 'Sold'
+   645→  | 'Recycled'
+   646→  | 'Donated'
+   647→  | 'Scrapped'
+   648→  | 'Returned to Vendor'
+   649→  | 'Trade-in'
+   650→  | 'Disposed'
+   651→
+   652→export const DISPOSAL_METHODS: DisposalMethod[] = [
+   653→  'Sold',
+   654→  'Recycled',
+   655→  'Donated',
+   656→  'Scrapped',
+   657→  'Returned to Vendor',
+   658→  'Trade-in',
+   659→  'Disposed',
+   660→]
+   661→
+   662→export const DISPOSAL_METHOD_CONFIG: Record<
+   663→  DisposalMethod,
+   664→  { bg: string; text: string; icon: string }
+   665→> = {
+   666→  Sold: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', icon: 'DollarSign' },
+   667→  Recycled: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-400', icon: 'Recycle' },
+   668→  Donated: { bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-400', icon: 'Gift' },
+   669→  Scrapped: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', icon: 'Trash2' },
+   670→  'Returned to Vendor': { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', icon: 'Undo2' },
+   671→  'Trade-in': { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-400', icon: 'ArrowLeftRight' },
+   672→  Disposed: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', icon: 'Trash' },
+   673→}
+   674→
+   675→export interface AssetDisposal {
+   676→  id: string
+   677→  assetId: string
+   678→  disposalNumber?: string | null
+   679→  method: DisposalMethod | string
+   680→  reason?: string | null
+   681→  disposalDate: string
+   682→  residualValue: number
+   683→  disposalCost: number
+   684→  netProceeds: number
+   685→  buyerRecipient?: string | null
+   686→  conditionAtDisposal?: string | null
+   687→  environmentalCompliant: boolean
+   688→  certificateNumber?: string | null
+   689→  approvedById?: string | null
+   690→  approvedAt?: string | null
+   691→  notes?: string | null
+   692→  createdAt: string
+   693→  updatedAt: string
+   694→  asset?: Asset
+   695→  approvedBy?: Person | null
+   696→}
+   697→
+   698→// ============ Asset Tags ============
+   699→export type TagColor =
+   700→  | 'slate' | 'emerald' | 'amber' | 'rose' | 'violet'
+   701→  | 'sky' | 'orange' | 'pink' | 'lime' | 'cyan'
+   702→
+   703→export const TAG_COLORS: { value: TagColor; label: string; bg: string; text: string; dot: string; border: string }[] = [
+   704→  { value: 'slate', label: 'Slate', bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-300', dot: 'bg-slate-500', border: 'border-slate-500/30' },
+   705→  { value: 'emerald', label: 'Emerald', bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500', border: 'border-emerald-500/30' },
+   706→  { value: 'amber', label: 'Amber', bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500', border: 'border-amber-500/30' },
+   707→  { value: 'rose', label: 'Rose', bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500', border: 'border-rose-500/30' },
+   708→  { value: 'violet', label: 'Violet', bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500', border: 'border-violet-500/30' },
+   709→  { value: 'sky', label: 'Sky', bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500', border: 'border-sky-500/30' },
+   710→  { value: 'orange', label: 'Orange', bg: 'bg-orange-500/10', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', border: 'border-orange-500/30' },
+   711→  { value: 'pink', label: 'Pink', bg: 'bg-pink-500/10', text: 'text-pink-700 dark:text-pink-300', dot: 'bg-pink-500', border: 'border-pink-500/30' },
+   712→  { value: 'lime', label: 'Lime', bg: 'bg-lime-500/10', text: 'text-lime-700 dark:text-lime-300', dot: 'bg-lime-500', border: 'border-lime-500/30' },
+   713→  { value: 'cyan', label: 'Cyan', bg: 'bg-cyan-500/10', text: 'text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500', border: 'border-cyan-500/30' },
+   714→]
+   715→
+   716→export function getTagColorConfig(color: string) {
+   717→  return TAG_COLORS.find((c) => c.value === color) || TAG_COLORS[0]
+   718→}
+   719→
+   720→export interface AssetTag {
+   721→  id: string
+   722→  name: string
+   723→  color: TagColor | string
+   724→  description?: string | null
+   725→  createdAt: string
+   726→  updatedAt: string
+   727→  _count?: { assets: number }
+   728→}
+   729→
+   730→// ============ Asset Bookings ============
+   731→export type BookingStatus =
+   732→  | 'Pending'
+   733→  | 'Approved'
+   734→  | 'Rejected'
+   735→  | 'Active'
+   736→  | 'Completed'
+   737→  | 'Cancelled'
+   738→
+   739→export const BOOKING_STATUSES: BookingStatus[] = [
+   740→  'Pending',
+   741→  'Approved',
+   742→  'Rejected',
+   743→  'Active',
+   744→  'Completed',
+   745→  'Cancelled',
+   746→]
+   747→
+   748→export const BOOKING_STATUS_CONFIG: Record<
+   749→  BookingStatus,
+   750→  { bg: string; text: string; dot: string; label: string }
+   751→> = {
+   752→  Pending: { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500', label: 'Pending Approval' },
+   753→  Approved: { bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500', label: 'Approved' },
+   754→  Rejected: { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500', label: 'Rejected' },
+   755→  Active: { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500', label: 'Active (Checked Out)' },
+   756→  Completed: { bg: 'bg-zinc-500/10', text: 'text-zinc-700 dark:text-zinc-300', dot: 'bg-zinc-500', label: 'Completed' },
+   757→  Cancelled: { bg: 'bg-slate-500/10', text: 'text-slate-700 dark:text-slate-400', dot: 'bg-slate-500', label: 'Cancelled' },
+   758→}
+   759→
+   760→export interface AssetBooking {
+   761→  id: string
+   762→  assetId: string
+   763→  bookedById: string
+   764→  title: string
+   765→  purpose?: string | null
+   766→  status: BookingStatus | string
+   767→  startDate: string
+   768→  endDate: string
+   769→  requestedById?: string | null
+   770→  approvedById?: string | null
+   771→  approvedAt?: string | null
+   772→  decisionNotes?: string | null
+   773→  checkedOutAt?: string | null
+   774→  checkedInAt?: string | null
+   775→  notes?: string | null
+   776→  createdAt: string
+   777→  updatedAt: string
+   778→  asset?: Asset
+   779→  bookedBy?: Person | null
+   780→  approvedBy?: Person | null
+   781→  _conflicts?: AssetBooking[]
+   782→}
+   783→
+   784→// ============ Saved Reports (Round 5) ============
+   785→export interface SavedReport {
+   786→  id: string
+   787→  name: string
+   788→  description?: string | null
+   789→  section?: string | null
+   790→  config: SavedReportConfig
+   791→  createdBy?: string | null
+   792→  createdAt: string
+   793→  updatedAt: string
+   794→}
+   795→
+   796→export interface SavedReportConfig {
+   797→  range?: 'all' | '30d' | '90d' | '365d' | 'custom'
+   798→  customStart?: string | null
+   799→  customEnd?: string | null
+   800→  months?: number
+   801→  // Reserved for future per-section filters
+   802→  filters?: Record<string, unknown>
+   803→}
+   804→
+   805→// Vendor performance analytics result
+   806→export interface VendorPerformance {
+   807→  vendorId: string
+   808→  vendorName: string
+   809→  category?: string | null
+   810→  rating: number
+   811→  isActive: boolean
+   812→  totalPOs: number
+   813→  activePOs: number
+   814→  completedPOs: number
+   815→  cancelledPOs: number
+   816→  totalSpent: number
+   817→  avgDeliveryDays: number | null
+   818→  onTimeRate: number // 0..1
+   819→  lateDeliveries: number
+   820→}
+   821→
+   822→// Asset lifecycle YoY comparison
+   823→export interface LifecycleYoYPoint {
+   824→  assetType: string
+   825→  currentYear: number
+   826→  previousYear: number
+   827→  delta: number
+   828→  deltaPct: number | null
+   829→}
+   830→
+   831→// ============ Round 6: Expirations Center ============
+   832→export type ExpirationUrgency = 'expired' | '30d' | '60d' | '90d' | 'future'
+   833→
+   834→export interface ExpirationItem {
+   835→  id: string
+   836→  kind: 'warranty' | 'license'
+   837→  name: string
+   838→  subtitle?: string | null
+   839→  entityId: string
+   840→  entityType: string
+   841→  expiryDate: string
+   842→  daysUntilExpiry: number
+   843→  urgency: ExpirationUrgency
+   844→  cost?: number | null
+   845→  currency?: string | null
+   846→  meta?: Record<string, string | null | undefined>
+   847→}
+   848→
+   849→export interface ExpirationReport {
+   850→  items: ExpirationItem[]
+   851→  totals: {
+   852→    expired: number
+   853→    within30: number
+   854→    within60: number
+   855→    within90: number
+   856→    future: number
+   857→    total: number
+   858→    exposedValue: number // sum of cost for expired + within 90d
+   859→  }
+   860→}
+   861→
+   862→// ============ Round 6: Utilization Dashboard ============
+   863→export interface UtilizationByBucket {
+   864→  bucketId: string
+   865→  bucketName: string
+   866→  total: number
+   867→  inUse: number
+   868→  inStock: number
+   869→  repair: number
+   870→  retired: number
+   871→  lost: number
+   872→  utilizationRate: number // 0..1 — inUse / (total - retired - lost)
+   873→  idleDays?: number | null
+   874→}
+   875→
+   876→export interface IdleAsset {
+   877→  id: string
+   878→  assetTag: string | null
+   879→  name: string
+   880→  serialNumber: string | null
+   881→  status: string
+   882→  purchaseDate: string | null
+   883→  daysIdle: number
+   884→  departmentName?: string | null
+   885→  locationName?: string | null
+   886→}
+   887→
+   888→export interface UtilizationReport {
+   889→  byDepartment: UtilizationByBucket[]
+   890→  byAssetType: UtilizationByBucket[]
+   891→  overall: {
+   892→    totalAssets: number
+   893→    inUse: number
+   894→    inStock: number
+   895→    repair: number
+   896→    retired: number
+   897→    lost: number
+   898→    utilizationRate: number
+   899→    idleCount: number
+   900→  }
+   901→  idleAssets: IdleAsset[]
+   902→}
+   903→
+   904→// ============ Round 6: Maintenance Cost Analytics ============
+   905→export interface MaintenanceCostByType {
+   906→  assetType: string
+   907→  totalCost: number
+   908→  eventCount: number
+   909→  avgCost: number
+   910→  assetCount: number
+   911→}
+   912→
+   913→export interface MaintenanceCostTrendPoint {
+   914→  month: string // YYYY-MM
+   915→  totalCost: number
+   916→  eventCount: number
+   917→}
+   918→
+   919→export interface TopMaintenanceAsset {
+   920→  assetId: string
+   921→  assetTag: string | null
+   922→  assetName: string
+   923→  assetTypeName?: string | null
+   924→  totalCost: number
+   925→  eventCount: number
+   926→  lastMaintenanceAt: string | null
+   927→}
+   928→
+   929→export interface MaintenanceCostReport {
+   930→  byType: MaintenanceCostByType[]
+   931→  trend: MaintenanceCostTrendPoint[]
+   932→  topAssets: TopMaintenanceAsset[]
+   933→  totals: {
+   934→    totalCost: number
+   935→    totalEvents: number
+   936→    avgCostPerEvent: number
+   937→    trendDeltaPct: number | null // current month vs previous month
+   938→  }
+   939→}
+   940→
+   941→// ============ Round 7: Asset Timeline ============
+   942→export type TimelineEventType =
+   943→  | 'created'
+   944→  | 'updated'
+   945→  | 'assigned'
+   946→  | 'unassigned'
+   947→  | 'maintenance.scheduled'
+   948→  | 'maintenance.completed'
+   949→  | 'maintenance.cancelled'
+   950→  | 'booking.created'
+   951→  | 'booking.completed'
+   952→  | 'license.allocated'
+   953→  | 'license.deallocated'
+   954→  | 'image.added'
+   955→  | 'disposal'
+   956→  | 'checkout'
+   957→  | 'checkin'
+   958→
+   959→export interface TimelineEvent {
+   960→  id: string
+   961→  type: TimelineEventType | string
+   962→  timestamp: string
+   963→  title: string
+   964→  description?: string | null
+   965→  icon?: string
+   966→  actorName?: string | null
+   967→  meta?: Record<string, string | number | null | undefined>
+   968→}
+   969→
+   970→export interface AssetTimeline {
+   971→  assetId: string
+   972→  assetTag: string | null
+   973→  assetName: string
+   974→  events: TimelineEvent[]
+   975→  stats: {
+   976→    totalEvents: number
+   977→    assignmentCount: number
+   978→    maintenanceCount: number
+   979→    bookingCount: number
+   980→    checkoutCount: number
+   981→    licenseCount: number
+   982→    imageCount: number
+   983→    firstEventAt: string | null
+   984→    lastEventAt: string | null
+   985→  }
+   986→}
+   987→
+   988→// ============ Round 7: PO Receiving ============
+   989→export interface POReceiveItemPayload {
+   990→  itemId: string
+   991→  receivedQty: number
+   992→}
+   993→
+   994→export interface POReceiveResult {
+   995→  po: PurchaseOrder
+   996→  receivedItems: { itemId: string; description: string; receivedNow: number; totalReceived: number; quantity: number; fullyReceived: boolean }[]
+   997→  allItemsReceived: boolean
+   998→  // Round 8: when an item has assetTypeId set, the receiver auto-creates Asset rows
+   999→  // one per received unit. Each entry contains the itemId + list of new assetIds.
+  1000→  createdAssets?: { itemId: string; assetIds: string[]; assetTags: string[] }[]
+  1001→}
+  1002→
+  1003→// ============ Round 8: Expiry Renew Workflow ============
+  1004→export interface ExpiryRenewPayload {
+  1005→  // assetId for warranty, licenseId for software license
+  1006→  assetId?: string
+  1007→  licenseId?: string
+  1008→  vendorId: string
+  1009→  expectedDate?: string
+  1010→  notes?: string
+  1011→}
+  1012→
+  1013→export interface ExpiryRenewResult {
+  1014→  po: PurchaseOrder
+  1015→  renewedItem: { expiryType: 'warranty' | 'license'; entityId: string; entityName: string; currentExpiry: string | null }
+  1016→}
+  1017→
+  1018→// ============ Round 8: Utilization Idle Threshold ============
+  1019→export interface UtilizationReportOpts {
+  1020→  idleThresholdDays?: 30 | 60 | 90 | 180
+  1021→}
+  1022→
+  1023→// ============ Round 7: Asset Location Map ============
+  1024→export interface LocationAssetSummary {
+  1025→  locationId: string
+  1026→  locationName: string
+  1027→  address?: string | null
+  1028→  totalAssets: number
+  1029→  inUse: number
+  1030→  inStock: number
+  1031→  repair: number
+  1032→  retired: number
+  1033→  lost: number
+  1034→  utilizationRate: number
+  1035→  totalValue: number
+  1036→  byType: { assetType: string; count: number }[]
+  1037→  topAssets: {
+  1038→    id: string
+  1039→    assetTag: string | null
+  1040→    name: string
+  1041→    status: string
+  1042→    assetType: string
+  1043→  }[]
+  1044→}
+  1045→
+  1046→export interface AssetLocationMapReport {
+  1047→  locations: LocationAssetSummary[]
+  1048→  totals: {
+  1049→    totalLocations: number
+  1050→    totalAssets: number
+  1051→    totalValue: number
+  1052→    avgUtilization: number
+  1053→  }
+  1054→  unassigned: {
+  1055→    count: number
+  1056→    value: number
+  1057→  }
+  1058→}
+  1059→
+  1060→// ============ Round 7: Cost Forecast ============
+  1061→export interface CostForecastPoint {
+  1062→  month: string // YYYY-MM
+  1063→  historical: number | null // null for future months
+  1064→  forecast: number | null // null for past months
+  1065→  lowerBound: number | null
+  1066→  upperBound: number | null
+  1067→}
+  1068→
+  1069→export interface CostForecastCategory {
+  1070→  category: 'purchase' | 'maintenance' | 'depreciation'
+  1071→  history: { month: string; value: number }[]
+  1072→  forecast: { month: string; value: number; lowerBound: number; upperBound: number }[]
+  1073→  trendSlope: number // per month
+  1074→  trendDirection: 'up' | 'down' | 'flat'
+  1075→  totalHistorical: number
+  1076→  totalForecast: number
+  1077→  projectedAnnual: number
+  1078→}
+  1079→
+  1080→export interface CostForecastReport {
+  1081→  categories: CostForecastCategory[]
+  1082→  combined: CostForecastPoint[]
+  1083→  totals: {
+  1084→    historicalTotal: number
+  1085→    forecastTotal: number
+  1086→    projectedAnnual: number
+  1087→    trendDirection: 'up' | 'down' | 'flat'
+  1088→    trendPct: number | null
+  1089→  }
+  1090→}
+  1091→
+  1092→// ============ Round 9: Asset Audit / Physical Inventory ============
+  1093→export type AuditScope = 'all' | 'location' | 'department' | 'type'
+  1094→export type AuditStatus = 'Open' | 'In Progress' | 'Completed' | 'Cancelled'
+  1095→export type AuditItemStatus = 'Pending' | 'Verified' | 'Missing' | 'Found' | 'Extra'
+  1096→
+  1097→export interface AssetAudit {
+  1098→  id: string
+  1099→  auditNumber: string
+  1100→  title: string
+  1101→  scope: AuditScope
+  1102→  scopeId?: string | null
+  1103→  scopeName?: string | null
+  1104→  status: AuditStatus
+  1105→  startedAt?: string | null
+  1106→  completedAt?: string | null
+  1107→  startedById?: string | null
+  1108→  startedByName?: string | null
+  1109→  notes?: string | null
+  1110→  createdAt: string
+  1111→  updatedAt: string
+  1112→  // Aggregated stats (computed when fetched via list/get)
+  1113→  stats?: {
+  1114→    total: number
+  1115→    verified: number
+  1116→    missing: number
+  1117→    found: number
+  1118→    extra: number
+  1119→    pending: number
+  1120→    accuracyPct: number // verified / (verified + missing) — excludes extras/pending
+  1121→  }
+  1122→}
+  1123→
+  1124→export interface AssetAuditItem {
+  1125→  id: string
+  1126→  auditId: string
+  1127→  assetId?: string | null
+  1128→  assetTag?: string | null
+  1129→  assetName?: string | null
+  1130→  assetTypeName?: string | null
+  1131→  status: AuditItemStatus
+  1132→  expected: boolean
+  1133→  scannedAt?: string | null
+  1134→  scannedByName?: string | null
+  1135→  notes?: string | null
+  1136→  createdAt: string
+  1137→  updatedAt: string
+  1138→}
+  1139→
+  1140→export interface AssetAuditCreatePayload {
+  1141→  title: string
+  1142→  scope: AuditScope
+  1143→  scopeId?: string
+  1144→  notes?: string
+  1145→  startedById?: string
+  1146→}
+  1147→
+  1148→export interface AssetAuditScanPayload {
+  1149→  // Identify the asset being scanned — must provide at least one identifier.
+  1150→  assetId?: string
+  1151→  assetTag?: string
+  1152→  // Override status: defaults to Verified for expected assets, Extra for unexpected.
+  1153→  status?: AuditItemStatus
+  1154→  scannedByName?: string
+  1155→  notes?: string
+  1156→}
+  1157→
+  1158→export interface AssetAuditScanResult {
+  1159→  auditId: string
+  1160→  item: AssetAuditItem
+  1161→  // Whether this scan was on the expected list (true) or a brand-new Extra (false)
+  1162→  wasExpected: boolean
+  1163→  // Convenience flag — when true the asset was previously Pending and is now Verified
+  1164→  newlyVerified: boolean
+  1165→}
+  1166→
+  1167→export interface ExpiryBulkRenewItem {
+  1168→  // Either assetId (for warranty) or licenseId (for software license) must be set
+  1169→  assetId?: string
+  1170→  licenseId?: string
+  1171→}
+  1172→
+  1173→export interface ExpiryBulkRenewPayload {
+  1174→  vendorId: string
+  1175→  items: ExpiryBulkRenewItem[]
+  1176→  expectedDate?: string
+  1177→  notes?: string
+  1178→}
+  1179→
+  1180→export interface ExpiryBulkRenewResult {
+  1181→  po: PurchaseOrder
+  1182→  renewedItems: {
+  1183→    expiryType: 'warranty' | 'license'
+  1184→    entityId: string
+  1185→    entityName: string
+  1186→    currentExpiry: string | null
+  1187→  }[]
+  1188→}
+  1189→
+  1190→

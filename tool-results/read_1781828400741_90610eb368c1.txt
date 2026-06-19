@@ -1,0 +1,602 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { useQuery, useQueryClient } from '@tanstack/react-query'
+     5→import { assetsApi, assetTypesApi, departmentsApi, locationsApi, personsApi } from '@/lib/api'
+     6→import { useNav } from '@/lib/nav'
+     7→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import { Badge } from '@/components/ui/badge'
+    13→import { Separator } from '@/components/ui/separator'
+    14→import {
+    15→  Select,
+    16→  SelectContent,
+    17→  SelectItem,
+    18→  SelectTrigger,
+    19→  SelectValue,
+    20→} from '@/components/ui/select'
+    21→import { ASSET_STATUSES, STATUS_CONFIG } from '@/lib/types'
+    22→import {
+    23→  ArrowLeft,
+    24→  Save,
+    25→  Package,
+    26→  Cpu,
+    27→  MemoryStick,
+    28→  HardDrive,
+    29→  Monitor,
+    30→  Keyboard,
+    31→  Mouse,
+    32→  Smartphone,
+    33→  User,
+    34→  Building2,
+    35→  Calendar,
+    36→  DollarSign,
+    37→  ShieldCheck,
+    38→  CircleDot,
+    39→  Wand2,
+    40→  Plus,
+    41→  FileText,
+    42→  KeyRound,
+    43→} from 'lucide-react'
+    44→import { toast } from 'sonner'
+    45→import { generateAssetTag } from '@/lib/format'
+    46→
+    47→interface FormState {
+    48→  assetTag: string
+    49→  assetTypeId: string
+    50→  make: string
+    51→  model: string
+    52→  modelNumber: string
+    53→  serialNumber: string
+    54→  partNumber: string
+    55→  status: string
+    56→  purchaseDate: string
+    57→  cost: string
+    58→  currency: string
+    59→  warrantyExpiry: string
+    60→  os: string
+    61→  osKey: string
+    62→  officeKey: string
+    63→  cpu: string
+    64→  gpu: string
+    65→  ram: string
+    66→  storage: string
+    67→  color: string
+    68→  imei1: string
+    69→  imei2: string
+    70→  rom: string
+    71→  otpMobileNumber: string
+    72→  googleAppleAccount: string
+    73→  monitorMake: string
+    74→  monitorModel: string
+    75→  monitorSn: string
+    76→  monitorSize: string
+    77→  keyboardMake: string
+    78→  keyboardModel: string
+    79→  keyboardSn: string
+    80→  mouseMake: string
+    81→  mouseModel: string
+    82→  mouseSn: string
+    83→  assignedToId: string
+    84→  departmentId: string
+    85→  locationId: string
+    86→  comments: string
+    87→}
+    88→
+    89→const EMPTY: FormState = {
+    90→  assetTag: '', assetTypeId: '', make: '', model: '', modelNumber: '', serialNumber: '',
+    91→  partNumber: '', status: 'In Stock', purchaseDate: '', cost: '', currency: 'USD',
+    92→  warrantyExpiry: '', os: '', osKey: '', officeKey: '', cpu: '', gpu: '', ram: '',
+    93→  storage: '', color: '', imei1: '', imei2: '', rom: '', otpMobileNumber: '',
+    94→  googleAppleAccount: '', monitorMake: '', monitorModel: '', monitorSn: '', monitorSize: '',
+    95→  keyboardMake: '', keyboardModel: '', keyboardSn: '', mouseMake: '', mouseModel: '',
+    96→  mouseSn: '', assignedToId: '', departmentId: '', locationId: '', comments: '',
+    97→}
+    98→
+    99→function toDateInput(s?: string | null): string {
+   100→  if (!s) return ''
+   101→  const d = new Date(s)
+   102→  if (isNaN(d.getTime())) return ''
+   103→  return d.toISOString().slice(0, 10)
+   104→}
+   105→
+   106→function Field({ label, children, icon: Icon, hint }: { label: string; children: React.ReactNode; icon?: typeof Cpu; hint?: string }) {
+   107→  return (
+   108→    <div className="space-y-1.5">
+   109→      <Label className="text-xs flex items-center gap-1.5">
+   110→        {Icon && <Icon className="h-3 w-3 text-muted-foreground" />}
+   111→        {label}
+   112→      </Label>
+   113→      {children}
+   114→      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+   115→    </div>
+   116→  )
+   117→}
+   118→
+   119→export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?: string; prefill?: Partial<FormState> }) {
+   120→  const { navigate, back } = useNav()
+   121→  const qc = useQueryClient()
+   122→  const [form, setForm] = useState<FormState>({ ...EMPTY, ...prefill })
+   123→  const [saving, setSaving] = useState(false)
+   124→  const [saveAndNew, setSaveAndNew] = useState(false)
+   125→
+   126→  const { data: types } = useQuery({ queryKey: ['asset-types'], queryFn: () => assetTypesApi.list() })
+   127→  const { data: depts } = useQuery({ queryKey: ['departments'], queryFn: () => departmentsApi.list() })
+   128→  const { data: locs } = useQuery({ queryKey: ['locations'], queryFn: () => locationsApi.list() })
+   129→  const { data: persons } = useQuery({ queryKey: ['persons'], queryFn: () => personsApi.list() })
+   130→
+   131→  const { data: existing } = useQuery({
+   132→    queryKey: ['asset', id],
+   133→    queryFn: () => assetsApi.get(id!),
+   134→    enabled: mode === 'edit' && !!id,
+   135→  })
+   136→
+   137→  useEffect(() => {
+   138→    if (mode === 'edit' && existing) {
+   139→      setForm({
+   140→        assetTag: existing.assetTag || '',
+   141→        assetTypeId: existing.assetTypeId || '',
+   142→        make: existing.make || '',
+   143→        model: existing.model || '',
+   144→        modelNumber: existing.modelNumber || '',
+   145→        serialNumber: existing.serialNumber || '',
+   146→        partNumber: existing.partNumber || '',
+   147→        status: existing.status || 'In Stock',
+   148→        purchaseDate: toDateInput(existing.purchaseDate),
+   149→        cost: existing.cost?.toString() || '',
+   150→        currency: existing.currency || 'USD',
+   151→        warrantyExpiry: toDateInput(existing.warrantyExpiry),
+   152→        os: existing.os || '',
+   153→        osKey: existing.osKey || '',
+   154→        officeKey: existing.officeKey || '',
+   155→        cpu: existing.cpu || '',
+   156→        gpu: existing.gpu || '',
+   157→        ram: existing.ram || '',
+   158→        storage: existing.storage || '',
+   159→        color: existing.color || '',
+   160→        imei1: existing.imei1 || '',
+   161→        imei2: existing.imei2 || '',
+   162→        rom: existing.rom || '',
+   163→        otpMobileNumber: existing.otpMobileNumber || '',
+   164→        googleAppleAccount: existing.googleAppleAccount || '',
+   165→        monitorMake: existing.monitorMake || '',
+   166→        monitorModel: existing.monitorModel || '',
+   167→        monitorSn: existing.monitorSn || '',
+   168→        monitorSize: existing.monitorSize || '',
+   169→        keyboardMake: existing.keyboardMake || '',
+   170→        keyboardModel: existing.keyboardModel || '',
+   171→        keyboardSn: existing.keyboardSn || '',
+   172→        mouseMake: existing.mouseMake || '',
+   173→        mouseModel: existing.mouseModel || '',
+   174→        mouseSn: existing.mouseSn || '',
+   175→        assignedToId: existing.assignedToId || '',
+   176→        departmentId: existing.departmentId || '',
+   177→        locationId: existing.locationId || '',
+   178→        comments: existing.comments || '',
+   179→      })
+   180→    }
+   181→  }, [mode, existing])
+   182→
+   183→  // Read OCR prefill from sessionStorage on mount (new mode)
+   184→  useEffect(() => {
+   185→    if (mode === 'new') {
+   186→      try {
+   187→        const stored = sessionStorage.getItem('ocr-prefill')
+   188→        const storedType = sessionStorage.getItem('ocr-asset-type')
+   189→        if (stored || storedType) {
+   190→          const parsed = stored ? JSON.parse(stored) : {}
+   191→          setForm((f) => ({
+   192→            ...f,
+   193→            ...parsed,
+   194→            assetTypeId: storedType || f.assetTypeId,
+   195→          }))
+   196→          sessionStorage.removeItem('ocr-prefill')
+   197→          sessionStorage.removeItem('ocr-asset-type')
+   198→          toast.success('Pre-filled from OCR results')
+   199→        }
+   200→      } catch {}
+   201→    }
+   202→  }, [mode])
+   203→
+   204→  // When asset type changes, suggest an asset tag
+   205→  useEffect(() => {
+   206→    if (mode === 'new' && !form.assetTag && form.assetTypeId && types) {
+   207→      const t = types.find((x) => x.id === form.assetTypeId)
+   208→      if (t) {
+   209→        setForm((f) => ({ ...f, assetTag: generateAssetTag(t.name) }))
+   210→      }
+   211→    }
+   212→  }, [form.assetTypeId, mode, types])
+   213→
+   214→  // Auto-fill department/location from selected person
+   215→  useEffect(() => {
+   216→    if (form.assignedToId && persons) {
+   217→      const p = persons.find((x) => x.id === form.assignedToId)
+   218→      if (p) {
+   219→        setForm((f) => ({
+   220→          ...f,
+   221→          departmentId: f.departmentId || p.departmentId || '',
+   222→          locationId: f.locationId || p.locationId || '',
+   223→        }))
+   224→      }
+   225→    }
+   226→  }, [form.assignedToId, persons])
+   227→
+   228→  const isMobile = (() => {
+   229→    if (!form.assetTypeId || !types) return false
+   230→    const t = types.find((x) => x.id === form.assetTypeId)
+   231→    return ['Mobile', 'Tablet'].includes(t?.name || '')
+   232→  })()
+   233→
+   234→  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+   235→    setForm((f) => ({ ...f, [key]: value }))
+   236→  }
+   237→
+   238→  async function handleSave(andNew: boolean) {
+   239→    if (!form.assetTypeId) {
+   240→      toast.error('Please select an asset type')
+   241→      return
+   242→    }
+   243→    setSaving(true)
+   244→    setSaveAndNew(andNew)
+   245→    try {
+   246→      const payload: Record<string, unknown> = {
+   247→        ...form,
+   248→        cost: form.cost ? parseFloat(form.cost) : null,
+   249→        purchaseDate: form.purchaseDate ? new Date(form.purchaseDate).toISOString() : null,
+   250→        warrantyExpiry: form.warrantyExpiry ? new Date(form.warrantyExpiry).toISOString() : null,
+   251→        assignedToId: form.assignedToId || null,
+   252→        departmentId: form.departmentId || null,
+   253→        locationId: form.locationId || null,
+   254→      }
+   255→      Object.keys(payload).forEach((k) => {
+   256→        if (payload[k] === '') payload[k] = null
+   257→      })
+   258→
+   259→      let result
+   260→      if (mode === 'edit' && id) {
+   261→        result = await assetsApi.update(id, payload)
+   262→        toast.success('Asset updated successfully')
+   263→      } else {
+   264→        result = await assetsApi.create(payload)
+   265→        toast.success('Asset created successfully')
+   266→      }
+   267→      qc.invalidateQueries({ queryKey: ['assets'] })
+   268→      qc.invalidateQueries({ queryKey: ['dashboard'] })
+   269→
+   270→      if (andNew && mode === 'new') {
+   271→        setForm({ ...EMPTY })
+   272→      } else {
+   273→        navigate('asset-detail', { id: result.id })
+   274→      }
+   275→    } catch (e) {
+   276→      toast.error('Save failed: ' + String(e))
+   277→    } finally {
+   278→      setSaving(false)
+   279→      setSaveAndNew(false)
+   280→    }
+   281→  }
+   282→
+   283→  const cfg = STATUS_CONFIG[form.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
+   284→
+   285→  return (
+   286→    <div className="space-y-5 animate-fade-in-up">
+   287→      {/* Header */}
+   288→      <div className="flex items-center justify-between gap-3">
+   289→        <div className="flex items-center gap-3">
+   290→          <Button variant="ghost" size="icon" onClick={back} className="-ml-2">
+   291→            <ArrowLeft className="h-4 w-4" />
+   292→          </Button>
+   293→          <div>
+   294→            <h2 className="text-lg font-bold">
+   295→              {mode === 'edit' ? 'Edit Asset' : 'Add New Asset'}
+   296→            </h2>
+   297→            <p className="text-xs text-muted-foreground">
+   298→              {mode === 'edit' ? 'Update asset information' : 'Create a new asset record'}
+   299→            </p>
+   300→          </div>
+   301→        </div>
+   302→        <div className="flex items-center gap-2">
+   303→          {mode === 'new' && (
+   304→            <Button variant="outline" onClick={() => navigate('ocr-upload')}>
+   305→              <Wand2 className="h-4 w-4 mr-1.5" /> Use OCR Instead
+   306→            </Button>
+   307→          )}
+   308→          <Button variant="outline" onClick={back}>Cancel</Button>
+   309→          {mode === 'new' && (
+   310→            <Button variant="outline" onClick={() => handleSave(true)} disabled={saving}>
+   311→              {saveAndNew ? 'Saving...' : 'Save & New'}
+   312→            </Button>
+   313→          )}
+   314→          <Button onClick={() => handleSave(false)} disabled={saving}>
+   315→            <Save className="h-4 w-4 mr-1.5" /> {saving ? 'Saving...' : mode === 'edit' ? 'Update' : 'Save Asset'}
+   316→          </Button>
+   317→        </div>
+   318→      </div>
+   319→
+   320→      <div className="grid gap-5 lg:grid-cols-3">
+   321→        <div className="lg:col-span-2 space-y-5">
+   322→          {/* Basic Info */}
+   323→          <Card>
+   324→            <CardHeader className="pb-3">
+   325→              <CardTitle className="flex items-center gap-2 text-sm">
+   326→                <Package className="h-4 w-4" /> Basic Information
+   327→              </CardTitle>
+   328→              <CardDescription>Core asset identification details</CardDescription>
+   329→            </CardHeader>
+   330→            <CardContent className="grid gap-4 sm:grid-cols-2">
+   331→              <Field label="Asset Type *" icon={Package}>
+   332→                <Select value={form.assetTypeId} onValueChange={(v) => set('assetTypeId', v)}>
+   333→                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+   334→                  <SelectContent>
+   335→                    {types?.map((t) => (
+   336→                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+   337→                    ))}
+   338→                  </SelectContent>
+   339→                </Select>
+   340→              </Field>
+   341→              <Field label="Status" icon={CircleDot}>
+   342→                <Select value={form.status} onValueChange={(v) => set('status', v)}>
+   343→                  <SelectTrigger><SelectValue /></SelectTrigger>
+   344→                  <SelectContent>
+   345→                    {ASSET_STATUSES.map((s) => (
+   346→                      <SelectItem key={s} value={s}>{s}</SelectItem>
+   347→                    ))}
+   348→                  </SelectContent>
+   349→                </Select>
+   350→              </Field>
+   351→              <Field label="Asset Tag" icon={Package}>
+   352→                <div className="flex gap-2">
+   353→                  <Input value={form.assetTag} onChange={(e) => set('assetTag', e.target.value)} placeholder="TC-000018" className="font-mono" />
+   354→                  <Button type="button" variant="outline" size="icon" onClick={() => set('assetTag', generateAssetTag())}>
+   355→                    <Wand2 className="h-3.5 w-3.5" />
+   356→                  </Button>
+   357→                </div>
+   358→              </Field>
+   359→              <Field label="Make" icon={Package}>
+   360→                <Input value={form.make} onChange={(e) => set('make', e.target.value)} placeholder="Dell, HP, Apple..." />
+   361→              </Field>
+   362→              <Field label="Model" icon={Package}>
+   363→                <Input value={form.model} onChange={(e) => set('model', e.target.value)} placeholder="Optiplex 7010, iPhone 15..." />
+   364→              </Field>
+   365→              <Field label="Model Number" icon={Package}>
+   366→                <Input value={form.modelNumber} onChange={(e) => set('modelNumber', e.target.value)} placeholder="A3106, SM-A166P/DS" />
+   367→              </Field>
+   368→              <Field label="Serial Number (S/N)" icon={Package}>
+   369→                <Input value={form.serialNumber} onChange={(e) => set('serialNumber', e.target.value)} placeholder="Serial number" className="font-mono" />
+   370→              </Field>
+   371→              <Field label="Part Number" icon={Package}>
+   372→                <Input value={form.partNumber} onChange={(e) => set('partNumber', e.target.value)} placeholder="Part number" />
+   373→              </Field>
+   374→            </CardContent>
+   375→          </Card>
+   376→
+   377→          {/* Hardware */}
+   378→          <Card>
+   379→            <CardHeader className="pb-3">
+   380→              <CardTitle className="flex items-center gap-2 text-sm">
+   381→                <Cpu className="h-4 w-4" /> Hardware Specifications
+   382→              </CardTitle>
+   383→              <CardDescription>Technical configuration details</CardDescription>
+   384→            </CardHeader>
+   385→            <CardContent className="grid gap-4 sm:grid-cols-2">
+   386→              <Field label="CPU / Processor" icon={Cpu}>
+   387→                <Input value={form.cpu} onChange={(e) => set('cpu', e.target.value)} placeholder="Intel Core i5-3470" />
+   388→              </Field>
+   389→              <Field label="GPU / Graphics" icon={Cpu}>
+   390→                <Input value={form.gpu} onChange={(e) => set('gpu', e.target.value)} placeholder="Integrated / NVIDIA..." />
+   391→              </Field>
+   392→              <Field label="RAM" icon={MemoryStick}>
+   393→                <Input value={form.ram} onChange={(e) => set('ram', e.target.value)} placeholder="8GB, 16GB..." />
+   394→              </Field>
+   395→              <Field label="Storage" icon={HardDrive}>
+   396→                <Input value={form.storage} onChange={(e) => set('storage', e.target.value)} placeholder="512GB SSD, 1TB HDD" />
+   397→              </Field>
+   398→            </CardContent>
+   399→          </Card>
+   400→
+   401→          {/* Mobile-specific */}
+   402→          {isMobile && (
+   403→            <Card className="border-l-4" style={{ borderLeftColor: '#10b981' }}>
+   404→              <CardHeader className="pb-3">
+   405→                <CardTitle className="flex items-center gap-2 text-sm">
+   406→                  <Smartphone className="h-4 w-4" /> Mobile / Tablet Details
+   407→                </CardTitle>
+   408→                <CardDescription>Device-specific information for mobile assets</CardDescription>
+   409→              </CardHeader>
+   410→              <CardContent className="grid gap-4 sm:grid-cols-2">
+   411→                <Field label="IMEI 1" icon={Smartphone}>
+   412→                  <Input value={form.imei1} onChange={(e) => set('imei1', e.target.value)} placeholder="15-digit IMEI" className="font-mono" maxLength={15} />
+   413→                </Field>
+   414→                <Field label="IMEI 2 (Dual SIM)" icon={Smartphone}>
+   415→                  <Input value={form.imei2} onChange={(e) => set('imei2', e.target.value)} placeholder="Second IMEI" className="font-mono" maxLength={15} />
+   416→                </Field>
+   417→                <Field label="ROM / Storage" icon={HardDrive}>
+   418→                  <Input value={form.rom} onChange={(e) => set('rom', e.target.value)} placeholder="128GB, 256GB" />
+   419→                </Field>
+   420→                <Field label="Color" icon={Package}>
+   421→                  <Input value={form.color} onChange={(e) => set('color', e.target.value)} placeholder="Black, Titanium..." />
+   422→                </Field>
+   423→                <Field label="OTP Mobile Number" icon={Smartphone}>
+   424→                  <Input value={form.otpMobileNumber} onChange={(e) => set('otpMobileNumber', e.target.value)} placeholder="+91-..." />
+   425→                </Field>
+   426→                <Field label="Google / Apple Account" icon={User}>
+   427→                  <Input value={form.googleAppleAccount} onChange={(e) => set('googleAppleAccount', e.target.value)} placeholder="email@icloud.com" />
+   428→                </Field>
+   429→              </CardContent>
+   430→            </Card>
+   431→          )}
+   432→
+   433→          {/* Software */}
+   434→          <Card>
+   435→            <CardHeader className="pb-3">
+   436→              <CardTitle className="flex items-center gap-2 text-sm">
+   437→                <KeyRound className="h-4 w-4" /> Software & Licenses
+   438→              </CardTitle>
+   439→            </CardHeader>
+   440→            <CardContent className="grid gap-4 sm:grid-cols-2">
+   441→              <Field label="Operating System" icon={CircleDot}>
+   442→                <Input value={form.os} onChange={(e) => set('os', e.target.value)} placeholder="Windows 11 PRO, macOS Sonoma" />
+   443→              </Field>
+   444→              <div className="hidden sm:block" />
+   445→              <Field label="OS License Key" icon={KeyRound}>
+   446→                <Input value={form.osKey} onChange={(e) => set('osKey', e.target.value)} placeholder="XXXXX-XXXXX-XXXXX" className="font-mono text-xs" />
+   447→              </Field>
+   448→              <Field label="Office License Key" icon={KeyRound}>
+   449→                <Input value={form.officeKey} onChange={(e) => set('officeKey', e.target.value)} placeholder="Office key" className="font-mono text-xs" />
+   450→              </Field>
+   451→            </CardContent>
+   452→          </Card>
+   453→
+   454→          {/* Peripherals */}
+   455→          <Card>
+   456→            <CardHeader className="pb-3">
+   457→              <CardTitle className="flex items-center gap-2 text-sm">
+   458→                <Monitor className="h-4 w-4" /> Peripherals
+   459→              </CardTitle>
+   460→              <CardDescription>Attached monitors, keyboards, and mice</CardDescription>
+   461→            </CardHeader>
+   462→            <CardContent className="space-y-5">
+   463→              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   464→                <Field label="Monitor Make" icon={Monitor}><Input value={form.monitorMake} onChange={(e) => set('monitorMake', e.target.value)} /></Field>
+   465→                <Field label="Monitor Model"><Input value={form.monitorModel} onChange={(e) => set('monitorModel', e.target.value)} /></Field>
+   466→                <Field label="Monitor S/N"><Input value={form.monitorSn} onChange={(e) => set('monitorSn', e.target.value)} className="font-mono text-xs" /></Field>
+   467→                <Field label="Monitor Size"><Input value={form.monitorSize} onChange={(e) => set('monitorSize', e.target.value)} placeholder='24"' /></Field>
+   468→              </div>
+   469→              <Separator />
+   470→              <div className="grid gap-4 sm:grid-cols-3">
+   471→                <Field label="Keyboard Make" icon={Keyboard}><Input value={form.keyboardMake} onChange={(e) => set('keyboardMake', e.target.value)} /></Field>
+   472→                <Field label="Keyboard Model"><Input value={form.keyboardModel} onChange={(e) => set('keyboardModel', e.target.value)} /></Field>
+   473→                <Field label="Keyboard S/N"><Input value={form.keyboardSn} onChange={(e) => set('keyboardSn', e.target.value)} className="font-mono text-xs" /></Field>
+   474→              </div>
+   475→              <Separator />
+   476→              <div className="grid gap-4 sm:grid-cols-3">
+   477→                <Field label="Mouse Make" icon={Mouse}><Input value={form.mouseMake} onChange={(e) => set('mouseMake', e.target.value)} /></Field>
+   478→                <Field label="Mouse Model"><Input value={form.mouseModel} onChange={(e) => set('mouseModel', e.target.value)} /></Field>
+   479→                <Field label="Mouse S/N"><Input value={form.mouseSn} onChange={(e) => set('mouseSn', e.target.value)} className="font-mono text-xs" /></Field>
+   480→              </div>
+   481→            </CardContent>
+   482→          </Card>
+   483→
+   484→          {/* Comments */}
+   485→          <Card>
+   486→            <CardHeader className="pb-3">
+   487→              <CardTitle className="flex items-center gap-2 text-sm">
+   488→                <FileText className="h-4 w-4" /> Notes
+   489→              </CardTitle>
+   490→            </CardHeader>
+   491→            <CardContent>
+   492→              <Textarea
+   493→                value={form.comments}
+   494→                onChange={(e) => set('comments', e.target.value)}
+   495→                placeholder="Additional notes about this asset..."
+   496→                rows={3}
+   497→              />
+   498→            </CardContent>
+   499→          </Card>
+   500→        </div>
+   501→
+   502→        {/* Sidebar - Assignment & Financial */}
+   503→        <div className="space-y-5">
+   504→          {/* Status preview */}
+   505→          <Card className="bg-muted/30">
+   506→            <CardContent className="p-4">
+   507→              <div className="flex items-center gap-3">
+   508→                <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${cfg.bg}`}>
+   509→                  <Package className={`h-6 w-6 ${cfg.text}`} />
+   510→                </div>
+   511→                <div>
+   512→                  <div className="text-xs text-muted-foreground">Current Status</div>
+   513→                  <Badge variant="outline" className={`${cfg.bg} ${cfg.text} border-0 mt-0.5`}>{form.status}</Badge>
+   514→                </div>
+   515→              </div>
+   516→            </CardContent>
+   517→          </Card>
+   518→
+   519→          {/* Assignment */}
+   520→          <Card>
+   521→            <CardHeader className="pb-3">
+   522→              <CardTitle className="flex items-center gap-2 text-sm">
+   523→                <User className="h-4 w-4" /> Assignment
+   524→              </CardTitle>
+   525→            </CardHeader>
+   526→            <CardContent className="space-y-4">
+   527→              <Field label="Assigned To" icon={User}>
+   528→                <Select value={form.assignedToId} onValueChange={(v) => set('assignedToId', v === 'none' ? '' : v)}>
+   529→                  <SelectTrigger><SelectValue placeholder="Select person" /></SelectTrigger>
+   530→                  <SelectContent>
+   531→                    <SelectItem value="none">— Unassigned —</SelectItem>
+   532→                    {persons?.map((p) => (
+   533→                      <SelectItem key={p.id} value={p.id}>{p.fullName}{p.role ? ` (${p.role})` : ''}</SelectItem>
+   534→                    ))}
+   535→                  </SelectContent>
+   536→                </Select>
+   537→              </Field>
+   538→              <Field label="Department" icon={Building2}>
+   539→                <Select value={form.departmentId} onValueChange={(v) => set('departmentId', v === 'none' ? '' : v)}>
+   540→                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+   541→                  <SelectContent>
+   542→                    <SelectItem value="none">— None —</SelectItem>
+   543→                    {depts?.map((d) => (
+   544→                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+   545→                    ))}
+   546→                  </SelectContent>
+   547→                </Select>
+   548→              </Field>
+   549→              <Field label="Location" icon={Building2}>
+   550→                <Select value={form.locationId} onValueChange={(v) => set('locationId', v === 'none' ? '' : v)}>
+   551→                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+   552→                  <SelectContent>
+   553→                    <SelectItem value="none">— None —</SelectItem>
+   554→                    {locs?.map((l) => (
+   555→                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+   556→                    ))}
+   557→                  </SelectContent>
+   558→                </Select>
+   559→              </Field>
+   560→            </CardContent>
+   561→          </Card>
+   562→
+   563→          {/* Financial */}
+   564→          <Card>
+   565→            <CardHeader className="pb-3">
+   566→              <CardTitle className="flex items-center gap-2 text-sm">
+   567→                <DollarSign className="h-4 w-4" /> Purchase & Warranty
+   568→              </CardTitle>
+   569→            </CardHeader>
+   570→            <CardContent className="space-y-4">
+   571→              <Field label="Purchase Date" icon={Calendar}>
+   572→                <Input type="date" value={form.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} />
+   573→              </Field>
+   574→              <div className="grid grid-cols-3 gap-2">
+   575→                <div className="col-span-2">
+   576→                  <Field label="Cost" icon={DollarSign}>
+   577→                    <Input type="number" step="0.01" value={form.cost} onChange={(e) => set('cost', e.target.value)} placeholder="0.00" />
+   578→                  </Field>
+   579→                </div>
+   580→                <Field label="Currency">
+   581→                  <Select value={form.currency} onValueChange={(v) => set('currency', v)}>
+   582→                    <SelectTrigger><SelectValue /></SelectTrigger>
+   583→                    <SelectContent>
+   584→                      <SelectItem value="USD">USD</SelectItem>
+   585→                      <SelectItem value="EUR">EUR</SelectItem>
+   586→                      <SelectItem value="GBP">GBP</SelectItem>
+   587→                      <SelectItem value="INR">INR</SelectItem>
+   588→                    </SelectContent>
+   589→                  </Select>
+   590→                </Field>
+   591→              </div>
+   592→              <Field label="Warranty Expiry" icon={ShieldCheck}>
+   593→                <Input type="date" value={form.warrantyExpiry} onChange={(e) => set('warrantyExpiry', e.target.value)} />
+   594→              </Field>
+   595→            </CardContent>
+   596→          </Card>
+   597→        </div>
+   598→      </div>
+   599→    </div>
+   600→  )
+   601→}
+   602→

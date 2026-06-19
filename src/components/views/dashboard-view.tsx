@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { dashboardApi, assetsApi, maintenanceApi, auditLogApi } from '@/lib/api'
+import { dashboardApi, assetsApi, auditLogApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +19,6 @@ import {
   Users,
   Building2,
   MapPin,
-  Map as MapIcon,
   Sparkles,
   ArrowRight,
   ScanText,
@@ -29,16 +28,11 @@ import {
   DollarSign,
   ShieldAlert,
   KeyRound,
-  ScrollText,
-  Clock,
   ArrowLeftRight,
-  TrendingDown,
   Bell,
   BellRing,
   Store,
   ShoppingCart,
-  Trash2,
-  Recycle,
   Tag,
   CalendarClock,
 } from 'lucide-react'
@@ -155,10 +149,6 @@ export function DashboardView() {
   const { data: recentAssets } = useQuery({
     queryKey: ['recent-assets'],
     queryFn: () => assetsApi.list({ pageSize: 5, sortBy: 'createdAt', sortDir: 'desc' }),
-  })
-  const { data: maintData } = useQuery({
-    queryKey: ['maintenance-upcoming'],
-    queryFn: () => maintenanceApi.upcoming(),
   })
 
   if (isLoading || !stats) {
@@ -321,29 +311,6 @@ export function DashboardView() {
           </CardContent>
         </Card>
 
-        {/* Depreciation */}
-        <Card
-          className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
-          style={{ borderLeftColor: '#10b981' }}
-          onClick={() => navigate('depreciation')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Asset Value</CardTitle>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 transition-transform group-hover:scale-110">
-              <TrendingDown className="h-4 w-4 text-emerald-600" />
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-2xl font-bold tracking-tight tabular-nums">
-              {formatCurrency(stats.depreciation?.totalCurrentValue ?? 0)}
-            </div>
-            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
-              <span>of {formatCurrency(stats.depreciation?.totalPurchaseValue ?? 0)} purchase</span>
-              <span className="text-rose-600 font-medium">-{formatCurrency(stats.depreciation?.totalDepreciation ?? 0)}</span>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Notifications */}
         <Card
           className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
@@ -395,37 +362,8 @@ export function DashboardView() {
         </Card>
       </div>
 
-      {/* Maintenance & License Stats Row */}
+      {/* License Stats Row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-              <CardTitle className="text-xs font-medium text-muted-foreground shimmer-underline">Maintenance Overview</CardTitle>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-2xl font-bold">{stats.maintenance?.total ?? 0}</span>
-                <span className="text-xs text-muted-foreground">total records</span>
-              </div>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
-              <Wrench className="h-4 w-4 text-sky-600" />
-            </div>
-          </CardHeader>
-          <CardContent className="grid grid-cols-3 gap-2 pt-2">
-            <div className="rounded-md bg-sky-500/5 p-2 text-center">
-              <p className="text-[10px] text-muted-foreground">Scheduled</p>
-              <p className="text-lg font-bold text-sky-600">{stats.maintenance?.scheduled ?? 0}</p>
-            </div>
-            <div className="rounded-md bg-amber-500/5 p-2 text-center">
-              <p className="text-[10px] text-muted-foreground">In Progress</p>
-              <p className="text-lg font-bold text-amber-600">{stats.maintenance?.inProgress ?? 0}</p>
-            </div>
-            <div className="rounded-md bg-rose-500/5 p-2 text-center">
-              <p className="text-[10px] text-muted-foreground">Overdue</p>
-              <p className="text-lg font-bold text-rose-600">{stats.maintenance?.overdue ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#8b5cf6' }}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
@@ -460,34 +398,42 @@ export function DashboardView() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#10b981' }}>
+        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
-              <CardTitle className="text-xs font-medium text-muted-foreground">Upcoming Maintenance</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground">Recent Activity</CardTitle>
               <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-2xl font-bold">{maintData?.upcoming.length ?? 0}</span>
-                <span className="text-xs text-muted-foreground">in 30 days</span>
+                <span className="text-2xl font-bold">{stats.recentActivity?.length ?? 0}</span>
+                <span className="text-xs text-muted-foreground">latest events</span>
               </div>
             </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-              <Clock className="h-4 w-4 text-emerald-600" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
+              <Activity className="h-4 w-4 text-sky-600" />
             </div>
           </CardHeader>
           <CardContent className="pt-2">
-            {maintData?.upcoming.length ? (
-              <div className="space-y-1 max-h-16 overflow-y-auto scrollbar-thin">
-                {maintData.upcoming.slice(0, 2).map((m) => (
-                  <div key={m.id} className="flex items-center justify-between text-[11px]">
-                    <span className="truncate">{m.title}</span>
-                    <span className="text-muted-foreground whitespace-nowrap ml-2">{formatRelative(m.scheduledFor)}</span>
-                  </div>
-                ))}
+            <Button variant="ghost" size="sm" className="mt-1 h-6 w-full text-xs" onClick={() => navigate('audit-log')}>
+              View audit log <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: '#10b981' }}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-xs font-medium text-muted-foreground">Asset Tags</CardTitle>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-2xl font-bold">{stats.tags?.total ?? 0}</span>
+                <span className="text-xs text-muted-foreground">tags defined</span>
               </div>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">Nothing scheduled</p>
-            )}
-            <Button variant="ghost" size="sm" className="mt-1 h-6 w-full text-xs" onClick={() => navigate('maintenance')}>
-              View all <ArrowRight className="h-3 w-3 ml-1" />
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+              <Tag className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <Button variant="ghost" size="sm" className="mt-1 h-6 w-full text-xs" onClick={() => navigate('tags')}>
+              Manage tags <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
           </CardContent>
         </Card>
@@ -676,10 +622,10 @@ export function DashboardView() {
             color="#8b5cf6"
           />
           <QuickActionCard
-            title="Location Map"
-            description="View assets by location"
-            icon={MapIcon}
-            onClick={() => navigate('asset-map')}
+            title="Asset Bookings"
+            description="Reserve assets for events"
+            icon={CalendarClock}
+            onClick={() => navigate('bookings')}
             color="#0ea5e9"
           />
         </div>
@@ -848,29 +794,24 @@ export function DashboardView() {
           </CardContent>
         </Card>
 
-        {/* Disposals card */}
+        {/* Tags card */}
         <Card
           className="card-hover group cursor-pointer overflow-hidden border-l-4 shadow-soft relative"
-          style={{ borderLeftColor: '#10b981' }}
-          onClick={() => navigate('disposals')}
+          style={{ borderLeftColor: '#8b5cf6' }}
+          onClick={() => navigate('tags')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Disposals</CardTitle>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 transition-transform group-hover:scale-110">
-              <Recycle className="h-4 w-4 text-emerald-600" />
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Asset Tags</CardTitle>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 transition-transform group-hover:scale-110">
+              <Tag className="h-4 w-4 text-violet-600" />
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.disposals?.total ?? 0}</div>
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{stats.tags?.total ?? 0}</div>
             <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
-              <span className="text-emerald-600 font-medium">+{formatCurrency(stats.disposals?.totalRecovered ?? 0)}</span>
-              <span className="text-rose-600 font-medium">-{formatCurrency(stats.disposals?.totalCost ?? 0)}</span>
+              <span className="text-violet-600 font-medium">{stats.tags?.byColor?.length ?? 0} colors</span>
+              <span>{stats.tags?.total ?? 0} tagged</span>
             </div>
-            {(stats.disposals?.pendingApproval ?? 0) > 0 && (
-              <div className="mt-1.5 text-[11px] text-amber-600 font-medium">
-                {stats.disposals?.pendingApproval} awaiting approval
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

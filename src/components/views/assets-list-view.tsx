@@ -685,7 +685,7 @@ export function AssetsListView() {
                   const cfg = STATUS_CONFIG[asset.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['In Stock']
                   const assetTags = asset.tags || []
                   const isRowSelected = selectedIds.has(asset.id)
-                  const assetName = `${asset.make} ${asset.model}`.trim()
+                  const assetName = [asset.make, asset.model].filter(Boolean).join(' ').trim() || (asset.assetTag || '—')
                   return (
                     <TableRow
                       key={asset.id}

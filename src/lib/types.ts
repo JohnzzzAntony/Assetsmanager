@@ -59,6 +59,16 @@ export const ASSET_TYPE_ICONS: Record<string, string> = {
   Monitor: 'Display',
   Peripheral: 'Mouse',
   Other: 'Package',
+  Printer: 'Printer',
+  PDT: 'Smartphone',
+  POS: 'Monitor',
+  'Bill Printer': 'Printer',
+  'Weighing Scale': 'Scale',
+  Biometric: 'Fingerprint',
+  NVR: 'HardDrive',
+  Firewall: 'Shield',
+  Router: 'Router',
+  Switch: 'Network',
 }
 
 export interface AssetType {
@@ -133,6 +143,24 @@ export interface Asset {
   mouseMake?: string | null
   mouseModel?: string | null
   mouseSn?: string | null
+  monitorPartNumber?: string | null
+  mousePartNumber?: string | null
+  manufactureYear?: string | null
+  ipAddress?: string | null
+  tonerModel?: string | null
+  androidVersion?: string | null
+  gmailLogin?: string | null
+  deviceType?: string | null
+  qty?: number | null
+  barcodeScannerModel?: string | null
+  barcodeScannerSn?: string | null
+  hdd?: string | null
+  hddInstalledDate?: string | null
+  routerType?: string | null
+  fixedAssetsNumber?: string | null
+  storeName?: string | null
+  deliveryDate?: string | null
+  handoverDate?: string | null
   assignedToId?: string | null
   departmentId?: string | null
   locationId?: string | null

@@ -74,12 +74,30 @@ interface FormState {
   monitorModel: string
   monitorSn: string
   monitorSize: string
+  monitorPartNumber: string
   keyboardMake: string
   keyboardModel: string
   keyboardSn: string
   mouseMake: string
   mouseModel: string
   mouseSn: string
+  mousePartNumber: string
+  manufactureYear: string
+  ipAddress: string
+  tonerModel: string
+  androidVersion: string
+  gmailLogin: string
+  deviceType: string
+  qty: string
+  barcodeScannerModel: string
+  barcodeScannerSn: string
+  hdd: string
+  hddInstalledDate: string
+  routerType: string
+  fixedAssetsNumber: string
+  storeName: string
+  deliveryDate: string
+  handoverDate: string
   assignedToId: string
   departmentId: string
   locationId: string
@@ -92,8 +110,13 @@ const EMPTY: FormState = {
   warrantyExpiry: '', os: '', osKey: '', officeKey: '', cpu: '', gpu: '', ram: '',
   storage: '', color: '', imei1: '', imei2: '', rom: '', otpMobileNumber: '',
   googleAppleAccount: '', monitorMake: '', monitorModel: '', monitorSn: '', monitorSize: '',
-  keyboardMake: '', keyboardModel: '', keyboardSn: '', mouseMake: '', mouseModel: '',
-  mouseSn: '', assignedToId: '', departmentId: '', locationId: '', comments: '',
+  monitorPartNumber: '', keyboardMake: '', keyboardModel: '', keyboardSn: '',
+  mouseMake: '', mouseModel: '', mouseSn: '', mousePartNumber: '',
+  manufactureYear: '', ipAddress: '', tonerModel: '', androidVersion: '', gmailLogin: '',
+  deviceType: '', qty: '', barcodeScannerModel: '', barcodeScannerSn: '',
+  hdd: '', hddInstalledDate: '', routerType: '', fixedAssetsNumber: '',
+  storeName: '', deliveryDate: '', handoverDate: '',
+  assignedToId: '', departmentId: '', locationId: '', comments: '',
 }
 
 function toDateInput(s?: string | null): string {
@@ -166,12 +189,30 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
         monitorModel: existing.monitorModel || '',
         monitorSn: existing.monitorSn || '',
         monitorSize: existing.monitorSize || '',
+        monitorPartNumber: existing.monitorPartNumber || '',
         keyboardMake: existing.keyboardMake || '',
         keyboardModel: existing.keyboardModel || '',
         keyboardSn: existing.keyboardSn || '',
         mouseMake: existing.mouseMake || '',
         mouseModel: existing.mouseModel || '',
         mouseSn: existing.mouseSn || '',
+        mousePartNumber: existing.mousePartNumber || '',
+        manufactureYear: existing.manufactureYear || '',
+        ipAddress: existing.ipAddress || '',
+        tonerModel: existing.tonerModel || '',
+        androidVersion: existing.androidVersion || '',
+        gmailLogin: existing.gmailLogin || '',
+        deviceType: existing.deviceType || '',
+        qty: existing.qty != null ? String(existing.qty) : '',
+        barcodeScannerModel: existing.barcodeScannerModel || '',
+        barcodeScannerSn: existing.barcodeScannerSn || '',
+        hdd: existing.hdd || '',
+        hddInstalledDate: existing.hddInstalledDate || '',
+        routerType: existing.routerType || '',
+        fixedAssetsNumber: existing.fixedAssetsNumber || '',
+        storeName: existing.storeName || '',
+        deliveryDate: toDateInput(existing.deliveryDate),
+        handoverDate: toDateInput(existing.handoverDate),
         assignedToId: existing.assignedToId || '',
         departmentId: existing.departmentId || '',
         locationId: existing.locationId || '',
@@ -246,8 +287,11 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
       const payload: Record<string, unknown> = {
         ...form,
         cost: form.cost ? parseFloat(form.cost) : null,
+        qty: form.qty ? parseInt(form.qty, 10) : null,
         purchaseDate: form.purchaseDate ? new Date(form.purchaseDate).toISOString() : null,
         warrantyExpiry: form.warrantyExpiry ? new Date(form.warrantyExpiry).toISOString() : null,
+        handoverDate: form.handoverDate ? new Date(form.handoverDate).toISOString() : null,
+        deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
         assignedToId: form.assignedToId || null,
         departmentId: form.departmentId || null,
         locationId: form.locationId || null,
@@ -395,6 +439,21 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
               <Field label="Storage" icon={HardDrive}>
                 <Input value={form.storage} onChange={(e) => set('storage', e.target.value)} placeholder="512GB SSD, 1TB HDD" />
               </Field>
+              <Field label="Manufacture Year" icon={Calendar}>
+                <Input value={form.manufactureYear} onChange={(e) => set('manufactureYear', e.target.value)} placeholder="e.g. 2023" />
+              </Field>
+              <Field label="HDD" icon={HardDrive}>
+                <Input value={form.hdd} onChange={(e) => set('hdd', e.target.value)} placeholder="e.g. 4TB, 2TB" />
+              </Field>
+              <Field label="HDD Installed Date" icon={Calendar}>
+                <Input value={form.hddInstalledDate} onChange={(e) => set('hddInstalledDate', e.target.value)} placeholder="e.g. 2023-05-15 / 2023-06-01" />
+              </Field>
+              <Field label="Android Version" icon={CircleDot}>
+                <Input value={form.androidVersion} onChange={(e) => set('androidVersion', e.target.value)} placeholder="e.g. Android 6.0.1" />
+              </Field>
+              <Field label="Router Type" icon={CircleDot}>
+                <Input value={form.routerType} onChange={(e) => set('routerType', e.target.value)} placeholder="e.g. 4G Router" />
+              </Field>
             </CardContent>
           </Card>
 
@@ -426,9 +485,71 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
                 <Field label="Google / Apple Account" icon={User}>
                   <Input value={form.googleAppleAccount} onChange={(e) => set('googleAppleAccount', e.target.value)} placeholder="email@icloud.com" />
                 </Field>
+                <Field label="Gmail Login" icon={User}>
+                  <Input value={form.gmailLogin} onChange={(e) => set('gmailLogin', e.target.value)} placeholder="gmail account" />
+                </Field>
+                <Field label="Fixed Assets Number" icon={Package}>
+                  <Input value={form.fixedAssetsNumber} onChange={(e) => set('fixedAssetsNumber', e.target.value)} placeholder="Fixed asset register #" />
+                </Field>
               </CardContent>
             </Card>
           )}
+
+          {/* Network & Connectivity — shown for printer / scale / NVR / router / firewall / switch / POS / bill printer */}
+          {(() => {
+            const t = types?.find((x) => x.id === form.assetTypeId)?.name || ''
+            const show = ['Printer', 'Bill Printer', 'Weighing Scale', 'NVR', 'Firewall', 'Router', 'Switch', 'POS'].includes(t)
+            if (!show) return null
+            return (
+              <Card className="border-l-4" style={{ borderLeftColor: '#0ea5e9' }}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <CircleDot className="h-4 w-4" /> Network &amp; Connectivity
+                  </CardTitle>
+                  <CardDescription>IP / network configuration for this asset type</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <Field label="IP Address" icon={CircleDot}>
+                    <Input value={form.ipAddress} onChange={(e) => set('ipAddress', e.target.value)} placeholder="192.168.1.10" className="font-mono" />
+                  </Field>
+                  <Field label="Toner Model" icon={CircleDot}>
+                    <Input value={form.tonerModel} onChange={(e) => set('tonerModel', e.target.value)} placeholder="e.g. CF410A" />
+                  </Field>
+                </CardContent>
+              </Card>
+            )
+          })()}
+
+          {/* Device Details — shown for Other / Biometric / Weighing Scale */}
+          {(() => {
+            const t = types?.find((x) => x.id === form.assetTypeId)?.name || ''
+            const show = ['Other', 'Biometric', 'Weighing Scale'].includes(t)
+            if (!show) return null
+            return (
+              <Card className="border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Package className="h-4 w-4" /> Device Details
+                  </CardTitle>
+                  <CardDescription>Device type, quantity and store info</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Device Type" icon={CircleDot}>
+                    <Input value={form.deviceType} onChange={(e) => set('deviceType', e.target.value)} placeholder="e.g. Monitor, Cordless phone" />
+                  </Field>
+                  <Field label="Quantity" icon={Package}>
+                    <Input type="number" min="0" step="1" value={form.qty} onChange={(e) => set('qty', e.target.value)} placeholder="1" />
+                  </Field>
+                  <Field label="Store Name" icon={Building2}>
+                    <Input value={form.storeName} onChange={(e) => set('storeName', e.target.value)} placeholder="Store / location name" />
+                  </Field>
+                  <Field label="Toner Model" icon={CircleDot}>
+                    <Input value={form.tonerModel} onChange={(e) => set('tonerModel', e.target.value)} placeholder="Toner / consumable model" />
+                  </Field>
+                </CardContent>
+              </Card>
+            )
+          })()}
 
           {/* Software */}
           <Card>
@@ -477,6 +598,13 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
                 <Field label="Mouse Make" icon={Mouse}><Input value={form.mouseMake} onChange={(e) => set('mouseMake', e.target.value)} /></Field>
                 <Field label="Mouse Model"><Input value={form.mouseModel} onChange={(e) => set('mouseModel', e.target.value)} /></Field>
                 <Field label="Mouse S/N"><Input value={form.mouseSn} onChange={(e) => set('mouseSn', e.target.value)} className="font-mono text-xs" /></Field>
+              </div>
+              <Separator />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="Monitor Part #"><Input value={form.monitorPartNumber} onChange={(e) => set('monitorPartNumber', e.target.value)} /></Field>
+                <Field label="Mouse Part #"><Input value={form.mousePartNumber} onChange={(e) => set('mousePartNumber', e.target.value)} /></Field>
+                <Field label="Barcode Scanner Model"><Input value={form.barcodeScannerModel} onChange={(e) => set('barcodeScannerModel', e.target.value)} /></Field>
+                <Field label="Barcode Scanner S/N"><Input value={form.barcodeScannerSn} onChange={(e) => set('barcodeScannerSn', e.target.value)} className="font-mono text-xs" /></Field>
               </div>
             </CardContent>
           </Card>
@@ -591,6 +719,12 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
               </div>
               <Field label="Warranty Expiry" icon={ShieldCheck}>
                 <Input type="date" value={form.warrantyExpiry} onChange={(e) => set('warrantyExpiry', e.target.value)} />
+              </Field>
+              <Field label="Handover Date" icon={Calendar}>
+                <Input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} />
+              </Field>
+              <Field label="Delivery Date" icon={Calendar}>
+                <Input type="date" value={form.deliveryDate} onChange={(e) => set('deliveryDate', e.target.value)} />
               </Field>
             </CardContent>
           </Card>

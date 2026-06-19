@@ -1,0 +1,683 @@
+     1→// Seed data for IT Asset Manager
+     2→import { db, initDb, generateId } from './db'
+     3→
+     4→const ASSET_TYPES = [
+     5→  { name: 'Desktop', description: 'Desktop computers and workstations', icon: 'Monitor' },
+     6→  { name: 'Laptop', description: 'Portable computers', icon: 'Laptop' },
+     7→  { name: 'Mobile', description: 'Mobile phones and smartphones', icon: 'Smartphone' },
+     8→  { name: 'Tablet', description: 'Tablet devices', icon: 'Tablet' },
+     9→  { name: 'Monitor', description: 'Display monitors', icon: 'Display' },
+    10→  { name: 'Peripheral', description: 'Keyboards, mice, and other peripherals', icon: 'Mouse' },
+    11→  { name: 'Other', description: 'Other IT equipment', icon: 'Package' },
+    12→]
+    13→const DEPARTMENTS = [
+    14→  { name: 'IT', code: 'IT' },
+    15→  { name: 'Finance', code: 'FIN' },
+    16→  { name: 'Purchase', code: 'PUR' },
+    17→  { name: 'Creative', code: 'CRE' },
+    18→  { name: 'HR', code: 'HR' },
+    19→  { name: 'Operations', code: 'OPS' },
+    20→  { name: 'Sales', code: 'SAL' },
+    21→  { name: 'Marketing', code: 'MKT' },
+    22→]
+    23→
+    24→const LOCATIONS = [
+    25→  { name: 'Maylaa HO', address: 'Head Office, Maylaa Building' },
+    26→  { name: 'Warehouse', address: 'Central Warehouse, Sector 21' },
+    27→  { name: 'Branch - Mumbai', address: 'Mumbai Branch Office' },
+    28→  { name: 'Branch - Bangalore', address: 'Bangalore Tech Park' },
+    29→  { name: 'Remote', address: 'Work from Home / Remote' },
+    30→]
+    31→
+    32→const PERSONS = [
+    33→  { fullName: 'Rahul Sharma', email: 'rahul.sharma@maylaa.com', phone: '+91-9876543210', role: 'IT Manager', department: 'IT', location: 'Maylaa HO' },
+    34→  { fullName: 'Priya Patel', email: 'priya.patel@maylaa.com', phone: '+91-9876543211', role: 'Finance Lead', department: 'Finance', location: 'Maylaa HO' },
+    35→  { fullName: 'Amit Kumar', email: 'amit.kumar@maylaa.com', phone: '+91-9876543212', role: 'Purchase Officer', department: 'Purchase', location: 'Maylaa HO' },
+    36→  { fullName: 'Sneha Reddy', email: 'sneha.reddy@maylaa.com', phone: '+91-9876543213', role: 'Creative Director', department: 'Creative', location: 'Maylaa HO' },
+    37→  { fullName: 'Vikram Singh', email: 'vikram.singh@maylaa.com', phone: '+91-9876543214', role: 'HR Executive', department: 'HR', location: 'Maylaa HO' },
+    38→  { fullName: 'Anjali Gupta', email: 'anjali.gupta@maylaa.com', phone: '+91-9876543215', role: 'Operations Lead', department: 'Operations', location: 'Warehouse' },
+    39→  { fullName: 'Rohan Mehta', email: 'rohan.mehta@maylaa.com', phone: '+91-9876543216', role: 'Sales Manager', department: 'Sales', location: 'Branch - Mumbai' },
+    40→  { fullName: 'Kavya Nair', email: 'kavya.nair@maylaa.com', phone: '+91-9876543217', role: 'Marketing Specialist', department: 'Marketing', location: 'Branch - Bangalore' },
+    41→  { fullName: 'Arjun Verma', email: 'arjun.verma@maylaa.com', phone: '+91-9876543218', role: 'IT Support', department: 'IT', location: 'Maylaa HO' },
+    42→  { fullName: 'Deepa Iyer', email: 'deepa.iyer@maylaa.com', phone: '+91-9876543219', role: 'Designer', department: 'Creative', location: 'Remote' },
+    43→]
+    44→
+    45→const ASSETS = [
+    46→  // Desktops
+    47→  { type: 'Desktop', make: 'Dell', model: 'Optiplex 7010', modelNumber: '7010-SFF', serialNumber: 'DLO7010SN001', partNumber: 'TC-000018', status: 'In Use', os: 'Windows 10 PRO', cpu: 'Intel Core i5-3470', ram: '8GB', storage: '512GB SSD', cost: 650, assignedTo: 'Rahul Sharma', monitorMake: 'Dell', monitorModel: 'P2419H', monitorSn: 'DELMON001', monitorSize: '24"' },
+    48→  { type: 'Desktop', make: 'HP', model: 'ProDesk 600 G1', modelNumber: 'H6G1-SFF', serialNumber: 'HPP600SN002', status: 'In Use', os: 'WIN 11 PRO', cpu: 'Intel Core i7-4770', ram: '16GB', storage: '1TB HDD', cost: 800, assignedTo: 'Priya Patel', monitorMake: 'HP', monitorModel: 'M24fw', monitorSn: 'HPMON002', monitorSize: '24"' },
+    49→  { type: 'Desktop', make: 'Dell', model: 'Optiplex 7040', modelNumber: '7040-SFF', serialNumber: 'DLO7040SN003', status: 'In Stock', os: 'Windows 10 PRO', cpu: 'Intel Core i5-6500', ram: '8GB', storage: '256GB SSD', cost: 700 },
+    50→  { type: 'Desktop', make: 'Lenovo', model: 'ThinkCentre M710s', serialNumber: 'LNV710SN004', status: 'Repair', os: 'Windows 10 PRO', cpu: 'Intel Core i3-7100', ram: '8GB', storage: '500GB HDD', cost: 550 },
+    51→
+    52→  // Laptops
+    53→  { type: 'Laptop', make: 'Apple', model: 'MacBook Pro 14', modelNumber: 'Z14U', serialNumber: 'C02XJ0JKLM', status: 'In Use', os: 'macOS Sonoma', cpu: 'Apple M3 Pro', ram: '16GB', storage: '512GB SSD', cost: 1999, assignedTo: 'Sneha Reddy' },
+    54→  { type: 'Laptop', make: 'Lenovo', model: 'ThinkPad X1 Carbon', serialNumber: 'LNVTX1C005', status: 'In Use', os: 'Windows 11 PRO', cpu: 'Intel Core i7-1260P', ram: '16GB', storage: '512GB SSD', cost: 1600, assignedTo: 'Amit Kumar' },
+    55→  { type: 'Laptop', make: 'Dell', model: 'Latitude 5440', serialNumber: 'DLLAT5440006', status: 'In Use', os: 'Windows 11 PRO', cpu: 'Intel Core i5-1335U', ram: '16GB', storage: '256GB SSD', cost: 1200, assignedTo: 'Vikram Singh' },
+    56→  { type: 'Laptop', make: 'HP', model: 'EliteBook 840 G8', serialNumber: 'HPEB840G8007', status: 'In Stock', os: 'Windows 11 PRO', cpu: 'Intel Core i5-1135G7', ram: '8GB', storage: '512GB SSD', cost: 1100 },
+    57→
+    58→  // Mobiles
+    59→  { type: 'Mobile', make: 'Apple', model: 'iPhone 15 Pro Max', modelNumber: 'A3106', serialNumber: 'F2LW1234ABC', imei1: '356789104567890', imei2: '356789104567901', color: 'Natural Titanium', rom: '256GB', otpMobileNumber: '+91-9000010001', googleAppleAccount: 'sneha.reddy@icloud.com', status: 'In Use', cost: 1199, assignedTo: 'Sneha Reddy' },
+    60→  { type: 'Mobile', make: 'Samsung', model: 'Galaxy A32', modelNumber: 'SM-A166P/DS', serialNumber: 'RZ8M1234XYZ', imei1: '356789204567890', imei2: '356789204567901', color: 'Awesome Black', rom: '128GB', ram: '8GB', otpMobileNumber: '+91-9000010002', googleAppleAccount: 'amit.kumar@gmail.com', status: 'In Use', cost: 280, assignedTo: 'Amit Kumar' },
+    61→  { type: 'Mobile', make: 'Motorola', model: 'Edge 40', modelNumber: 'XT2308', serialNumber: 'MOTEDG4001', imei1: '356789304567890', color: 'Eclipse Black', rom: '256GB', ram: '8GB', status: 'In Stock', cost: 350 },
+    62→  { type: 'Mobile', make: 'Apple', model: 'iPhone 13', modelNumber: 'A2631', serialNumber: 'F2LW5678DEF', imei1: '356789404567890', color: 'Midnight', rom: '128GB', status: 'Repair', cost: 699, assignedTo: 'Rohan Mehta' },
+    63→  { type: 'Mobile', make: 'Samsung', model: 'Galaxy S23', modelNumber: 'SM-S911B', serialNumber: 'RZ8M5678UVW', imei1: '356789504567890', color: 'Phantom Black', rom: '256GB', ram: '8GB', status: 'In Use', cost: 799, assignedTo: 'Kavya Nair' },
+    64→
+    65→  // Tablets
+    66→  { type: 'Tablet', make: 'Apple', model: 'iPad Air 5', modelNumber: 'A2588', serialNumber: 'DMPGL000001', status: 'In Use', os: 'iPadOS 17', storage: '64GB', cost: 599, assignedTo: 'Deepa Iyer' },
+    67→  { type: 'Tablet', make: 'Samsung', model: 'Galaxy Tab S8', serialNumber: 'RZ8TABS8001', status: 'In Stock', os: 'Android 13', storage: '128GB', cost: 699 },
+    68→
+    69→  // Monitors
+    70→  { type: 'Monitor', make: 'Dell', model: 'U2723QE', modelNumber: 'U2723QE', serialNumber: 'DELU2723QM01', status: 'In Use', cost: 600 },
+    71→  { type: 'Monitor', make: 'LG', model: '27UK850-W', serialNumber: 'LG27UK850M01', status: 'In Stock', cost: 450 },
+    72→
+    73→  // Peripherals
+    74→  { type: 'Peripheral', make: 'Logitech', model: 'MX Keys', serialNumber: 'LOGMXK001', status: 'In Use', cost: 120 },
+    75→  { type: 'Peripheral', make: 'Logitech', model: 'MX Master 3S', serialNumber: 'LOGMXM3001', status: 'In Use', cost: 100 },
+    76→  { type: 'Peripheral', make: 'Keychron', model: 'K2 Wireless', serialNumber: 'KCHK2W001', status: 'In Stock', cost: 90 },
+    77→]
+    78→
+    79→function pad(n: number, len = 4) {
+    80→  return String(n).padStart(len, '0')
+    81→}
+    82→
+    83→export function seedDatabase(opts: { force?: boolean } = {}) {
+    84→  initDb()
+    85→
+    86→  // Check if already seeded
+    87→  const count = db.prepare('SELECT COUNT(*) as c FROM AssetType').get() as { c: number }
+    88→  if (count.c > 0 && !opts.force) {
+    89→    return { success: true, message: 'Database already seeded', skipped: true }
+    90→  }
+    91→
+    92→  // If force, wipe all tables first
+    93→  if (opts.force && count.c > 0) {
+    94→    const tableNames = [
+    95→      'AssetImage', 'AssignmentHistory', 'ActivityLog', 'MaintenanceSchedule',
+    96→      'AssetLicense', 'SoftwareLicense', 'CheckoutRequest', 'DepreciationRule',
+    97→      'Notification', 'PurchaseOrderItem', 'PurchaseOrder', 'Vendor',
+    98→      'AssetDisposal', 'AssetTagLink', 'AssetTag', 'AssetBooking',
+    99→      'Asset', 'Person', 'Department', 'Location', 'AssetType',
+   100→    ]
+   101→    for (const t of tableNames) {
+   102→      try { db.exec(`DELETE FROM ${t}`) } catch {}
+   103→    }
+   104→  }
+   105→
+   106→  const now = new Date().toISOString()
+   107→  const typeMap: Record<string, string> = {}
+   108→  const deptMap: Record<string, string> = {}
+   109→  const locMap: Record<string, string> = {}
+   110→  const personMap: Record<string, string> = {}
+   111→
+   112→  // Seed asset types
+   113→  const insType = db.prepare(
+   114→    `INSERT INTO AssetType (id, name, description, icon, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
+   115→  )
+   116→  for (const t of ASSET_TYPES) {
+   117→    const id = generateId()
+   118→    typeMap[t.name] = id
+   119→    insType.run(id, t.name, t.description, t.icon, now, now)
+   120→  }
+   121→
+   122→  // Seed departments
+   123→  const insDept = db.prepare(
+   124→    `INSERT INTO Department (id, name, code, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)`
+   125→  )
+   126→  for (const d of DEPARTMENTS) {
+   127→    const id = generateId()
+   128→    deptMap[d.name] = id
+   129→    insDept.run(id, d.name, d.code, now, now)
+   130→  }
+   131→
+   132→  // Seed locations
+   133→  const insLoc = db.prepare(
+   134→    `INSERT INTO Location (id, name, address, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)`
+   135→  )
+   136→  for (const l of LOCATIONS) {
+   137→    const id = generateId()
+   138→    locMap[l.name] = id
+   139→    insLoc.run(id, l.name, l.address, now, now)
+   140→  }
+   141→
+   142→  // Seed persons
+   143→  const insPerson = db.prepare(
+   144→    `INSERT INTO Person (id, fullName, email, phone, role, departmentId, locationId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   145→  )
+   146→  for (const p of PERSONS) {
+   147→    const id = generateId()
+   148→    personMap[p.fullName] = id
+   149→    insPerson.run(
+   150→      id,
+   151→      p.fullName,
+   152→      p.email,
+   153→      p.phone,
+   154→      p.role,
+   155→      p.department ? deptMap[p.department] : null,
+   156→      p.location ? locMap[p.location] : null,
+   157→      now,
+   158→      now
+   159→    )
+   160→  }
+   161→
+   162→  // Seed assets
+   163→  const insAsset = db.prepare(`
+   164→    INSERT INTO Asset (
+   165→      id, assetTag, assetTypeId, make, model, modelNumber, serialNumber, partNumber,
+   166→      status, purchaseDate, cost, currency, warrantyExpiry, os, osKey, officeKey,
+   167→      cpu, gpu, ram, storage, color, imei1, imei2, rom, otpMobileNumber, googleAppleAccount,
+   168→      monitorMake, monitorModel, monitorSn, monitorSize,
+   169→      keyboardMake, keyboardModel, keyboardSn,
+   170→      mouseMake, mouseModel, mouseSn,
+   171→      assignedToId, departmentId, locationId, comments, createdAt, updatedAt
+   172→    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+   173→  `)
+   174→
+   175→  let idx = 0
+   176→  for (const a of ASSETS) {
+   177→    const id = generateId()
+   178→    const assetTag = `TC-${pad(18 + idx, 6)}`
+   179→    const typeId = typeMap[a.type]
+   180→    const personId = a.assignedTo ? personMap[a.assignedTo] : null
+   181→    // Get department/location from the assigned person
+   182→    let deptId: string | null = null
+   183→    let locId: string | null = null
+   184→    if (a.assignedTo) {
+   185→      const p = PERSONS.find((x) => x.fullName === a.assignedTo)
+   186→      if (p) {
+   187→        deptId = p.department ? deptMap[p.department] : null
+   188→        locId = p.location ? locMap[p.location] : null
+   189→      }
+   190→    }
+   191→    // Spread purchase dates across the last 3 years for richer YoY analytics.
+   192→    // idx 0..6 -> 2024, idx 7..13 -> 2025, idx 14..20 -> 2026 (current year)
+   193→    const purchaseYear = 2024 + Math.floor(idx / 7)
+   194→    const purchaseDate = new Date(purchaseYear, idx % 12, (idx % 28) + 1).toISOString()
+   195→    const warrantyExpiry = new Date(purchaseYear + 2, (idx + 6) % 12, (idx % 28) + 1).toISOString()
+   196→    insAsset.run(
+   197→      id,
+   198→      assetTag,
+   199→      typeId,
+   200→      a.make || null,
+   201→      a.model || null,
+   202→      a.modelNumber || null,
+   203→      a.serialNumber || null,
+   204→      a.partNumber || null,
+   205→      a.status,
+   206→      purchaseDate,
+   207→      a.cost ?? null,
+   208→      'USD',
+   209→      warrantyExpiry,
+   210→      a.os || null,
+   211→      null,
+   212→      null,
+   213→      a.cpu || null,
+   214→      a.gpu || null,
+   215→      a.ram || null,
+   216→      a.storage || null,
+   217→      a.color || null,
+   218→      a.imei1 || null,
+   219→      a.imei2 || null,
+   220→      a.rom || null,
+   221→      a.otpMobileNumber || null,
+   222→      a.googleAppleAccount || null,
+   223→      a.monitorMake || null,
+   224→      a.monitorModel || null,
+   225→      a.monitorSn || null,
+   226→      a.monitorSize || null,
+   227→      null, null, null,
+   228→      null, null, null,
+   229→      personId,
+   230→      deptId,
+   231→      locId,
+   232→      null,
+   233→      now,
+   234→      now
+   235→    )
+   236→
+   237→    // Create initial assignment history
+   238→    if (personId || deptId || locId) {
+   239→      const histId = generateId()
+   240→      db.prepare(
+   241→        `INSERT INTO AssignmentHistory (id, assetId, personId, departmentId, locationId, assignedOn, reason, action, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   242→      ).run(histId, id, personId, deptId, locId, purchaseDate, 'Initial assignment', 'Assigned', now)
+   243→    }
+   244→    idx++
+   245→  }
+   246→
+   247→  // ---------- Seed Software Licenses ----------
+   248→  const LICENSES = [
+   249→    { name: 'Microsoft Office 365 Business', vendor: 'Microsoft', key: 'O365-BUS-XXXXX-XXXXX-XXXXX', seatsTotal: 25, category: 'Productivity', cost: 150, purchaseDate: '2024-01-15', expiryDate: '2025-12-31' },
+   250→    { name: 'Windows 11 Pro OEM', vendor: 'Microsoft', key: 'W11P-OEM-YYYYY-YYYYY-YYYYY', seatsTotal: 30, category: 'OS', cost: 199, purchaseDate: '2024-03-10' },
+   251→    { name: 'Adobe Creative Cloud All Apps', vendor: 'Adobe', key: 'ACC-TEAM-ZZZZZ-ZZZZZ-ZZZZZ', seatsTotal: 8, category: 'Design', cost: 599, purchaseDate: '2024-02-20', expiryDate: '2025-08-30' },
+   252→    { name: 'JetBrains All Products Pack', vendor: 'JetBrains', key: 'JB-ALL-AAAAA-AAAAA-AAAAA', seatsTotal: 5, category: 'Development', cost: 779, purchaseDate: '2024-04-01', expiryDate: '2025-10-01' },
+   253→    { name: 'Slack Pro', vendor: 'Slack', key: 'SLACK-PRO-BBBBB-BBBBB-BBBBB', seatsTotal: 50, category: 'Communication', cost: 84, purchaseDate: '2024-01-01', expiryDate: '2025-12-31' },
+   254→    { name: 'Zoom Workplace', vendor: 'Zoom', key: 'ZOOM-WP-CCCCC-CCCCC-CCCCC', seatsTotal: 15, category: 'Communication', cost: 149, purchaseDate: '2024-05-01' },
+   255→    { name: 'Norton Antivirus Plus', vendor: 'Norton', key: 'NAV-PLUS-DDDDD-DDDDD-DDDDD', seatsTotal: 20, category: 'Security', cost: 59, purchaseDate: '2024-06-01', expiryDate: '2025-06-30' },
+   256→  ]
+   257→  const insLic = db.prepare(
+   258→    `INSERT INTO SoftwareLicense (id, name, vendor, key, seatsTotal, seatsUsed, purchaseDate, expiryDate, cost, currency, category, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   259→  )
+   260→  const licenseIds: string[] = []
+   261→  for (const l of LICENSES) {
+   262→    const id = generateId()
+   263→    licenseIds.push(id)
+   264→    insLic.run(id, l.name, l.vendor, l.key, l.seatsTotal, 0, l.purchaseDate ?? null, l.expiryDate ?? null, l.cost ?? null, 'USD', l.category ?? null, null, now, now)
+   265→  }
+   266→
+   267→  // ---------- Seed Maintenance Schedules ----------
+   268→  const assetRows = db.prepare('SELECT id, assetTag, make, model FROM Asset').all() as { id: string; assetTag: string; make: string; model: string }[]
+   269→  const MAINT_TYPES = ['Preventive', 'Corrective', 'Upgrade', 'Inspection', 'Cleaning']
+   270→  const MAINT_STATUSES = ['Scheduled', 'In Progress', 'Completed', 'Overdue']
+   271→  const insMaint = db.prepare(
+   272→    `INSERT INTO MaintenanceSchedule (id, assetId, type, title, description, scheduledFor, completedAt, status, cost, performedBy, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   273→  )
+   274→  let maintCount = 0
+   275→  for (let i = 0; i < assetRows.length; i++) {
+   276→    if (i % 2 !== 0) continue  // schedule for half the assets
+   277→    const a = assetRows[i]
+   278→    const numMaint = (i % 3) + 1
+   279→    for (let j = 0; j < numMaint; j++) {
+   280→      const id = generateId()
+   281→      const type = MAINT_TYPES[(i + j) % MAINT_TYPES.length]
+   282→      const daysOffset = (j * 30) - 60 + (i % 7) * 5
+   283→      const schedDate = new Date()
+   284→      schedDate.setDate(schedDate.getDate() + daysOffset)
+   285→      let status = MAINT_STATUSES[j % MAINT_STATUSES.length]
+   286→      if (daysOffset < 0 && status === 'Scheduled') status = 'Overdue'
+   287→      const completedAt = status === 'Completed' ? schedDate.toISOString() : null
+   288→      const titles: Record<string, string> = {
+   289→        Preventive: 'Quarterly preventive maintenance',
+   290→        Corrective: 'Hardware repair — fan replacement',
+   291→        Upgrade: 'RAM upgrade to 16GB',
+   292→        Inspection: 'Annual safety inspection',
+   293→        Cleaning: 'Internal dust cleaning',
+   294→      }
+   295→      insMaint.run(
+   296→        id, a.id, type, titles[type] || type,
+   297→        `Scheduled for ${a.make} ${a.model} (${a.assetTag})`,
+   298→        schedDate.toISOString(),
+   299→        completedAt,
+   300→        status,
+   301→        Math.round((50 + (i * 17 % 200)) * 100) / 100,
+   302→        status === 'Completed' ? 'Arjun Verma' : null,
+   303→        status === 'Completed' ? 'Service completed successfully. No issues found.' : null,
+   304→        now, now
+   305→      )
+   306→      maintCount++
+   307→    }
+   308→  }
+   309→
+   310→  // ---------- Seed Audit Log entries ----------
+   311→  const AUDIT_ACTIONS = [
+   312→    { action: 'asset.created', entity: 'Asset', details: 'Created asset TC-000018' },
+   313→    { action: 'asset.updated', entity: 'Asset', details: 'Updated asset hardware specs' },
+   314→    { action: 'asset.assigned', entity: 'Asset', details: 'Assigned to Rahul Sharma (IT)' },
+   315→    { action: 'asset.unassigned', entity: 'Asset', details: 'Unassigned from previous owner' },
+   316→    { action: 'maintenance.created', entity: 'Asset', details: 'Scheduled preventive maintenance' },
+   317→    { action: 'maintenance.completed', entity: 'Asset', details: 'Completed RAM upgrade' },
+   318→    { action: 'license.allocated', entity: 'Asset', details: 'Allocated Microsoft Office 365 license' },
+   319→    { action: 'asset.imported', entity: 'Asset', details: 'Bulk imported 20 assets via CSV' },
+   320→  ]
+   321→  const insLog = db.prepare(
+   322→    `INSERT INTO ActivityLog (id, action, entityType, entityId, details, createdAt) VALUES (?, ?, ?, ?, ?, ?)`
+   323→  )
+   324→  let logCount = 0
+   325→  for (let i = 0; i < 30; i++) {
+   326→    const a = AUDIT_ACTIONS[i % AUDIT_ACTIONS.length]
+   327→    const asset = assetRows[i % assetRows.length]
+   328→    const t = new Date()
+   329→    t.setHours(t.getHours() - i * 7)
+   330→    insLog.run(generateId(), a.action, a.entity, asset.id, a.details, t.toISOString())
+   331→    logCount++
+   332→  }
+   333→
+   334→  // ---------- Seed Depreciation Rules ----------
+   335→  const typeRows = db.prepare('SELECT id, name FROM AssetType').all() as { id: string; name: string }[]
+   336→  const depRules = [
+   337→    { name: 'Standard IT Equipment (4yr, 10% salvage)', typeName: 'Laptop', method: 'straight-line', life: 4, salvage: 10 },
+   338→    { name: 'Desktop Computers (5yr, 5% salvage)', typeName: 'Desktop', method: 'straight-line', life: 5, salvage: 5 },
+   339→    { name: 'Mobile Devices (3yr, 0% salvage)', typeName: 'Mobile', method: 'declining-balance', life: 3, salvage: 0 },
+   340→    { name: 'Tablets (3yr, 5% salvage)', typeName: 'Tablet', method: 'straight-line', life: 3, salvage: 5 },
+   341→    { name: 'Monitors (6yr, 10% salvage)', typeName: 'Monitor', method: 'straight-line', life: 6, salvage: 10 },
+   342→    { name: 'Peripherals (2yr, 0% salvage)', typeName: 'Peripheral', method: 'straight-line', life: 2, salvage: 0 },
+   343→    { name: 'Default Rule (4yr, 0% salvage)', typeName: null, method: 'straight-line', life: 4, salvage: 0 },
+   344→  ]
+   345→  const insDep = db.prepare(
+   346→    `INSERT INTO DepreciationRule (id, name, assetTypeId, method, usefulLifeYears, salvageValuePercent, description, isActive, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   347→  )
+   348→  let depCount = 0
+   349→  for (const r of depRules) {
+   350→    const id = generateId()
+   351→    const typeId = r.typeName ? typeRows.find((t) => t.name === r.typeName)?.id : null
+   352→    insDep.run(
+   353→      id, r.name, typeId ?? null, r.method, r.life, r.salvage,
+   354→      `Auto-created rule for ${r.typeName || 'all asset types'}`,
+   355→      1, now, now
+   356→    )
+   357→    depCount++
+   358→  }
+   359→
+   360→  // ---------- Seed Checkout Requests ----------
+   361→  const personRows = db.prepare('SELECT id FROM Person').all() as { id: string }[]
+   362→  const checkoutStatuses = ['Pending', 'Approved', 'Checked Out', 'Checked In', 'Rejected']
+   363→  const insCheckout = db.prepare(
+   364→    `INSERT INTO CheckoutRequest (id, assetId, requestedById, requestType, status, reason, requestedStartDate, requestedReturnDate, approvedById, approvedAt, decisionNotes, checkedOutAt, checkedInAt, actualReturnDate, conditionAtReturn, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   365→  )
+   366→  let checkoutCount = 0
+   367→  for (let i = 0; i < 8; i++) {
+   368→    const a = assetRows[i % assetRows.length]
+   369→    const requester = personRows[(i + 3) % personRows.length]
+   370→    const approver = personRows[0]
+   371→    const status = checkoutStatuses[i % checkoutStatuses.length]
+   372→    const startDate = new Date()
+   373→    startDate.setDate(startDate.getDate() - (i * 7))
+   374→    const returnDate = new Date(startDate)
+   375→    returnDate.setDate(returnDate.getDate() + 14)
+   376→    const checkedOutAt = status === 'Checked Out' || status === 'Checked In' ? startDate.toISOString() : null
+   377→    const checkedInAt = status === 'Checked In' ? new Date().toISOString() : null
+   378→    const actualReturnDate = status === 'Checked In' ? new Date().toISOString() : null
+   379→    const approvedAt = status !== 'Pending' ? startDate.toISOString() : null
+   380→    const decisionNotes = status === 'Approved' || status === 'Checked Out' || status === 'Checked In'
+   381→      ? 'Approved for business use'
+   382→      : status === 'Rejected' ? 'Asset currently in use by another team' : null
+   383→    insCheckout.run(
+   384→      generateId(), a.id, requester.id, 'Checkout', status,
+   385→      `Need this asset for ${['client project', 'remote work', 'training session', 'testing', 'travel'][i % 5]}`,
+   386→      startDate.toISOString(),
+   387→      returnDate.toISOString(),
+   388→      status !== 'Pending' ? approver.id : null,
+   389→      approvedAt,
+   390→      decisionNotes,
+   391→      checkedOutAt, checkedInAt, actualReturnDate,
+   392→      status === 'Checked In' ? 'Good condition' : null,
+   393→      startDate.toISOString(), startDate.toISOString()
+   394→    )
+   395→    checkoutCount++
+   396→  }
+   397→
+   398→  // ---------- Generate system notifications ----------
+   399→  let notifCount = 0
+   400→  try {
+   401→    // Use the repo to generate notifications
+   402→    // Inline implementation to avoid circular import issues
+   403→    const in30 = new Date(); in30.setDate(in30.getDate() + 60)  // use 60 days for seed to generate some
+   404→    const inNow = new Date()
+   405→    // Warranty expiring (extend the window for seed)
+   406→    const warrantyRows = db.prepare(`
+   407→      SELECT id, assetTag, make, model, warrantyExpiry FROM Asset
+   408→      WHERE warrantyExpiry IS NOT NULL
+   409→    `).all() as any[]
+   410→    const insNotif = db.prepare(
+   411→      `INSERT INTO Notification (id, type, severity, title, message, entityType, entityId, isRead, actionUrl, actionLabel, createdAt, readAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NULL)`
+   412→    )
+   413→    for (const a of warrantyRows.slice(0, 4)) {
+   414→      const expDate = new Date(a.warrantyExpiry)
+   415→      const diffDays = Math.floor((expDate.getTime() - inNow.getTime()) / (24 * 3600 * 1000))
+   416→      if (diffDays < 0) {
+   417→        insNotif.run(generateId(), 'warranty_expiring', 'critical', 'Warranty Expired',
+   418→          `${a.make} ${a.model} (${a.assetTag}) warranty expired`, 'Asset', a.id, 'asset-detail', 'View Asset', inNow.toISOString())
+   419→        notifCount++
+   420→      } else if (diffDays < 60) {
+   421→        insNotif.run(generateId(), 'warranty_expiring', 'warning', 'Warranty Expiring Soon',
+   422→          `${a.make} ${a.model} (${a.assetTag}) warranty expires in ${diffDays} days`, 'Asset', a.id, 'asset-detail', 'View Asset', inNow.toISOString())
+   423→        notifCount++
+   424→      }
+   425→    }
+   426→    // Maintenance overdue notifications
+   427→    const overdueMaint = db.prepare(`
+   428→      SELECT m.title, m.scheduledFor, a.assetTag, a.make, a.model, a.id as assetId
+   429→      FROM MaintenanceSchedule m
+   430→      LEFT JOIN Asset a ON m.assetId = a.id
+   431→      WHERE m.status IN ('Scheduled','In Progress','Overdue') AND m.scheduledFor < ?
+   432→    `).all(inNow.toISOString()) as any[]
+   433→    for (const m of overdueMaint.slice(0, 3)) {
+   434→      insNotif.run(generateId(), 'maintenance_overdue', 'critical', 'Maintenance Overdue',
+   435→        `"${m.title}" for ${m.make} ${m.model} (${m.assetTag}) was due ${new Date(m.scheduledFor).toLocaleDateString()}`,
+   436→        'Asset', m.assetId, 'maintenance', 'View Maintenance', inNow.toISOString())
+   437→      notifCount++
+   438→    }
+   439→  } catch (e) {
+   440→    // ignore notification seed errors
+   441→  }
+   442→
+   443→  // ---------- Seed Vendors ----------
+   444→  const VENDORS = [
+   445→    { name: 'Dell Technologies', category: 'Hardware', contactPerson: 'Mike Chen', email: 'mike.chen@dell.com', phone: '+1-512-728-0001', website: 'dell.com', address: 'One Dell Way, Round Rock, TX', taxId: 'US-DELL-001', paymentTerms: 'Net 30', rating: 5 },
+   446→    { name: 'HP Enterprise', category: 'Hardware', contactPerson: 'Sarah Williams', email: 'sarah.w@hp.com', phone: '+1-650-857-0002', website: 'hp.com', address: '1701 E Mossy Oaks Rd, Spring, TX', taxId: 'US-HP-002', paymentTerms: 'Net 45', rating: 4 },
+   447→    { name: 'Apple India', category: 'Hardware', contactPerson: 'Anil Kapoor', email: 'anil.k@apple.com', phone: '+91-80-4045-0003', website: 'apple.com', address: 'iConnect, UB City, Bangalore', taxId: 'IN-APPL-003', paymentTerms: 'Prepaid', rating: 5 },
+   448→    { name: 'Lenovo India', category: 'Hardware', contactPerson: 'Pooja Bhatt', email: 'pooja.b@lenovo.com', phone: '+91-80-6767-0004', website: 'lenovo.com', address: 'Lenovo Tower, Bangalore', taxId: 'IN-LNV-004', paymentTerms: 'Net 30', rating: 4 },
+   449→    { name: 'Microsoft Licensing', category: 'Software', contactPerson: 'David Park', email: 'david.park@microsoft.com', phone: '+1-425-882-0005', website: 'microsoft.com', address: 'One Microsoft Way, Redmond, WA', taxId: 'US-MSFT-005', paymentTerms: 'Annual', rating: 5 },
+   450→    { name: 'Adobe Systems', category: 'Software', contactPerson: 'Emma Stone', email: 'emma.s@adobe.com', phone: '+1-408-536-0006', website: 'adobe.com', address: '345 Park Ave, San Jose, CA', taxId: 'US-ADBE-006', paymentTerms: 'Annual', rating: 4 },
+   451→    { name: 'Cisco Systems', category: 'Networking', contactPerson: 'Raj Malhotra', email: 'raj.m@cisco.com', phone: '+91-80-4410-0007', website: 'cisco.com', address: 'Cisco Tower, Bangalore', taxId: 'IN-CSCO-007', paymentTerms: 'Net 60', rating: 5 },
+   452→    { name: 'Logitech India', category: 'Peripherals', contactPerson: 'Sara Khan', email: 'sara.k@logitech.com', phone: '+91-80-2255-0008', website: 'logitech.com', address: 'Logitech India, Mumbai', taxId: 'IN-LGTI-008', paymentTerms: 'Net 30', rating: 3 },
+   453→    { name: 'IT Care Services', category: 'Services', contactPerson: 'Vivek Rao', email: 'vivek@itcare.com', phone: '+91-80-5566-0009', website: 'itcare.example.com', address: 'Service Hub, Whitefield, Bangalore', taxId: 'IN-ITCR-009', paymentTerms: 'Monthly', rating: 4 },
+   454→    { name: 'GreenCycle Recyclers', category: 'Services', contactPerson: 'Meera Joshi', email: 'meera@greencycle.com', phone: '+91-80-7788-0010', website: 'greencycle.example.com', address: 'Eco Park, Mumbai', taxId: 'IN-GNCY-010', paymentTerms: 'On Pickup', rating: 5 },
+   455→  ]
+   456→  const insVendor = db.prepare(
+   457→    `INSERT INTO Vendor (id, name, category, contactPerson, email, phone, website, address, taxId, paymentTerms, rating, isActive, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   458→  )
+   459→  const vendorIds: string[] = []
+   460→  for (const v of VENDORS) {
+   461→    const id = generateId()
+   462→    vendorIds.push(id)
+   463→    insVendor.run(id, v.name, v.category, v.contactPerson, v.email, v.phone, v.website, v.address, v.taxId, v.paymentTerms, v.rating, 1, null, now, now)
+   464→  }
+   465→
+   466→  // ---------- Seed Purchase Orders ----------
+   467→  const PO_DATA = [
+   468→    { poNumber: 'PO-2024-1001', vendorIdx: 0, status: 'Received', orderDate: '2024-01-15', expectedDate: '2024-01-25', receivedDate: '2024-01-24', taxRate: 8, shipping: 50, currency: 'USD', requesterIdx: 0, items: [
+   469→      { at: 'Desktop', desc: 'Dell Optiplex 7010 SFF Desktop', qty: 5, unit: 650 },
+   470→      { at: 'Monitor', desc: 'Dell P2419H 24" Monitor', qty: 5, unit: 180 },
+   471→    ]},
+   472→    { poNumber: 'PO-2024-1002', vendorIdx: 2, status: 'Received', orderDate: '2024-02-10', expectedDate: '2024-02-20', receivedDate: '2024-02-19', taxRate: 18, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+   473→      { at: 'Laptop', desc: 'MacBook Pro 14" M3 Pro', qty: 3, unit: 1999 },
+   474→      { at: 'Mobile', desc: 'iPhone 15 Pro Max 256GB', qty: 5, unit: 1199 },
+   475→    ]},
+   476→    { poNumber: 'PO-2024-1003', vendorIdx: 4, status: 'Received', orderDate: '2024-03-05', expectedDate: '2024-03-15', receivedDate: '2024-03-14', taxRate: 0, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+   477→      { at: null, desc: 'Microsoft 365 E3 Annual License (50 seats)', qty: 50, unit: 32 },
+   478→      { at: null, desc: 'Windows 11 Pro Upgrade License', qty: 20, unit: 99 },
+   479→    ]},
+   480→    { poNumber: 'PO-2024-1004', vendorIdx: 3, status: 'Partially Received', orderDate: '2024-04-20', expectedDate: '2024-05-05', receivedDate: null, taxRate: 18, shipping: 25, currency: 'USD', requesterIdx: 2, items: [
+   481→      { at: 'Laptop', desc: 'Lenovo ThinkPad X1 Carbon Gen 11', qty: 4, unit: 1600 },
+   482→      { at: 'Laptop', desc: 'Lenovo ThinkPad E14', qty: 6, unit: 850 },
+   483→    ]},
+   484→    { poNumber: 'PO-2024-1005', vendorIdx: 5, status: 'Ordered', orderDate: '2024-05-12', expectedDate: '2024-05-25', receivedDate: null, taxRate: 0, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+   485→      { at: null, desc: 'Adobe Creative Cloud All Apps (10 seats, annual)', qty: 10, unit: 599 },
+   486→    ]},
+   487→    { poNumber: 'PO-2024-1006', vendorIdx: 1, status: 'Pending Approval', orderDate: '2024-06-01', expectedDate: '2024-06-20', receivedDate: null, taxRate: 8, shipping: 75, currency: 'USD', requesterIdx: 0, items: [
+   488→      { at: 'Desktop', desc: 'HP EliteDesk 800 G9 Desktop', qty: 8, unit: 920 },
+   489→      { at: 'Monitor', desc: 'HP M24fw Monitor', qty: 8, unit: 165 },
+   490→    ]},
+   491→    { poNumber: 'PO-2024-1007', vendorIdx: 6, status: 'Approved', orderDate: '2024-06-15', expectedDate: '2024-07-01', receivedDate: null, taxRate: 18, shipping: 0, currency: 'USD', requesterIdx: 0, items: [
+   492→      { at: 'Other', desc: 'Cisco Catalyst 2960 Switch', qty: 2, unit: 1200 },
+   493→      { at: 'Other', desc: 'Cisco Access Point (Wi-Fi 6)', qty: 5, unit: 480 },
+   494→    ]},
+   495→    { poNumber: 'PO-2024-1008', vendorIdx: 7, status: 'Draft', orderDate: '2024-07-01', expectedDate: '2024-07-15', receivedDate: null, taxRate: 18, shipping: 15, currency: 'USD', requesterIdx: 0, items: [
+   496→      { at: 'Peripheral', desc: 'Logitech MX Master 3S Mouse', qty: 20, unit: 99 },
+   497→      { at: 'Peripheral', desc: 'Logitech MX Keys Keyboard', qty: 20, unit: 119 },
+   498→    ]},
+   499→  ]
+   500→  const insPO = db.prepare(
+   501→    `INSERT INTO PurchaseOrder (id, poNumber, vendorId, status, orderDate, expectedDate, receivedDate, subtotal, taxRate, taxAmount, shippingCost, totalAmount, currency, requestedById, approvedById, approvedAt, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   502→  )
+   503→  const insPOItem = db.prepare(
+   504→    `INSERT INTO PurchaseOrderItem (id, poId, assetTypeId, description, quantity, unitPrice, totalPrice, receivedQuantity, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   505→  )
+   506→  let poCount = 0
+   507→  for (const p of PO_DATA) {
+   508→    const id = generateId()
+   509→    const subtotal = p.items.reduce((s, it) => s + it.qty * it.unit, 0)
+   510→    const taxAmount = (subtotal * p.taxRate) / 100
+   511→    const total = subtotal + taxAmount + p.shipping
+   512→    const approverId = p.status !== 'Draft' && p.status !== 'Pending Approval' ? personRows[0].id : null
+   513→    const approvedAt = approverId ? now : null
+   514→    insPO.run(
+   515→      id, p.poNumber, vendorIds[p.vendorIdx], p.status, p.orderDate, p.expectedDate, p.receivedDate,
+   516→      subtotal, p.taxRate, taxAmount, p.shipping, total, p.currency, personRows[p.requesterIdx].id,
+   517→      approverId, approvedAt, null, now, now
+   518→    )
+   519→    for (const it of p.items) {
+   520→      const typeId = it.at ? typeRows.find((t) => t.name === it.at)?.id : null
+   521→      const receivedQty = p.status === 'Received' ? it.qty : (p.status === 'Partially Received' ? Math.floor(it.qty / 2) : 0)
+   522→      insPOItem.run(
+   523→        generateId(), id, typeId ?? null, it.desc, it.qty, it.unit, it.qty * it.unit, receivedQty, null, now
+   524→      )
+   525→    }
+   526→    poCount++
+   527→  }
+   528→
+   529→  // ---------- Seed Asset Disposals ----------
+   530→  // Pick retired assets for disposal records; if none, mark some old stock as Retired via disposal
+   531→  const disposalCandidates = db.prepare(`
+   532→    SELECT a.id, a.assetTag, a.make, a.model, a.cost, a.purchaseDate
+   533→    FROM Asset a
+   534→    WHERE a.status IN ('Repair', 'Retired') OR a.id IN (
+   535→      SELECT id FROM Asset WHERE make IN ('Lenovo','HP') LIMIT 4
+   536→    )
+   537→    LIMIT 4
+   538→  `).all() as any[]
+   539→  const disposalMethods = ['Sold', 'Recycled', 'Donated', 'Scrapped']
+   540→  const disposalReasons = [
+   541→    'End of life - hardware obsolete',
+   542→    'Beyond economic repair',
+   543→    'Replaced with newer model',
+   544→    'Warranty expired and recycled',
+   545→  ]
+   546→  const insDisposal = db.prepare(
+   547→    `INSERT INTO AssetDisposal (id, assetId, disposalNumber, method, reason, disposalDate, residualValue, disposalCost, netProceeds, buyerRecipient, conditionAtDisposal, environmentalCompliant, certificateNumber, approvedById, approvedAt, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   548→  )
+   549→  let disposalCount = 0
+   550→  disposalCandidates.forEach((a, i) => {
+   551→    const method = disposalMethods[i % disposalMethods.length]
+   552→    const residual = method === 'Sold' ? Math.round((a.cost || 500) * 0.15) : 0
+   553→    const dispCost = method === 'Recycled' ? 50 : (method === 'Scrapped' ? 25 : 0)
+   554→    const net = residual - dispCost
+   555→    const dispDate = new Date()
+   556→    dispDate.setDate(dispDate.getDate() - (30 + i * 15))
+   557→    const certNum = method === 'Recycled' || method === 'Scrapped' ? `EWP-${2024}-${String(i + 100)}` : null
+   558→    insDisposal.run(
+   559→      generateId(), a.id, `DISP-2024-${String(200 + i)}`, method, disposalReasons[i],
+   560→      dispDate.toISOString(), residual, dispCost, net,
+   561→      method === 'Sold' ? 'EcoBuy Recommerce' : (method === 'Donated' ? 'Local School Trust' : 'GreenCycle Recyclers'),
+   562→      'Poor', 1, certNum, personRows[0].id, dispDate.toISOString(),
+   563→      `Asset disposed via ${method}`, now, now
+   564→    )
+   565→    // Update asset status to Retired
+   566→    db.prepare("UPDATE Asset SET status = 'Retired', updatedAt = ? WHERE id = ?").run(now, a.id)
+   567→    disposalCount++
+   568→  })
+   569→
+   570→  // ============ Asset Tags ============
+   571→  const TAGS: { name: string; color: string; description: string }[] = [
+   572→    { name: 'High-Value', color: 'rose', description: 'Assets valued above $1,000' },
+   573→    { name: 'Remote-Only', color: 'sky', description: 'Assigned to remote workers only' },
+   574→    { name: 'Project-Phoenix', color: 'violet', description: 'Allocated to Project Phoenix team' },
+   575→    { name: 'Conference-Room', color: 'amber', description: 'Installed in conference rooms' },
+   576→    { name: 'Demo-Unit', color: 'emerald', description: 'Used for sales demos and trials' },
+   577→    { name: 'Needs-Review', color: 'orange', description: 'Pending review or audit' },
+   578→    { name: 'BYOD', color: 'cyan', description: 'Bring Your Own Device (with stipend)' },
+   579→    { name: 'Critical', color: 'pink', description: 'Mission-critical asset — SLA applies' },
+   580→  ]
+   581→  const insTag = db.prepare(
+   582→    `INSERT INTO AssetTag (id, name, color, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
+   583→  )
+   584→  const tagIds: string[] = []
+   585→  TAGS.forEach((t) => {
+   586→    const id = generateId()
+   587→    tagIds.push(id)
+   588→    insTag.run(id, t.name, t.color, t.description, now, now)
+   589→  })
+   590→  // Link tags to assets in a meaningful pattern
+   591→  const insTagLink = db.prepare(
+   592→    `INSERT INTO AssetTagLink (id, assetId, tagId, createdAt) VALUES (?, ?, ?, ?)`
+   593→  )
+   594→  let tagLinkCount = 0
+   595→  assetRows.forEach((a, i) => {
+   596→    // High-Value tag for assets with cost > 1000
+   597→    if ((a.cost || 0) > 1000) {
+   598→      insTagLink.run(generateId(), a.id, tagIds[0], now)
+   599→      tagLinkCount++
+   600→    }
+   601→    // Remote-Only for assets assigned to persons in remote locations (every 3rd)
+   602→    if (i % 3 === 0) {
+   603→      insTagLink.run(generateId(), a.id, tagIds[1], now)
+   604→      tagLinkCount++
+   605→    }
+   606→    // Project-Phoenix for every 4th
+   607→    if (i % 4 === 1) {
+   608→      insTagLink.run(generateId(), a.id, tagIds[2], now)
+   609→      tagLinkCount++
+   610→    }
+   611→    // Demo-Unit for every 5th
+   612→    if (i % 5 === 2) {
+   613→      insTagLink.run(generateId(), a.id, tagIds[4], now)
+   614→      tagLinkCount++
+   615→    }
+   616→    // Critical for laptops above $1500
+   617→    if ((a.cost || 0) > 1500) {
+   618→      insTagLink.run(generateId(), a.id, tagIds[7], now)
+   619→      tagLinkCount++
+   620→    }
+   621→  })
+   622→
+   623→  // ============ Asset Bookings ============
+   624→  const today = new Date()
+   625→  const fmt = (d: Date) => d.toISOString()
+   626→  const addDays = (d: Date, days: number) => {
+   627→    const r = new Date(d)
+   628→    r.setDate(r.getDate() + days)
+   629→    return r
+   630→  }
+   631→  const bookingSeeds: {
+   632→    assetIdx: number
+   633→    personIdx: number
+   634→    title: string
+   635→    purpose: string
+   636→    status: string
+   637→    startOffset: number
+   638→    endOffset: number
+   639→    notes?: string
+   640→  }[] = [
+   641→    { assetIdx: 1, personIdx: 2, title: 'Client demo — Acme Corp', purpose: 'On-site product demo for prospective client', status: 'Active', startOffset: -1, endOffset: 2 },
+   642→    { assetIdx: 7, personIdx: 4, title: 'Conference travel — Mumbai TechSummit', purpose: 'Booth demo unit for 3-day conference', status: 'Approved', startOffset: 3, endOffset: 6 },
+   643→    { assetIdx: 11, personIdx: 1, title: 'Project Phoenix kickoff', purpose: 'Temporary allocation for project onboarding', status: 'Pending', startOffset: 2, endOffset: 9 },
+   644→    { assetIdx: 15, personIdx: 3, title: 'Training workshop', purpose: 'Hands-on training for new hires', status: 'Approved', startOffset: 5, endOffset: 7 },
+   645→    { assetIdx: 5, personIdx: 5, title: 'Photo shoot — Marketing', purpose: 'Product photography for marketing assets', status: 'Completed', startOffset: -10, endOffset: -8 },
+   646→    { assetIdx: 9, personIdx: 6, title: 'Remote work — Q4', purpose: 'Work-from-home setup for Q4', status: 'Active', startOffset: -5, endOffset: 25 },
+   647→    { assetIdx: 13, personIdx: 0, title: 'QA testing cycle', purpose: 'Regression testing on staging build', status: 'Pending', startOffset: 7, endOffset: 14 },
+   648→    { assetIdx: 17, personIdx: 2, title: 'Executive offsite', purpose: 'Live presentation at leadership offsite', status: 'Cancelled', startOffset: 10, endOffset: 11, notes: 'Cancelled due to event postponement' },
+   649→  ]
+   650→  const insBooking = db.prepare(
+   651→    `INSERT INTO AssetBooking (id, assetId, bookedById, title, purpose, status, startDate, endDate, requestedById, approvedById, approvedAt, decisionNotes, checkedOutAt, checkedInAt, notes, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   652→  )
+   653→  let bookingCount = 0
+   654→  bookingSeeds.forEach((b) => {
+   655→    const asset = assetRows[b.assetIdx]
+   656→    const person = personRows[b.personIdx]
+   657→    if (!asset || !person) return
+   658→    const start = fmt(addDays(today, b.startOffset))
+   659→    const end = fmt(addDays(today, b.endOffset))
+   660→    const isActive = b.status === 'Active'
+   661→    const isCompleted = b.status === 'Completed'
+   662→    const isApproved = b.status === 'Approved' || isActive || isCompleted
+   663→    insBooking.run(
+   664→      generateId(), asset.id, person.id, b.title, b.purpose, b.status, start, end,
+   665→      person.id,
+   666→      isApproved ? personRows[0].id : null,
+   667→      isApproved ? fmt(addDays(today, b.startOffset - 5)) : null,
+   668→      isApproved ? 'Approved by IT Manager' : null,
+   669→      isActive ? fmt(addDays(today, b.startOffset)) : null,
+   670→      isCompleted ? fmt(addDays(today, b.endOffset)) : null,
+   671→      b.notes || null,
+   672→      fmt(addDays(today, b.startOffset - 7)),
+   673→      now
+   674→    )
+   675→    bookingCount++
+   676→  })
+   677→
+   678→  return {
+   679→    success: true,
+   680→    message: `Seeded ${ASSET_TYPES.length} types, ${DEPARTMENTS.length} departments, ${LOCATIONS.length} locations, ${PERSONS.length} persons, ${ASSETS.length} assets, ${LICENSES.length} licenses, ${maintCount} maintenance, ${logCount} audit entries, ${depCount} depreciation rules, ${checkoutCount} checkout requests, ${notifCount} notifications, ${VENDORS.length} vendors, ${poCount} purchase orders, ${disposalCount} disposals, ${TAGS.length} tags (${tagLinkCount} links), ${bookingCount} bookings`,
+   681→  }
+   682→}
+   683→

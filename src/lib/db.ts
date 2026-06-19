@@ -111,6 +111,24 @@ export function initDb() {
       mouseMake TEXT,
       mouseModel TEXT,
       mouseSn TEXT,
+      monitorPartNumber TEXT,
+      mousePartNumber TEXT,
+      manufactureYear TEXT,
+      ipAddress TEXT,
+      tonerModel TEXT,
+      androidVersion TEXT,
+      gmailLogin TEXT,
+      deviceType TEXT,
+      qty INTEGER,
+      barcodeScannerModel TEXT,
+      barcodeScannerSn TEXT,
+      hdd TEXT,
+      hddInstalledDate TEXT,
+      routerType TEXT,
+      fixedAssetsNumber TEXT,
+      storeName TEXT,
+      deliveryDate TEXT,
+      handoverDate TEXT,
       assignedToId TEXT REFERENCES Person(id) ON DELETE SET NULL,
       departmentId TEXT REFERENCES Department(id) ON DELETE SET NULL,
       locationId TEXT REFERENCES Location(id) ON DELETE SET NULL,
@@ -460,6 +478,33 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_audititem_asset ON AssetAuditItem(assetId);
     CREATE INDEX IF NOT EXISTS idx_audititem_status ON AssetAuditItem(status);
   `)
+
+  // ============ Migrations for new Asset columns (added in Round 10) ============
+  // These columns may already exist on a fresh DB (added to CREATE TABLE above),
+  // but existing DBs need ALTER TABLE. Wrapped in try/catch since duplicate add errors.
+  const newAssetCols: [string, string][] = [
+    ['monitorPartNumber', 'TEXT'],
+    ['mousePartNumber', 'TEXT'],
+    ['manufactureYear', 'TEXT'],
+    ['ipAddress', 'TEXT'],
+    ['tonerModel', 'TEXT'],
+    ['androidVersion', 'TEXT'],
+    ['gmailLogin', 'TEXT'],
+    ['deviceType', 'TEXT'],
+    ['qty', 'INTEGER'],
+    ['barcodeScannerModel', 'TEXT'],
+    ['barcodeScannerSn', 'TEXT'],
+    ['hdd', 'TEXT'],
+    ['hddInstalledDate', 'TEXT'],
+    ['routerType', 'TEXT'],
+    ['fixedAssetsNumber', 'TEXT'],
+    ['storeName', 'TEXT'],
+    ['deliveryDate', 'TEXT'],
+    ['handoverDate', 'TEXT'],
+  ]
+  for (const [col, type] of newAssetCols) {
+    try { d.exec(`ALTER TABLE Asset ADD COLUMN ${col} ${type}`) } catch {}
+  }
 }
 
 // Helper to generate IDs

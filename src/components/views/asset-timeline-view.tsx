@@ -172,13 +172,6 @@ const FILTER_CATEGORIES: FilterCategory[] = [
     ringClass: 'ring-sky-500/30',
   },
   {
-    key: 'Maintenance',
-    label: 'Maintenance',
-    types: ['maintenance.scheduled', 'maintenance.completed', 'maintenance.cancelled'],
-    color: '#f59e0b',
-    ringClass: 'ring-amber-500/30',
-  },
-  {
     key: 'Bookings',
     label: 'Bookings',
     types: ['booking.created', 'booking.completed'],
