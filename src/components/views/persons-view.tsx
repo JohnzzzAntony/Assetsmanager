@@ -65,7 +65,7 @@ export function PersonsView() {
   }
 
   return (
-    <div className="space-y-4 animate-fade-in-up">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2 shimmer-underline inline-block"><Users className="h-5 w-5" /> Persons</h2>
