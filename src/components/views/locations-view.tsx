@@ -62,7 +62,7 @@ export function LocationsView() {
         <Button onClick={openNew} className="hover-ripple"><Plus className="h-4 w-4 mr-1.5" /> Add Location</Button>
       </div>
 
-      <Card className="card-3d-tilt">
+      <Card>
         <Table>
           <TableHeader>
             <TableRow>

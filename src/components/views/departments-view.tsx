@@ -96,7 +96,7 @@ export function DepartmentsView() {
         </Button>
       </div>
 
-      <Card className="card-3d-tilt">
+      <Card>
         <Table>
           <TableHeader>
             <TableRow>
