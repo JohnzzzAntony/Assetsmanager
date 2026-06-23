@@ -47,7 +47,7 @@ export const useNav = create<NavState>((set, get) => ({
       history: [...current.history, { view: current.view, params: current.params }].slice(-20),
     })
     if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      window.scrollTo(0, 0)
     }
   },
   back: () => {
