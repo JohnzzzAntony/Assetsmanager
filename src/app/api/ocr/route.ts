@@ -6,74 +6,14 @@ import { imageRepo } from '@/lib/repo'
 import { writeFile, mkdir, readFile } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
+import { runOcr, parseJsonResponse } from '@/lib/ocr'
 
-const UPLOAD_DIR = '/home/z/my-project/uploads'
-
-const OCR_PROMPT = `You are an IT asset identification assistant. Analyze this image of an IT asset (computer, phone, tablet, monitor, peripheral, or spec label).
-
-Extract the following information if visible in the image and return it as a JSON object. If a field is not visible, use null.
-
-{
-  "make": "Manufacturer brand (e.g. Dell, HP, Apple, Samsung, Lenovo, Motorola)",
-  "model": "Model name (e.g. Optiplex 7010, iPhone 15 Pro Max, Galaxy A32)",
-  "modelNumber": "Model number / part code (e.g. A3106, SM-A166P/DS)",
-  "serialNumber": "Serial number (S/N, SN) - alphanumeric code",
-  "imei1": "15-digit IMEI number if visible (mobile devices)",
-  "imei2": "Second IMEI number if visible (dual SIM)",
-  "os": "Operating system if mentioned (e.g. Windows 10 PRO, macOS Sonoma, Android 14, iOS 17)",
-  "assetType": "Inferred type: Desktop, Laptop, Mobile, Tablet, Monitor, Peripheral, or Other",
-  "cpu": "CPU/processor if mentioned (e.g. Intel Core i5-3470)",
-  "ram": "RAM if mentioned (e.g. 8GB, 16GB)",
-  "storage": "Storage if mentioned (e.g. 512GB SSD, 1TB HDD)",
-  "color": "Color if mentioned",
-  "rawText": "All visible text from the image, preserving layout"
-}
-
-Return ONLY the JSON object, no markdown fences, no extra text.`
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
 
 async function ensureUploadDir() {
   try {
     await mkdir(UPLOAD_DIR, { recursive: true })
   } catch {}
-}
-
-async function runOcr(base64Image: string, mimeType: string) {
-  const ZAI = (await import('z-ai-web-dev-sdk')).default
-  const zai = await ZAI.create()
-  const response = await zai.chat.completions.createVision({
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: OCR_PROMPT },
-          {
-            type: 'image_url',
-            image_url: { url: `data:${mimeType};base64,${base64Image}` },
-          },
-        ],
-      },
-    ],
-    thinking: { type: 'disabled' },
-  })
-  const content = response.choices[0]?.message?.content || ''
-  return content
-}
-
-function parseJsonResponse(text: string): Record<string, unknown> {
-  let cleaned = text.trim()
-  // Strip markdown fences
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '')
-  }
-  // Find first { and last }
-  const start = cleaned.indexOf('{')
-  const end = cleaned.lastIndexOf('}')
-  if (start === -1 || end === -1) return { rawText: text }
-  try {
-    return JSON.parse(cleaned.slice(start, end + 1))
-  } catch {
-    return { rawText: text }
-  }
 }
 
 export async function POST(req: NextRequest) {

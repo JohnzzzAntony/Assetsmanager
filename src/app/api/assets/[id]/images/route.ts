@@ -7,7 +7,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
 
-const UPLOAD_DIR = '/home/z/my-project/uploads'
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
 
 async function ensureUploadDir() {
   try {

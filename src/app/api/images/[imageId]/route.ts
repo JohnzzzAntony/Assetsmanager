@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ima
     const img = imageRepo.get(imageId)
     if (!img) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const fullPath = path.join('/home/z/my-project', img.filePath)
+    const fullPath = path.join(process.cwd(), img.filePath)
     const buffer = await readFile(fullPath)
     return new NextResponse(buffer, {
       headers: {

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 
-const DB_PATH = process.env.DATABASE_FILE || '/home/z/my-project/db/assets.db'
+const DB_PATH = process.env.DATABASE_FILE || path.join(process.cwd(), 'db', 'assets.db')
 
 let _db: DatabaseSync | null = null
 

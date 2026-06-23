@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 // Hard-coded absolute path so the seed works regardless of the Next.js cwd.
-const EXCEL_JSON_PATH = '/home/z/my-project/scripts/excel_data.json'
+const EXCEL_JSON_PATH = path.join(process.cwd(), 'scripts', 'excel_data.json')
 
 // Sheet name → canonical AssetType name + tag prefix + icon.
 const SHEET_CONFIG: Record<
