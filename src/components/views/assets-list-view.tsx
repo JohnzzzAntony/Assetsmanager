@@ -69,8 +69,39 @@ import {
   Loader2,
   AlertTriangle,
   ChevronDown,
+  Monitor,
+  Laptop,
+  Smartphone,
+  Printer,
+  Fingerprint,
+  Scale,
+  Shield,
+  Video,
+  Network,
+  Wifi,
+  Cpu,
+  KeyRound,
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+function getCategoryIcon(name: string) {
+  const n = name.toLowerCase()
+  if (n.includes('desktop')) return Monitor
+  if (n.includes('laptop') || n.includes('notebook')) return Laptop
+  if (n.includes('mobile') || n.includes('phone') || n.includes('tablet')) return Smartphone
+  if (n.includes('printer')) return Printer
+  if (n.includes('biometric') || n.includes('finger')) return Fingerprint
+  if (n.includes('scale')) return Scale
+  if (n.includes('firewall')) return Shield
+  if (n.includes('nvr') || n.includes('camera')) return Video
+  if (n.includes('switch')) return Network
+  if (n.includes('router') || n.includes('wifi')) return Wifi
+  if (n.includes('pos')) return Cpu
+  if (n.includes('license') || n.includes('software')) return KeyRound
+  if (n.includes('bill')) return Printer
+  if (n.includes('pdt')) return Smartphone
+  return Package
+}
 
 const SORT_OPTIONS = [
   { value: 'createdAt', label: 'Date Created' },
@@ -261,6 +292,45 @@ export function AssetsListView() {
 
   return (
     <div className="space-y-4 animate-fade-in-up">
+      {/* Category Filter Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-2.5 -mx-1 px-1 no-print">
+        <button
+          onClick={() => { setAssetTypeId('all'); setPage(1) }}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
+            assetTypeId === 'all'
+              ? 'bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20 scale-102 font-bold'
+              : 'bg-muted/30 hover:bg-muted/50 border hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Package className="h-4 w-4" />
+          <span>All Categories</span>
+          <span className={`text-[10px] rounded-full px-2 py-0.5 ml-1 ${assetTypeId === 'all' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            {types ? types.reduce((acc, t) => acc + (t._count?.assets || 0), 0) : 0}
+          </span>
+        </button>
+        {types?.map((type) => {
+          const Icon = getCategoryIcon(type.name)
+          const selected = assetTypeId === type.id
+          return (
+            <button
+              key={type.id}
+              onClick={() => { setAssetTypeId(selected ? 'all' : type.id); setPage(1) }}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 whitespace-nowrap border ${
+                selected
+                  ? 'bg-primary/10 border-primary text-primary shadow-sm hover:bg-primary/15 scale-102 ring-2 ring-primary/10 font-bold'
+                  : 'bg-background hover:bg-muted/30 border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
+              }`}
+            >
+              <Icon className={`h-4 w-4 ${selected ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
+              <span>{type.name}</span>
+              <span className={`text-[10px] rounded-full px-2 py-0.5 ml-1 ${selected ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                {type._count?.assets || 0}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-center gap-2">
