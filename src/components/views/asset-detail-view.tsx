@@ -253,7 +253,7 @@ export function AssetDetailView({ id }: { id: string }) {
           <Button variant="outline" size="sm" onClick={() => window.open(assetActivityApi.qrUrl(id), '_blank')}>
             <QrCode className="h-4 w-4 mr-1.5" /> Label
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Button variant="outline" size="sm" onClick={() => navigate('print-acquisition', { id: asset.id })}>
             <Printer className="h-4 w-4 mr-1.5" /> Print
           </Button>
           <DropdownMenu>

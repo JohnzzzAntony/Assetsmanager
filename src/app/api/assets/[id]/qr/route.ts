@@ -97,7 +97,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const barcode = generateBarcodeSvg(label, 280, 50)
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220" viewBox="0 0 320 220">
       <rect width="320" height="220" fill="#fff" stroke="#000" stroke-width="1"/>
-      <text x="10" y="22" font-family="Arial, sans-serif" font-size="14" font-weight="bold">AssetHub Label</text>
+      <text x="10" y="22" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Maylaa International</text>
       <line x1="10" y1="28" x2="310" y2="28" stroke="#000" stroke-width="0.5"/>
       <g transform="translate(10, 36)">
         ${qr}

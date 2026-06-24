@@ -26,6 +26,7 @@ export type ViewName =
   | 'expirations'
   | 'asset-timeline'
   | 'audits'
+  | 'print-acquisition'
 
 interface NavState {
   view: ViewName

@@ -25,6 +25,7 @@ import { BookingsView } from '@/components/views/bookings-view'
 import { ExpirationsView } from '@/components/views/expirations-view'
 import { AssetTimelineView } from '@/components/views/asset-timeline-view'
 import { AuditsView } from '@/components/views/audits-view'
+import { PrintAcquisitionView } from '@/components/views/print-acquisition-view'
 import { useQuery } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -124,6 +125,8 @@ function ViewRouter() {
       return <AssetTimelineView assetId={params.id} />
     case 'audits':
       return <AuditsView />
+    case 'print-acquisition':
+      return <PrintAcquisitionView id={params.id} />
     default:
       return <DashboardView />
   }
