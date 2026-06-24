@@ -146,6 +146,14 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
   const [saving, setSaving] = useState(false)
   const [saveAndNew, setSaveAndNew] = useState(false)
 
+  const [customPerson, setCustomPerson] = useState(false)
+  const [customDept, setCustomDept] = useState(false)
+  const [customLoc, setCustomLoc] = useState(false)
+
+  const [customPersonName, setCustomPersonName] = useState('')
+  const [customDeptName, setCustomDeptName] = useState('')
+  const [customLocName, setCustomLocName] = useState('')
+
   const { data: types } = useQuery({ queryKey: ['asset-types'], queryFn: () => assetTypesApi.list() })
   const { data: depts } = useQuery({ queryKey: ['departments'], queryFn: () => departmentsApi.list() })
   const { data: locs } = useQuery({ queryKey: ['locations'], queryFn: () => locationsApi.list() })
@@ -284,6 +292,47 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
     setSaving(true)
     setSaveAndNew(andNew)
     try {
+      let finalDeptId = customDept ? null : (form.departmentId || null)
+      let finalLocId = customLoc ? null : (form.locationId || null)
+      let finalPersonId = customPerson ? null : (form.assignedToId || null)
+
+      // 1. Create custom department if needed
+      if (customDept && customDeptName.trim()) {
+        const existingDept = depts?.find(d => d.name.toLowerCase() === customDeptName.trim().toLowerCase())
+        if (existingDept) {
+          finalDeptId = existingDept.id
+        } else {
+          const newDept = await departmentsApi.create({ name: customDeptName.trim() })
+          finalDeptId = newDept.id
+        }
+      }
+
+      // 2. Create custom location if needed
+      if (customLoc && customLocName.trim()) {
+        const existingLoc = locs?.find(l => l.name.toLowerCase() === customLocName.trim().toLowerCase())
+        if (existingLoc) {
+          finalLocId = existingLoc.id
+        } else {
+          const newLoc = await locationsApi.create({ name: customLocName.trim() })
+          finalLocId = newLoc.id
+        }
+      }
+
+      // 3. Create custom person if needed
+      if (customPerson && customPersonName.trim()) {
+        const existingPerson = persons?.find(p => p.fullName.toLowerCase() === customPersonName.trim().toLowerCase())
+        if (existingPerson) {
+          finalPersonId = existingPerson.id
+        } else {
+          const newPerson = await personsApi.create({
+            fullName: customPersonName.trim(),
+            departmentId: finalDeptId,
+            locationId: finalLocId
+          })
+          finalPersonId = newPerson.id
+        }
+      }
+
       const payload: Record<string, unknown> = {
         ...form,
         cost: form.cost ? parseFloat(form.cost) : null,
@@ -292,9 +341,9 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
         warrantyExpiry: form.warrantyExpiry ? new Date(form.warrantyExpiry).toISOString() : null,
         handoverDate: form.handoverDate ? new Date(form.handoverDate).toISOString() : null,
         deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
-        assignedToId: form.assignedToId || null,
-        departmentId: form.departmentId || null,
-        locationId: form.locationId || null,
+        assignedToId: finalPersonId,
+        departmentId: finalDeptId,
+        locationId: finalLocId,
       }
       Object.keys(payload).forEach((k) => {
         if (payload[k] === '') payload[k] = null
@@ -308,8 +357,26 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
         result = await assetsApi.create(payload)
         toast.success('Asset created successfully')
       }
+
+      // Reset custom inputs on success
+      if (customDept) {
+        setCustomDept(false)
+        setCustomDeptName('')
+      }
+      if (customLoc) {
+        setCustomLoc(false)
+        setCustomLocName('')
+      }
+      if (customPerson) {
+        setCustomPerson(false)
+        setCustomPersonName('')
+      }
+
       qc.invalidateQueries({ queryKey: ['assets'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['persons'] })
+      qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['locations'] })
 
       if (andNew && mode === 'new') {
         setForm({ ...EMPTY })
@@ -652,39 +719,107 @@ export function AssetFormView({ mode, id, prefill }: { mode: 'new' | 'edit'; id?
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Field label="Assigned To" icon={User}>
-                <Select value={form.assignedToId} onValueChange={(v) => set('assignedToId', v === 'none' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select person" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Unassigned —</SelectItem>
-                    {persons?.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.fullName}{p.role ? ` (${p.role})` : ''}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Department" icon={Building2}>
-                <Select value={form.departmentId} onValueChange={(v) => set('departmentId', v === 'none' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— None —</SelectItem>
-                    {depts?.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Location" icon={Building2}>
-                <Select value={form.locationId} onValueChange={(v) => set('locationId', v === 'none' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— None —</SelectItem>
-                    {locs?.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    Assigned To
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setCustomPerson(!customPerson)}
+                    className="text-[10px] font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    {customPerson ? "Select Existing" : "Enter Custom"}
+                  </button>
+                </div>
+                {customPerson ? (
+                  <Input
+                    placeholder="Enter custom person name"
+                    value={customPersonName}
+                    onChange={(e) => setCustomPersonName(e.target.value)}
+                    className="h-9"
+                  />
+                ) : (
+                  <Select value={form.assignedToId} onValueChange={(v) => set('assignedToId', v === 'none' ? '' : v)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select person" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Unassigned —</SelectItem>
+                      {persons?.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.fullName}{p.role ? ` (${p.role})` : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3 text-muted-foreground" />
+                    Department
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setCustomDept(!customDept)}
+                    className="text-[10px] font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    {customDept ? "Select Existing" : "Enter Custom"}
+                  </button>
+                </div>
+                {customDept ? (
+                  <Input
+                    placeholder="Enter custom department name"
+                    value={customDeptName}
+                    onChange={(e) => setCustomDeptName(e.target.value)}
+                    className="h-9"
+                  />
+                ) : (
+                  <Select value={form.departmentId} onValueChange={(v) => set('departmentId', v === 'none' ? '' : v)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— None —</SelectItem>
+                      {depts?.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3 text-muted-foreground" />
+                    Location
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setCustomLoc(!customLoc)}
+                    className="text-[10px] font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    {customLoc ? "Select Existing" : "Enter Custom"}
+                  </button>
+                </div>
+                {customLoc ? (
+                  <Input
+                    placeholder="Enter custom location name"
+                    value={customLocName}
+                    onChange={(e) => setCustomLocName(e.target.value)}
+                    className="h-9"
+                  />
+                ) : (
+                  <Select value={form.locationId} onValueChange={(v) => set('locationId', v === 'none' ? '' : v)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select location" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— None —</SelectItem>
+                      {locs?.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </CardContent>
           </Card>
 
