@@ -52,3 +52,7 @@ prompt
 server.log
 # Skills directory
 /skills/
+# local SQLite data (contains personal info; prod uses DATABASE_FILE on a Railway volume)
+/db/*.db
+/db/*.db-shm
+/db/*.db-wal
